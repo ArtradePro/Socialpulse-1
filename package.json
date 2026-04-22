@@ -1,0 +1,42 @@
+{
+  "name": "socialpulse",
+  "version": "1.0.0",
+  "description": "SocialPulse monorepo",
+  "private": true,
+  "scripts": {
+    "dev:backend": "npm run dev --prefix socialPulse-app/backend",
+    "dev:frontend": "npm run dev --prefix socialPulse-app/frontend",
+    "build:backend": "npm run build --prefix socialPulse-app/backend",
+    "build:frontend": "npm run build --prefix socialPulse-app/frontend",
+    "install:all": "npm install --prefix socialPulse-app/backend && npm install --prefix socialPulse-app/frontend"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1034.0",
+    "@aws-sdk/s3-request-presigner": "^3.1034.0",
+    "@bull-board/api": "^7.0.0",
+    "bcryptjs": "^3.0.3",
+    "bull": "^4.16.5",
+    "cloudinary": "^2.9.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.3.2",
+    "express-validator": "^7.3.2",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
+    "node-cron": "^4.2.1",
+    "openai": "^6.34.0",
+    "pg": "^8.20.0",
+    "redis": "^5.12.1",
+    "sharp": "^0.34.5",
+    "stripe": "^22.0.2",
+    "twitter-api-v2": "^1.29.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node-cron": "^3.0.11",
+    "ts-node-dev": "^2.0.0"
+  }
+}
