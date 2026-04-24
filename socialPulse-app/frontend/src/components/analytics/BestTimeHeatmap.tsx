@@ -75,7 +75,7 @@ const BestTimeHeatmap: React.FC<Props> = ({ data, loading }) => {
                     {/* Rows */}
                     {DAYS.map((day, dayIdx) => (
                         <div key={day} className="flex items-center mb-1">
-                            <span className="text-xs text-gray-400 w-10 flex-shrink-0 text-right pr-2">
+                            <span className="text-xs text-gray-400 w-10 shrink-0 text-right pr-2">
                                 {day}
                             </span>
                             {HOURS.map((_, hourIdx) => {

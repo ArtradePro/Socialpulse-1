@@ -10,6 +10,4 @@ export const aiService = {
   improveContent: (content: string, goal?: string) =>
     api.post<{ content: string }>('/ai/improve', { content, goal }).then(r => r.data),
 
-  analyzeSentiment: (content: string) =>
-    api.post<{ sentiment: string; score: number; suggestion: string }>('/ai/sentiment', { content }).then(r => r.data),
 };

@@ -160,4 +160,28 @@ export const EmailService = {
             `)
         );
     },
+
+    /** Team invitation email with accept link */
+    async sendTeamInvite(
+        to:           string,
+        inviterEmail: string,
+        teamName:     string,
+        role:         string,
+        link:         string
+    ): Promise<void> {
+        await send(
+            to,
+            `You've been invited to join ${teamName} on SocialPulse`,
+            base(`
+              <p>Hi,</p>
+              <p><strong>${inviterEmail}</strong> has invited you to join the
+                 <strong>${teamName}</strong> team on SocialPulse as a
+                 <strong>${role}</strong>.</p>
+              <a class="btn" href="${link}">Accept Invitation</a>
+              <p>This link expires in <strong>7 days</strong>. If you don't have
+                 an account yet, you'll be prompted to create one.</p>
+              <p style="font-size:12px;color:#9ca3af;">Or copy this URL:<br>${link}</p>
+            `)
+        );
+    },
 };

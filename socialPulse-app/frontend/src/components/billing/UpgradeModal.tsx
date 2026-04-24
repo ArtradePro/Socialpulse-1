@@ -54,7 +54,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, mess
                 </button>
 
                 {/* Icon */}
-                <div className="w-14 h-14 bg-gradient-to-br from-purple-600 to-blue-600
+                <div className="w-14 h-14 bg-linear-to-br from-purple-600 to-blue-600
                                 rounded-2xl flex items-center justify-center mx-auto mb-5">
                     <Zap className="w-7 h-7 text-white" />
                 </div>
@@ -70,7 +70,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, mess
                     <button
                         onClick={() => { onClose(); navigate('/billing'); }}
                         className="w-full flex items-center justify-center gap-2 py-3
-                                   bg-gradient-to-r from-purple-600 to-blue-600 text-white
+                                   bg-linear-to-r from-purple-600 to-blue-600 text-white
                                    rounded-xl font-semibold hover:opacity-90 transition-opacity"
                     >
                         View Plans

@@ -12,8 +12,10 @@
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@reduxjs/toolkit": "^2.11.2",
+    "@types/fabric": "^5.3.11",
     "axios": "^1.15.2",
     "date-fns": "^4.1.0",
+    "fabric": "^5.5.2",
     "lucide-react": "^1.8.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

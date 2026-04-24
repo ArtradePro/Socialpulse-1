@@ -5,6 +5,7 @@ import { InstagramService } from '../services/instagramService';
 import { LinkedInService } from '../services/linkedinService';
 import { FacebookService } from '../services/facebookService';
 import { EmailService } from '../services/email.service';
+import { NotificationService } from '../services/notification.service';
 import { triggerUserSync } from './analyticsSync';
 
 const postQueue = new Bull('post-publishing', {
@@ -102,12 +103,33 @@ export const initScheduler = () => {
                 [allSuccess ? 'published' : anySuccess ? 'partial' : 'failed', postId]
             );
 
-            // Notify author about any failures
             const failures = Object.entries(results)
                 .filter(([, r]) => !r.success)
                 .map(([platform, r]) => ({ platform, error: r.error ?? 'Unknown error' }));
+            const successPlatforms = Object.entries(results)
+                .filter(([, r]) => r.success)
+                .map(([p]) => p);
+
+            // In-app + email notifications (non-critical — never let these block the job)
+            if (anySuccess) {
+                NotificationService.create({
+                    userId:  postData.user_id,
+                    type:    'post_published',
+                    title:   'Post published',
+                    message: `Published to ${successPlatforms.join(', ')}`,
+                    link:    '/scheduler',
+                }).catch(console.error);
+            }
 
             if (failures.length > 0) {
+                NotificationService.create({
+                    userId:  postData.user_id,
+                    type:    'post_failed',
+                    title:   'Post failed to publish',
+                    message: `Failed on: ${failures.map(f => f.platform).join(', ')}`,
+                    link:    `/studio`,
+                }).catch(console.error);
+
                 try {
                     const authorRow = await db.query(
                         'SELECT email FROM users WHERE id = $1', [postData.user_id]

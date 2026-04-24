@@ -5,7 +5,8 @@ import jwt from 'jsonwebtoken';
 declare global {
     namespace Express {
         interface Request {
-            user?: { userId: string; email: string; plan: string };
+            user?:     { userId: string; email: string; plan: string };
+            teamRole?: string;  // set by requireTeamRole middleware
         }
     }
 }

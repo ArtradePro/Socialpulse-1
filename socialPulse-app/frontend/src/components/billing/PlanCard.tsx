@@ -80,7 +80,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
             {/* Badge */}
             {plan.badge && (
                 <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                    <span className="bg-gradient-to-r from-purple-600 to-blue-600 text-white
+                    <span className="bg-linear-to-r from-purple-600 to-blue-600 text-white
                                      text-xs font-bold px-4 py-1 rounded-full shadow-md">
                         {plan.badge}
                     </span>
@@ -118,7 +118,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
 
                     return (
                         <li key={key} className="flex items-start gap-2 text-sm">
-                            <Check className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                            <Check className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
                             <span className="text-gray-700">
                                 {isBoolean ? label : `${fmtLimit(val)} ${label}`}
                             </span>
@@ -147,7 +147,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
                     className={`w-full py-2.5 rounded-xl font-semibold text-sm
                                 transition-all flex items-center justify-center gap-2 ${
                         isPro
-                            ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:opacity-90'
+                            ? 'bg-linear-to-r from-purple-600 to-blue-600 text-white hover:opacity-90'
                             : 'bg-gray-900 text-white hover:bg-gray-800'
                     } disabled:opacity-60`}
                 >

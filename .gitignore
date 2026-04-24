@@ -39,3 +39,8 @@ redis-data/
 
 # Uploads / media
 uploads/
+
+# SSL certificates — never commit real certs
+nginx/ssl/*.pem
+nginx/ssl/*.key
+nginx/ssl/*.crt

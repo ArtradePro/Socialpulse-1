@@ -42,3 +42,15 @@ export const generateImageCaption = async (req: AuthRequest, res: Response): Pro
         res.status(500).json({ message: err.message || 'Caption generation failed' });
     }
 };
+
+export const generateImage = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { prompt, size } = req.body;
+        if (!prompt) { res.status(400).json({ message: 'prompt is required' }); return; }
+        const url = await AIService.generateImage(req.user!.userId, prompt, size);
+        res.json({ url });
+    } catch (err: any) {
+        const status = err.message?.includes('credits') ? 402 : 500;
+        res.status(status).json({ message: err.message || 'Image generation failed' });
+    }
+};

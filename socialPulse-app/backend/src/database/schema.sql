@@ -273,3 +273,166 @@ BEGIN
           FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL;
     END IF;
 END $$;
+
+-- Notification preferences per user
+ALTER TABLE users ADD COLUMN IF NOT EXISTS
+    notification_prefs JSONB DEFAULT '{"postFailed":true,"paymentFailed":true,"trialEnding":true,"weeklyDigest":false}';
+
+-- ─── P3: RSS Auto-posting ─────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS rss_feeds (
+    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id          UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name             VARCHAR(255) NOT NULL,
+    url              TEXT        NOT NULL,
+    platforms        TEXT[]      NOT NULL DEFAULT '{}',
+    auto_post        BOOLEAN     NOT NULL DEFAULT false,
+    interval_hours   INTEGER     NOT NULL DEFAULT 24,
+    last_fetched_at  TIMESTAMP,
+    is_active        BOOLEAN     NOT NULL DEFAULT true,
+    created_at       TIMESTAMP   DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_rss_feeds_user ON rss_feeds(user_id);
+
+CREATE TABLE IF NOT EXISTS rss_entries (
+    id         UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
+    feed_id    UUID      NOT NULL REFERENCES rss_feeds(id) ON DELETE CASCADE,
+    guid       TEXT      NOT NULL,
+    title      TEXT,
+    url        TEXT,
+    posted     BOOLEAN   NOT NULL DEFAULT false,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE (feed_id, guid)
+);
+CREATE INDEX IF NOT EXISTS idx_rss_entries_feed ON rss_entries(feed_id);
+
+-- ─── P3: Public API Keys ──────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS api_keys (
+    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id      UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name         VARCHAR(255) NOT NULL,
+    key_hash     VARCHAR(64) NOT NULL UNIQUE,
+    key_prefix   VARCHAR(12) NOT NULL,
+    last_used_at TIMESTAMP,
+    is_active    BOOLEAN     NOT NULL DEFAULT true,
+    created_at   TIMESTAMP   DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
+
+-- ─── P3: Social Listening ─────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS listening_rules (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    keyword    VARCHAR(255) NOT NULL,
+    platforms  TEXT[]      NOT NULL DEFAULT '{twitter}',
+    is_active  BOOLEAN     NOT NULL DEFAULT true,
+    created_at TIMESTAMP   DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_listening_rules_user ON listening_rules(user_id);
+
+CREATE TABLE IF NOT EXISTS listening_results (
+    id               UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
+    rule_id          UUID      NOT NULL REFERENCES listening_rules(id) ON DELETE CASCADE,
+    platform         VARCHAR(50) NOT NULL,
+    external_id      TEXT      NOT NULL,
+    author_name      TEXT,
+    author_handle    TEXT,
+    author_avatar    TEXT,
+    content          TEXT,
+    url              TEXT,
+    likes            INTEGER   DEFAULT 0,
+    reposts          INTEGER   DEFAULT 0,
+    published_at     TIMESTAMP,
+    fetched_at       TIMESTAMP DEFAULT NOW(),
+    UNIQUE (rule_id, external_id)
+);
+CREATE INDEX IF NOT EXISTS idx_listening_results_rule ON listening_results(rule_id);
+CREATE INDEX IF NOT EXISTS idx_listening_results_fetched ON listening_results(fetched_at DESC);
+
+-- ─── P3: Unified Inbox ───────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS inbox_messages (
+    id             UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id        UUID      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    platform       VARCHAR(50) NOT NULL,
+    type           VARCHAR(50) NOT NULL,  -- mention | comment | dm
+    external_id    TEXT      NOT NULL,
+    author_name    TEXT,
+    author_handle  TEXT,
+    author_avatar  TEXT,
+    content        TEXT,
+    url            TEXT,
+    is_read        BOOLEAN   NOT NULL DEFAULT false,
+    published_at   TIMESTAMP,
+    created_at     TIMESTAMP DEFAULT NOW(),
+    UNIQUE (user_id, platform, external_id)
+);
+CREATE INDEX IF NOT EXISTS idx_inbox_user ON inbox_messages(user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_inbox_created ON inbox_messages(created_at DESC);
+
+-- ─── P3: Referral System ─────────────────────────────────────────────────────
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code VARCHAR(16) UNIQUE;
+
+CREATE TABLE IF NOT EXISTS referrals (
+    id              UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
+    referrer_id     UUID      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    referred_id     UUID      REFERENCES users(id) ON DELETE SET NULL,
+    code            VARCHAR(16) NOT NULL,
+    status          VARCHAR(20) NOT NULL DEFAULT 'pending',   -- pending | completed
+    reward_credits  INTEGER   NOT NULL DEFAULT 0,
+    created_at      TIMESTAMP DEFAULT NOW(),
+    completed_at    TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_id);
+CREATE INDEX IF NOT EXISTS idx_referrals_code ON referrals(code);
+
+-- ─── Multi-Workspace Support ─────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS workspaces (
+    id          UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        VARCHAR(255) NOT NULL,
+    slug        VARCHAR(100) UNIQUE,
+    logo_url    TEXT,
+    owner_id    UUID      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at  TIMESTAMP DEFAULT NOW(),
+    updated_at  TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_workspaces_owner ON workspaces(owner_id);
+
+CREATE TABLE IF NOT EXISTS workspace_members (
+    id              UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id    UUID      NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    user_id         UUID      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role            VARCHAR(50) NOT NULL DEFAULT 'member', -- owner|admin|member|viewer
+    created_at      TIMESTAMP DEFAULT NOW(),
+    UNIQUE (workspace_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_wm_workspace ON workspace_members(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_wm_user     ON workspace_members(user_id);
+
+CREATE TABLE IF NOT EXISTS workspace_invites (
+    id              UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id    UUID      NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    email           VARCHAR(255) NOT NULL,
+    role            VARCHAR(50)  NOT NULL DEFAULT 'member',
+    token_hash      VARCHAR(64)  UNIQUE,
+    invited_by      UUID      REFERENCES users(id) ON DELETE SET NULL,
+    expires_at      TIMESTAMP NOT NULL,
+    accepted        BOOLEAN   DEFAULT false,
+    created_at      TIMESTAMP DEFAULT NOW()
+);
+
+-- Scope key resources to workspaces (nullable for backward compat)
+ALTER TABLE posts           ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
+ALTER TABLE social_accounts ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
+ALTER TABLE media_files     ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
+ALTER TABLE campaigns       ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_posts_workspace    ON posts(workspace_id)           WHERE workspace_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_sa_workspace       ON social_accounts(workspace_id) WHERE workspace_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_media_workspace    ON media_files(workspace_id)     WHERE workspace_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_campaigns_workspace ON campaigns(workspace_id)      WHERE workspace_id IS NOT NULL;
+
+-- ─── White-label Branding ─────────────────────────────────────────────────────
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_color    VARCHAR(20)  DEFAULT '#6366f1';
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_name     VARCHAR(255);
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_logo_url TEXT;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS custom_domain  VARCHAR(255) UNIQUE;

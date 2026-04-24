@@ -2,10 +2,9 @@ import axios from 'axios';
 
 const GRAPH_URL = 'https://graph.facebook.com/v19.0';
 
-/** account row from social_accounts table */
 interface AccountRow {
     access_token:     string;
-    platform_user_id: string; // Facebook Page ID
+    platform_user_id: string;
 }
 
 export class FacebookService {
@@ -15,18 +14,76 @@ export class FacebookService {
         mediaUrls: string[]
     ): Promise<string> {
         const { access_token, platform_user_id: pageId } = account;
-        const imageUrl = mediaUrls?.[0];
+        const urls = mediaUrls ?? [];
 
-        const endpoint = imageUrl
-            ? `${GRAPH_URL}/${pageId}/photos`
-            : `${GRAPH_URL}/${pageId}/feed`;
+        // Video takes priority over images
+        const videoUrl = urls.find(u => isVideoUrl(u));
+        if (videoUrl) {
+            return FacebookService.publishVideo(pageId, access_token, content, videoUrl);
+        }
 
-        const body = imageUrl
-            ? { url: imageUrl, caption: content, access_token }
-            : { message: content, access_token };
+        // Multiple images — upload each unpublished then attach to a single feed post
+        if (urls.length > 1) {
+            return FacebookService.publishMultiImage(pageId, access_token, content, urls);
+        }
 
-        const res = await axios.post(endpoint, body);
-        return res.data.id ?? res.data.post_id ?? '';
+        // Single image
+        if (urls.length === 1) {
+            const res = await axios.post(`${GRAPH_URL}/${pageId}/photos`, {
+                url:         urls[0],
+                caption:     content,
+                access_token,
+            });
+            return (res.data.post_id ?? res.data.id ?? '') as string;
+        }
+
+        // Text-only
+        const res = await axios.post(`${GRAPH_URL}/${pageId}/feed`, {
+            message: content,
+            access_token,
+        });
+        return (res.data.id ?? '') as string;
+    }
+
+    private static async publishVideo(
+        pageId:       string,
+        access_token: string,
+        description:  string,
+        videoUrl:     string
+    ): Promise<string> {
+        const res = await axios.post(`${GRAPH_URL}/${pageId}/videos`, {
+            file_url:    videoUrl,
+            description,
+            access_token,
+        });
+        return (res.data.id ?? '') as string;
+    }
+
+    private static async publishMultiImage(
+        pageId:       string,
+        access_token: string,
+        message:      string,
+        imageUrls:    string[]
+    ): Promise<string> {
+        // Step 1: Upload each image as a staged (unpublished) photo
+        const photoIds = await Promise.all(
+            imageUrls.slice(0, 10).map(async (url) => {
+                const res = await axios.post(`${GRAPH_URL}/${pageId}/photos`, {
+                    url,
+                    published:   false,
+                    access_token,
+                });
+                return res.data.id as string;
+            })
+        );
+
+        // Step 2: Create feed post with all photos attached
+        const res = await axios.post(`${GRAPH_URL}/${pageId}/feed`, {
+            message,
+            attached_media: photoIds.map(id => ({ media_fbid: id })),
+            access_token,
+        });
+        return (res.data.id ?? '') as string;
     }
 
     static async getPostInsights(account: AccountRow, postId: string) {
@@ -38,6 +95,10 @@ export class FacebookService {
         });
         return res.data;
     }
+}
+
+function isVideoUrl(url: string): boolean {
+    return /\.(mp4|mov|avi|webm|mkv)(\?|$)/i.test(url);
 }
 
 export const facebookService = new FacebookService();

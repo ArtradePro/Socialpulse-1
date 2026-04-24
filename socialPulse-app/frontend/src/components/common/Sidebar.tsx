@@ -1,12 +1,23 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, PenSquare, Calendar, BarChart2, Settings, Zap } from 'lucide-react';
+import { LayoutDashboard, PenSquare, Calendar, BarChart2, Hash, FileText, Settings, Zap, Megaphone, Image, Rss, Key, Sparkles, Radio, Inbox, Gift, Paintbrush } from 'lucide-react';
 
 const links = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/content', icon: PenSquare, label: 'Content Studio' },
-  { to: '/scheduler', icon: Calendar, label: 'Scheduler' },
-  { to: '/analytics', icon: BarChart2, label: 'Analytics' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
+  { to: '/dashboard',      icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/studio',         icon: PenSquare,        label: 'Content Studio' },
+  { to: '/scheduler',      icon: Calendar,         label: 'Scheduler' },
+  { to: '/analytics',      icon: BarChart2,        label: 'Analytics' },
+  { to: '/campaigns',      icon: Megaphone,        label: 'Campaigns' },
+  { to: '/media',          icon: Image,            label: 'Media Library' },
+  { to: '/hashtag-sets',   icon: Hash,             label: 'Hashtag Sets' },
+  { to: '/templates',      icon: FileText,         label: 'Templates' },
+  { to: '/image-gen',      icon: Sparkles,         label: 'Image Generator' },
+  { to: '/image-editor',   icon: Paintbrush,       label: 'Image Editor' },
+  { to: '/rss',            icon: Rss,              label: 'RSS Feeds' },
+  { to: '/listening',      icon: Radio,            label: 'Social Listening' },
+  { to: '/inbox',          icon: Inbox,            label: 'Unified Inbox' },
+  { to: '/referrals',      icon: Gift,             label: 'Referrals' },
+  { to: '/api-keys',       icon: Key,              label: 'API Keys' },
+  { to: '/settings',       icon: Settings,         label: 'Settings' },
 ];
 
 export const Sidebar = () => (

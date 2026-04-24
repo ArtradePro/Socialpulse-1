@@ -1,4 +1,5 @@
 import Bull from 'bull';
+import cron from 'node-cron';
 import axios from 'axios';
 import { query } from '../config/database';
 import { SocialAccountModel } from '../models/SocialAccount';
@@ -222,21 +223,35 @@ analyticsQueue.process('sync-user', async (job) => {
     }
 });
 
-// ─── Schedule daily sync for all active users ─────────────────────────────────
+// ─── Daily cron + on-demand trigger ──────────────────────────────────────────
 
-export const scheduleDailySync = async (): Promise<void> => {
-    const users = await query('SELECT DISTINCT user_id FROM social_accounts WHERE is_active = true');
-    for (const { user_id } of users.rows) {
-        await analyticsQueue.add('sync-user', { userId: user_id }, {
-            repeat:           { cron: '0 2 * * *' }, // 2 am UTC daily
-            removeOnComplete: 10,
-        });
-    }
-    console.log(`[AnalyticsSync] Scheduled daily sync for ${users.rows.length} users`);
+export const initAnalyticsSync = (): void => {
+    // 02:00 UTC daily — fan out a sync job for every user with active social accounts
+    cron.schedule('0 2 * * *', async () => {
+        try {
+            const result = await query(
+                'SELECT DISTINCT user_id FROM social_accounts WHERE is_active = true'
+            );
+            for (const { user_id } of result.rows) {
+                await analyticsQueue.add('sync-user', { userId: user_id }, {
+                    removeOnComplete: 10,
+                    removeOnFail:     100,
+                });
+            }
+            console.log(`[AnalyticsSync] Queued daily sync for ${result.rows.length} users`);
+        } catch (err) {
+            console.error('[AnalyticsSync] Daily cron error:', err);
+        }
+    });
+    console.log('[AnalyticsSync] Daily sync cron initialized (02:00 UTC)');
 };
 
-/** Trigger an immediate sync for a single user (e.g. after a post is published) */
+/** Queue a sync 30 min after a post is published so metrics have time to populate */
 export const triggerUserSync = async (userId: string): Promise<void> => {
-    await analyticsQueue.add('sync-user', { userId }, { delay: 30 * 60 * 1000 }); // 30 min after publish
+    await analyticsQueue.add('sync-user', { userId }, {
+        delay:            30 * 60 * 1000,
+        removeOnComplete: 10,
+        removeOnFail:     100,
+    });
 };
 

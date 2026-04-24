@@ -4,6 +4,8 @@ import Stripe from 'stripe';
 import { db }             from '../config/database';
 import { PLANS, planByPriceId, getPlan, PlanId, PlanKey } from '../config/plans';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { EmailService } from '../services/email.service';
+import { NotificationService } from '../services/notification.service';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
     apiVersion: '2026-03-25.dahlia' as any,
@@ -282,7 +284,27 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
                     `UPDATE stripe_customers SET status='past_due' WHERE user_id=$1`,
                     [userId]
                 );
-                // TODO: send payment-failed email
+
+                // In-app notification + email (non-critical)
+                NotificationService.create({
+                    userId,
+                    type:    'payment_failed',
+                    title:   'Payment failed',
+                    message: 'Your subscription payment could not be processed. Please update your billing details.',
+                    link:    '/billing',
+                }).catch(console.error);
+
+                const userRow = await db.query(
+                    'SELECT email, full_name FROM users WHERE id = $1', [userId]
+                );
+                if (userRow.rows[0]) {
+                    const nextRetryTs = (event.data.object as any).next_payment_attempt as number | null;
+                    EmailService.sendPaymentFailed(
+                        userRow.rows[0].email,
+                        userRow.rows[0].full_name,
+                        nextRetryTs ? new Date(nextRetryTs * 1000) : undefined
+                    ).catch(console.error);
+                }
                 break;
             }
 

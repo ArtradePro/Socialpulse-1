@@ -171,4 +171,27 @@ export class AIService {
 
         return response.choices[0].message.content?.trim() || '';
     }
+
+    static async generateImage(
+        userId: string,
+        prompt: string,
+        size: '1024x1024' | '1792x1024' | '1024x1792' = '1024x1024'
+    ): Promise<string> {
+        const user = await db.query('SELECT ai_credits FROM users WHERE id = $1', [userId]);
+        if (user.rows[0].ai_credits <= 0) {
+            throw new Error('Insufficient AI credits. Please upgrade your plan.');
+        }
+
+        const response = await openai.images.generate({
+            model:   'dall-e-3',
+            prompt,
+            n:       1,
+            size,
+            quality: 'standard',
+        });
+
+        await db.query('UPDATE users SET ai_credits = ai_credits - 2 WHERE id = $1', [userId]);
+
+        return response.data?.[0]?.url ?? '';
+    }
 }

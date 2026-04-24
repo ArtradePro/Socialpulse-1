@@ -52,9 +52,9 @@ const UsageBar: React.FC<UsageBarProps> = ({
             )}
 
             {limit === 'unlimited' && (
-                <div className="w-full bg-gradient-to-r from-purple-100 to-blue-100
+                <div className="w-full bg-linear-to-r from-purple-100 to-blue-100
                                 rounded-full h-2 overflow-hidden">
-                    <div className="h-2 w-full bg-gradient-to-r from-purple-400 to-blue-400
+                    <div className="h-2 w-full bg-linear-to-r from-purple-400 to-blue-400
                                     rounded-full animate-pulse" />
                 </div>
             )}

@@ -19,7 +19,7 @@ export const Navbar = ({ title }: NavbarProps) => {
         </button>
         <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700">
           <User className="h-5 w-5 text-gray-400" />
-          <span className="font-medium">{user?.displayName || user?.username}</span>
+          <span className="font-medium">{user?.fullName}</span>
         </div>
         <button onClick={handleLogout} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100">
           <LogOut className="h-5 w-5" />

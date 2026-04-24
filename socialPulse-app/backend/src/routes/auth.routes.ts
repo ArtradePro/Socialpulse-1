@@ -8,6 +8,8 @@ import {
     updateProfile,
     changePassword,
     deleteAccount,
+    getNotificationPrefs,
+    updateNotificationPrefs,
 } from '../controllers/auth.controller';
 import { authenticate } from '../middleware/auth.middleware';
 
@@ -20,6 +22,8 @@ router.post('/forgot-password',   forgotPassword);
 router.post('/reset-password',    resetPassword);
 router.put('/profile',            authenticate, updateProfile);
 router.put('/change-password',    authenticate, changePassword);
-router.delete('/account',         authenticate, deleteAccount);
+router.delete('/account',              authenticate, deleteAccount);
+router.get('/notification-prefs',      authenticate, getNotificationPrefs);
+router.patch('/notification-prefs',    authenticate, updateNotificationPrefs);
 
 export default router;

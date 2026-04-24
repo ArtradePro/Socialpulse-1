@@ -11,6 +11,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -18,22 +23,28 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   server:
     build: ./socialPulse-app/backend
     ports:
       - "5000:5000"
+    env_file:
+      - ./socialPulse-app/backend/.env
     environment:
       DATABASE_URL: postgresql://postgres:password@postgres:5432/socialpulse
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      JWT_SECRET: your-secret-key
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      TWITTER_API_KEY: ${TWITTER_API_KEY}
-      TWITTER_API_SECRET: ${TWITTER_API_SECRET}
+      NODE_ENV: development
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./socialPulse-app/backend:/app
       - /app/node_modules
@@ -42,6 +53,10 @@ services:
     build: ./socialPulse-app/frontend
     ports:
       - "3000:3000"
+    env_file:
+      - ./socialPulse-app/frontend/.env
+    environment:
+      VITE_API_URL: http://localhost:5000/api
     depends_on:
       - server
     volumes:

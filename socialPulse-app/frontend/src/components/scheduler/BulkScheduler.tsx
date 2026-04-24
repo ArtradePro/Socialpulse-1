@@ -191,7 +191,7 @@ export const BulkScheduler: React.FC = () => {
                 <button
                     onClick={submit}
                     disabled={submitting}
-                    className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+                    className="flex items-center gap-2 px-5 py-2 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
                 >
                     {submitting
                         ? <><Loader2 className="w-4 h-4 animate-spin" /> Scheduling…</>

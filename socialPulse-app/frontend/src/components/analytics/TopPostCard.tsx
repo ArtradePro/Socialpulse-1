@@ -21,7 +21,7 @@ const TopPostCard: React.FC<Props> = ({ post, rank }) => {
                         hover:shadow-md transition-shadow flex gap-4">
             {/* Rank */}
             <div className={`w-9 h-9 rounded-xl flex items-center justify-center
-                             text-sm font-bold flex-shrink-0 ${
+                             text-sm font-bold shrink-0 ${
                 rank === 1 ? 'bg-yellow-100 text-yellow-700' :
                 rank === 2 ? 'bg-gray-100   text-gray-600'   :
                 rank === 3 ? 'bg-orange-100 text-orange-700' :
@@ -88,7 +88,7 @@ const TopPostCard: React.FC<Props> = ({ post, rank }) => {
                 <img
                     src={post.mediaUrl}
                     alt=""
-                    className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
+                    className="w-16 h-16 rounded-xl object-cover shrink-0"
                 />
             )}
         </div>

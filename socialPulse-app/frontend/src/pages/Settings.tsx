@@ -56,7 +56,7 @@ export const Settings = () => {
     const dispatch = useAppDispatch();
 
     // ── Profile ───────────────────────────────────────────────────────────────
-    const [fullName, setFullName]     = useState(user?.displayName ?? '');
+    const [fullName, setFullName]     = useState(user?.fullName ?? '');
     const [profileMsg, setProfileMsg] = useState<AlertProps | null>(null);
     const [savingProfile, setSavingProfile] = useState(false);
 
@@ -149,7 +149,7 @@ export const Settings = () => {
 
     const connectedMap = Object.fromEntries(accounts.map(a => [a.platform, a]));
 
-    // ── Notification prefs (local toggle — extend with API as needed) ─────────
+    // ── Notification prefs ────────────────────────────────────────────────────
     const [emailNotifs, setEmailNotifs] = useState({
         postFailed:    true,
         paymentFailed: true,
@@ -157,9 +157,24 @@ export const Settings = () => {
         weeklyDigest:  false,
     });
 
+    useEffect(() => {
+        let cancelled = false;
+        api.get('/auth/notification-prefs')
+            .then(({ data }) => { if (!cancelled) setEmailNotifs(data); })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, []);
+
+    const toggleNotif = async (key: keyof typeof emailNotifs) => {
+        const next = !emailNotifs[key];
+        setEmailNotifs(prev => ({ ...prev, [key]: next }));
+        api.patch('/auth/notification-prefs', { [key]: next }).catch(() => {});
+    };
+
     // ── Teams ─────────────────────────────────────────────────────────────────
     interface TeamMember { id: string; user_id: string; role: string; email: string; full_name: string; }
-    interface Team { id: string; name: string; owner_id: string; my_role: string; member_count: number; members?: TeamMember[]; }
+    interface PendingInvite { id: string; email: string; role: string; expires_at: string; }
+    interface Team { id: string; name: string; owner_id: string; my_role: string; member_count: number; members?: TeamMember[]; pending_invites?: PendingInvite[]; }
 
     const [teams,       setTeams]       = useState<Team[]>([]);
     const [activeTeam,  setActiveTeam]  = useState<Team | null>(null);
@@ -226,6 +241,20 @@ export const Settings = () => {
         }
     };
 
+    const cancelInvite = async (inviteId: string) => {
+        if (!activeTeam) return;
+        try {
+            await api.delete(`/teams/${activeTeam.id}/invites/${inviteId}`);
+            setActiveTeam(prev => prev ? {
+                ...prev,
+                pending_invites: prev.pending_invites?.filter(i => i.id !== inviteId),
+            } : null);
+            setTeamMsg({ type: 'success', message: 'Invite cancelled.' });
+        } catch {
+            setTeamMsg({ type: 'error', message: 'Failed to cancel invite.' });
+        }
+    };
+
     // ── Danger Zone ───────────────────────────────────────────────────────────
     const [deleteConfirm, setDeleteConfirm]   = useState('');
     const [deletingAcct,  setDeletingAcct]    = useState(false);
@@ -264,14 +293,14 @@ export const Settings = () => {
                 <div className="flex items-center gap-4">
                     <div className="h-14 w-14 rounded-full bg-indigo-100 flex items-center justify-center
                                     text-indigo-700 font-bold text-xl shrink-0">
-                        {(user?.displayName ?? user?.email ?? '?')[0].toUpperCase()}
+                        {(user?.fullName ?? user?.email ?? '?')[0].toUpperCase()}
                     </div>
                     <div>
-                        <p className="font-medium text-gray-900">{user?.displayName ?? '—'}</p>
+                        <p className="font-medium text-gray-900">{user?.fullName ?? '—'}</p>
                         <p className="text-sm text-gray-500">{user?.email}</p>
                         <span className="mt-1 inline-block rounded-full bg-indigo-100 px-2 py-0.5
                                          text-xs font-medium text-indigo-700 capitalize">
-                            {(user as any)?.plan ?? 'free'}
+                            {user?.plan ?? 'free'}
                         </span>
                     </div>
                 </div>
@@ -443,7 +472,7 @@ export const Settings = () => {
                             <button
                                 role="switch"
                                 aria-checked={emailNotifs[item.key]}
-                                onClick={() => setEmailNotifs(prev => ({ ...prev, [item.key]: !prev[item.key] }))}
+                                onClick={() => toggleNotif(item.key)}
                                 className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full
                                             border-2 border-transparent transition-colors
                                             ${emailNotifs[item.key] ? 'bg-indigo-600' : 'bg-gray-200'}`}>
@@ -530,6 +559,33 @@ export const Settings = () => {
                                     </li>
                                 ))}
                             </ul>
+                        )}
+
+                        {/* Pending invites */}
+                        {activeTeam?.pending_invites && activeTeam.pending_invites.length > 0 && (
+                            <div>
+                                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                                    Pending Invites
+                                </p>
+                                <ul className="divide-y divide-gray-100">
+                                    {activeTeam.pending_invites.map(inv => (
+                                        <li key={inv.id} className="flex items-center justify-between py-2.5 gap-3">
+                                            <div className="min-w-0">
+                                                <p className="text-sm text-gray-800 truncate">{inv.email}</p>
+                                                <p className="text-xs text-gray-400 capitalize">{inv.role} · expires {new Date(inv.expires_at).toLocaleDateString()}</p>
+                                            </div>
+                                            {(activeTeam.my_role === 'owner' || activeTeam.my_role === 'admin') && (
+                                                <button
+                                                    onClick={() => cancelInvite(inv.id)}
+                                                    className="text-xs text-red-500 hover:text-red-700 shrink-0"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
                         )}
 
                         {/* Invite form */}

@@ -4,10 +4,11 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { db } from '../config/database';
 import { EmailService } from '../services/email.service';
+import { applyReferralCode } from './referralsController';
 
 export const register = async (req: Request, res: Response) => {
     try {
-        const { email, password, fullName } = req.body;
+        const { email, password, fullName, referralCode } = req.body;
 
         const existingUser = await db.query(
             'SELECT id FROM users WHERE email = $1',
@@ -46,8 +47,9 @@ export const register = async (req: Request, res: Response) => {
             },
         });
 
-        // Fire-and-forget welcome email
+        // Fire-and-forget welcome email and referral credit
         EmailService.sendWelcome(user.email, user.full_name).catch(console.error);
+        if (referralCode) applyReferralCode(user.id, referralCode).catch(console.error);
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }
@@ -265,4 +267,44 @@ export const deleteAccount = async (req: Request, res: Response): Promise<void> 
     // Cascade delete is handled by DB FK constraints; just delete the user row.
     await db.query('DELETE FROM users WHERE id = $1', [userId]);
     res.status(204).send();
+};
+
+// ─── Notification Preferences ────────────────────────────────────────────────
+
+const NOTIF_KEYS = ['postFailed', 'paymentFailed', 'trialEnding', 'weeklyDigest'] as const;
+type NotifPrefs  = Record<typeof NOTIF_KEYS[number], boolean>;
+
+const defaultPrefs = (): NotifPrefs => ({
+    postFailed: true, paymentFailed: true, trialEnding: true, weeklyDigest: false,
+});
+
+export const getNotificationPrefs = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { rows } = await db.query(
+            'SELECT notification_prefs FROM users WHERE id = $1',
+            [(req as any).user.userId]
+        );
+        res.json(rows[0]?.notification_prefs ?? defaultPrefs());
+    } catch (err) {
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+export const updateNotificationPrefs = async (req: Request, res: Response): Promise<void> => {
+    const patch: Partial<NotifPrefs> = {};
+    for (const key of NOTIF_KEYS) {
+        if (typeof req.body[key] === 'boolean') patch[key] = req.body[key];
+    }
+    try {
+        const { rows } = await db.query(
+            `UPDATE users
+             SET notification_prefs = notification_prefs || $1::jsonb, updated_at = NOW()
+             WHERE id = $2
+             RETURNING notification_prefs`,
+            [JSON.stringify(patch), (req as any).user.userId]
+        );
+        res.json(rows[0].notification_prefs);
+    } catch (err) {
+        res.status(500).json({ message: 'Server error' });
+    }
 };

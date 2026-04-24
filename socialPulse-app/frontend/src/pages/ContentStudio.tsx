@@ -284,7 +284,7 @@ export const ContentStudio: React.FC = () => {
                                     </div>
                                 </div>
                                 <button onClick={handleAIGenerate} disabled={isGenerating}
-                                    className='w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-60'>
+                                    className='w-full flex items-center justify-center gap-2 py-3 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-60'>
                                     {isGenerating ? <><Loader2 className='w-4 h-4 animate-spin' /> Generating...</> : <><Wand2 className='w-4 h-4' /> Generate with AI</>}
                                 </button>
                                 {content && (
@@ -316,7 +316,7 @@ export const ContentStudio: React.FC = () => {
                             </button>
                         ) : (
                             <button onClick={() => handleSaveOrPublish('publish')} disabled={isPublishing}
-                                className='flex-1 flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-60'>
+                                className='flex-1 flex items-center justify-center gap-2 py-2.5 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-60'>
                                 {isPublishing ? <Loader2 className='w-4 h-4 animate-spin' /> : <Send className='w-4 h-4' />} Publish Now
                             </button>
                         )}
@@ -344,7 +344,7 @@ export const ContentStudio: React.FC = () => {
                             {content ? (
                                 <div>
                                     <div className='flex items-center gap-2 mb-3'>
-                                        <div className='w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full' />
+                                        <div className='w-8 h-8 bg-linear-to-br from-purple-600 to-blue-600 rounded-full' />
                                         <div><p className='text-xs font-medium text-gray-900'>Your Name</p><p className='text-xs text-gray-500'>@username</p></div>
                                     </div>
                                     <p className='text-sm text-gray-800 whitespace-pre-wrap'>{content}</p>
@@ -375,7 +375,7 @@ export const ContentStudio: React.FC = () => {
                         </div>
                     )}
 
-                    <div className='bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl border border-purple-100 p-4'>
+                    <div className='bg-linear-to-br from-purple-50 to-blue-50 rounded-2xl border border-purple-100 p-4'>
                         <div className='flex items-center gap-2 mb-2'>
                             <Wand2 className='w-4 h-4 text-purple-600' />
                             <span className='text-sm font-semibold text-purple-900'>AI Tips</span>
