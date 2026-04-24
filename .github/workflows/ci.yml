@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 
 on:
   push:
@@ -94,3 +94,62 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
         working-directory: socialPulse-app/mobile
+
+  deploy:
+    name: Deploy — build & push to VPS
+    runs-on: ubuntu-latest
+    needs: [backend, frontend, mobile]
+    # Only deploy on pushes to main, not on pull requests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: socialPulse-app/backend
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/socialpulse-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: socialPulse-app/frontend
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/socialpulse-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/socialpulse
+
+            # Pull latest images
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/socialpulse-backend:latest
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/socialpulse-frontend:latest
+
+            # Run pending migrations before restarting the server
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm migrate
+
+            # Rolling restart — zero-downtime
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build
+
+            # Remove dangling images to keep disk usage in check
+            docker image prune -f
