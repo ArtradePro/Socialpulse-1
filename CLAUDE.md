@@ -1053,11 +1053,15 @@ PRIORITY 3 — Post-launch growth
                                    CSS --brand-color var injection; public /brand/:domain endpoint)
   ✅ Mobile App (React Native)    (Expo app; auth, dashboard, content studio, scheduler, analytics, profile)
 
+INFRASTRUCTURE & DEVOPS
+  ✅ GitHub Actions CI/CD    (3 parallel jobs: backend typecheck+35 tests, frontend typecheck, mobile typecheck)
+
 OVERALL COMPLETION: 100% ✅
   Core product:     100% ✅
   Integrations:     100% ✅  (all 4 platforms fully implemented)
   Quality features: 100% ✅
   Growth features:  100% ✅  (all 10 P3 features complete)
+  Infrastructure:   100% ✅  (Docker, nginx, CI/CD pipeline)
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1086,6 +1090,7 @@ Week 3 — Team & scale
   ~~Day 13 Notification system (table + triggers + bell UI)~~         ✅ done
   ~~Day 14 Bulk scheduling endpoint + UI~~                            ✅ already built
   ~~Day 15 End-to-end QA pass~~                                       ✅ done
+  ~~CI/CD  GitHub Actions pipeline~~                                  ✅ done — github.com/ArtradePro/Socialpulse-1/actions
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1255,3 +1260,135 @@ Do not:
   - Skip error handling in async functions
   - Create a new file without placing it in the correct directory
     per the structure in section 1
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 16. CI/CD PIPELINE — REFERENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+File:       .github/workflows/ci.yml
+Triggers:   push or pull_request to main
+Dashboard:  https://github.com/ArtradePro/Socialpulse-1/actions
+Status:     ✅ Live — all 3 jobs passing
+
+── Jobs ──────────────────────────────────────────────────────────────────────
+
+  Job         What it does
+  ──────────  ──────────────────────────────────────────────────────────────
+  backend     Spins up PostgreSQL 15 service container
+              Waits for DB healthcheck before starting
+              Runs tsc --noEmit
+              Runs all 35 integration tests (Jest --runInBand)
+              JWT_SECRET set to dummy value so auth signing works in CI
+
+  frontend    Installs deps
+              Runs tsc --noEmit
+
+  mobile      Installs deps
+              Runs tsc --noEmit
+
+── Secrets required in GitHub ────────────────────────────────────────────────
+  For CI (tests only):
+    JWT_SECRET              set inline as dummy value — no secret needed
+    TEST_DATABASE_URL       constructed from service container — no secret needed
+
+  For CD (deploy job — if added later):
+    DOCKERHUB_USERNAME      Docker Hub username
+    DOCKERHUB_TOKEN         Docker Hub access token
+    DEPLOY_HOST             VPS IP or hostname
+    DEPLOY_USER             SSH user on VPS
+    DEPLOY_SSH_KEY          Private SSH key for VPS access
+
+── Adding a new test ─────────────────────────────────────────────────────────
+  1. Create test file in socialPulse-app/backend/src/__tests__/
+  2. Follow naming convention: featureName.test.ts
+  3. Use the shared helpers (helpers/db.ts, helpers/request.ts)
+  4. Push to any branch — CI picks it up automatically
+  5. Update the test count above when you add tests
+
+── If CI fails ───────────────────────────────────────────────────────────────
+  TypeScript error:
+    Run locally: cd socialPulse-app/backend && npx tsc --noEmit
+    Fix all errors before pushing — CI exits 1 on any type error
+
+  Test failure:
+    Run locally: cd socialPulse-app/backend && npm test
+    Ensure TEST_DATABASE_URL is set and PostgreSQL is running on port 5432
+
+  DB not ready:
+    The healthcheck polls pg_isready every 10s up to 5 retries.
+    Do not remove the health-cmd — tests will fail with connection refused.
+
+  Dependency install failure:
+    Never commit package.json changes without a matching package-lock.json.
+    If you add a package: npm install <pkg> then commit both files together.
+
+── Branch protection rules (recommended) ────────────────────────────────────
+  Go to: github.com/ArtradePro/Socialpulse-1/settings/branches
+  Add rule for: main
+    ✅ Require a pull request before merging
+    ✅ Require status checks to pass (backend, frontend, mobile jobs)
+    ✅ Require branches to be up to date before merging
+    ✅ Do not allow bypassing the above settings
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 17. PROJECT COMPLETION SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌─────────────────────────────────────────────────────────────────┐
+│  SOCIALPULSE — WHAT IS DONE                                     │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ✅ Full-stack application code          17 route modules       │
+│  ✅ Authentication + workspaces          JWT + invite flow      │
+│  ✅ Content Studio + AI                  GPT-4 integration      │
+│  ✅ Post Scheduler                       Bull queue             │
+│  ✅ Analytics Dashboard                  4 tabs + heatmap       │
+│  ✅ Media Library                        S3 + Cloudinary        │
+│  ✅ Subscription & Billing               Stripe webhooks        │
+│  ✅ Plan enforcement                     All 5 limit types      │
+│  ✅ Mobile (React Native)                TypeScript clean       │
+│  ✅ CI/CD pipeline                       3 jobs, 35 tests       │
+│  ✅ Docker setup                         Compose + Dockerfiles  │
+│  ✅ CLAUDE.md project intelligence       1300+ lines            │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  WHAT REMAINS — CONFIGURATION ONLY (no code)                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  □ SSL certificates in nginx/ssl/                               │
+│    certbot certonly --webroot -d yourdomain.com                 │
+│                                                                 │
+│  □ Stripe price IDs in VPS .env                                 │
+│    Create products in dashboard.stripe.com                      │
+│    Copy 6 price IDs into STRIPE_PRICE_* vars                    │
+│                                                                 │
+│  □ Twitter / X developer app credentials                        │
+│    developer.twitter.com → Create app → copy keys              │
+│                                                                 │
+│  □ Instagram / Facebook app credentials                         │
+│    developers.facebook.com → Create app → copy keys            │
+│                                                                 │
+│  □ LinkedIn app credentials                                     │
+│    linkedin.com/developers → Create app → copy keys            │
+│                                                                 │
+│  □ OpenAI API key                                               │
+│    platform.openai.com → API keys → Create key                  │
+│                                                                 │
+│  □ Cloudinary account                                           │
+│    cloudinary.com → Dashboard → copy cloud name + keys         │
+│                                                                 │
+│  □ GitHub branch protection rules                               │
+│    Settings → Branches → Add rule for main                      │
+│    Require: backend + frontend + mobile CI jobs to pass         │
+│                                                                 │
+│  □ VPS provisioned + Docker installed                           │
+│    /opt/socialpulse/ with real .env file                        │
+│    First deploy: docker-compose -f docker-compose.yml           │
+│                            -f docker-compose.prod.yml up -d     │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+Code completion:    100% ✅
+Configuration:        0% □  ← only thing left
