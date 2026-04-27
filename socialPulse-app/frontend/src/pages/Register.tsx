@@ -2,8 +2,6 @@ import { useForm } from 'react-hook-form';
 import { useAuth } from '../hooks/useAuth';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '../components/common/Button';
-import { Zap } from 'lucide-react';
-
 interface FormData { email: string; password: string; username: string; displayName: string }
 
 export const Register = () => {
@@ -20,9 +18,8 @@ export const Register = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-lg p-8">
-          <div className="flex items-center gap-2 mb-8">
-            <Zap className="h-8 w-8 text-indigo-600" />
-            <span className="text-2xl font-bold text-gray-900">SocialPulse</span>
+          <div className="flex justify-center mb-8">
+            <img src="/logo.png" alt="SocialPulse" className="h-20 w-auto object-contain" />
           </div>
           <h2 className="text-xl font-semibold text-gray-900 mb-6">Create your account</h2>
 

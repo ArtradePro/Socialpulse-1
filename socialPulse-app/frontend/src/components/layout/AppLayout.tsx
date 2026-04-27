@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { logout } from '../../store/authSlice';
 import {
-    LayoutDashboard, PenSquare, Calendar, BarChart3, Settings, Zap,
+    LayoutDashboard, PenSquare, Calendar, BarChart3, Settings,
     LogOut, Menu, X, HardDrive, CreditCard, Megaphone, Hash, FileText,
     Sparkles, Paintbrush, Rss, Radio, Inbox, Gift, Key, Building2,
 } from 'lucide-react';
@@ -79,13 +79,11 @@ const AppLayout: React.FC = () => {
                 <div className="flex items-center justify-between p-4 border-b border-gray-200">
                     {sidebarOpen && (
                         <div className="flex items-center gap-2">
-                            {brand.brandLogoUrl ? (
-                                <img src={brand.brandLogoUrl} alt="Logo" className="h-8 w-auto object-contain" />
-                            ) : (
-                                <div className="w-8 h-8 bg-linear-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                                    <Zap className="w-5 h-5 text-white" />
-                                </div>
-                            )}
+                            <img
+                                src={brand.brandLogoUrl ?? '/logo.png'}
+                                alt="SocialPulse"
+                                className="h-8 w-auto object-contain"
+                            />
                             <span className="text-xl font-bold bg-linear-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
                                 {brand.brandName ?? 'Social Pulse'}
                             </span>
