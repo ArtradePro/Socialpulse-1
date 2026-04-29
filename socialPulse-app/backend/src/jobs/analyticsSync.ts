@@ -5,11 +5,11 @@ import { query } from '../config/database';
 import { SocialAccountModel } from '../models/SocialAccount';
 import { TwitterApi } from 'twitter-api-v2';
 
-const redisOpts = {
+const redisOpts = process.env.REDIS_URL ?? {
     redis: {
         host:     process.env.REDIS_HOST || 'localhost',
         port:     parseInt(process.env.REDIS_PORT || '6379'),
-        password: process.env.REDIS_PASSWORD,
+        password: process.env.REDIS_PASSWORD || undefined,
     },
 };
 

@@ -13,13 +13,17 @@ const PORT = process.env.PORT || 5000;
 
 const start = async (): Promise<void> => {
     await connectDB();
-    await connectRedis();
-    initScheduler();
-    initMediaCleanup();
-    initAnalyticsSync();
-    initRssJob();
-    initListeningJob();
-    initInboxJob();
+    try {
+        await connectRedis();
+        initScheduler();
+        initMediaCleanup();
+        initAnalyticsSync();
+        initRssJob();
+        initListeningJob();
+        initInboxJob();
+    } catch (err) {
+        console.warn('Redis unavailable — background jobs and queues disabled:', err);
+    }
     app.listen(PORT, () => console.log(`SocialPulse API running on http://localhost:${PORT}`));
 };
 

@@ -8,11 +8,11 @@ import { EmailService } from '../services/email.service';
 import { NotificationService } from '../services/notification.service';
 import { triggerUserSync } from './analyticsSync';
 
-const postQueue = new Bull('post-publishing', {
+const postQueue = new Bull('post-publishing', process.env.REDIS_URL ?? {
     redis: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379'),
-        password: process.env.REDIS_PASSWORD,
+        host:     process.env.REDIS_HOST || 'localhost',
+        port:     parseInt(process.env.REDIS_PORT || '6379'),
+        password: process.env.REDIS_PASSWORD || undefined,
     },
 });
 

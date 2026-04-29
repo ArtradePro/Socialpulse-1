@@ -68,5 +68,8 @@
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.3.2"
   },
+  "engines": {
+    "node": "22"
+  },
   "license": "MIT"
 }
