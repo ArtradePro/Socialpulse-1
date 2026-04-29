@@ -7,7 +7,7 @@ dotenv.config();
 
 async function migrate() {
   const schemaPath = join(__dirname, 'schema.sql');
-  const sql = readFileSync(schemaPath, 'utf-8');
+  const sql = readFileSync(schemaPath, 'utf-8').replace(/^﻿/, '');
 
   console.log('Connecting to PostgreSQL...');
   const client = await pool.connect();
