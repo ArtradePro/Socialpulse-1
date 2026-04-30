@@ -1,7 +1,14 @@
 ﻿import OpenAI from 'openai';
 import { db } from '../config/database';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let _openai: OpenAI | null = null;
+const getOpenAI = (): OpenAI => {
+    if (!_openai) {
+        if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not configured');
+        _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    }
+    return _openai;
+};
 
 interface ContentGenerationOptions {
     topic: string;
@@ -64,7 +71,7 @@ export class AIService {
             }
         `;
 
-        const response = await openai.chat.completions.create({
+        const response = await getOpenAI().chat.completions.create({
             model: 'gpt-4',
             messages: [
                 {
@@ -93,7 +100,7 @@ export class AIService {
         count: number = 10
     ): Promise<string[]> {
 
-        const response = await openai.chat.completions.create({
+        const response = await getOpenAI().chat.completions.create({
             model: 'gpt-4',
             messages: [
                 {
@@ -124,7 +131,7 @@ export class AIService {
         improvement: string
     ): Promise<string> {
 
-        const response = await openai.chat.completions.create({
+        const response = await getOpenAI().chat.completions.create({
             model: 'gpt-4',
             messages: [
                 {
@@ -154,7 +161,7 @@ export class AIService {
         tone: string
     ): Promise<string> {
 
-        const response = await openai.chat.completions.create({
+        const response = await getOpenAI().chat.completions.create({
             model: 'gpt-4',
             messages: [
                 {
@@ -182,7 +189,7 @@ export class AIService {
             throw new Error('Insufficient AI credits. Please upgrade your plan.');
         }
 
-        const response = await openai.images.generate({
+        const response = await getOpenAI().images.generate({
             model:   'dall-e-3',
             prompt,
             n:       1,
