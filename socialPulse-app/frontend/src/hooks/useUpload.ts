@@ -1,4 +1,3 @@
-// client/src/hooks/useUpload.ts
 import { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import MediaService, { MediaFile } from '../services/media.service';
@@ -64,41 +63,4 @@ export const useUpload = (): UseUploadReturn => {
     }, []);
 
     return { ...state, upload, clearUploaded };
-};
-
-interface UploadState {
-  uploading: boolean;
-  progress:  number;
-  error:     string | null;
-}
-
-export const useUpload = (onSuccess?: (file: MediaFile) => void) => {
-  const [state, setState] = useState<UploadState>({
-    uploading: false,
-    progress:  0,
-    error:     null,
-  });
-
-  const upload = useCallback(async (file: File) => {
-    setState({ uploading: true, progress: 0, error: null });
-    try {
-      const result = await mediaService.upload(file, pct =>
-        setState(s => ({ ...s, progress: pct })),
-      );
-      setState({ uploading: false, progress: 100, error: null });
-      toast.success('Uploaded successfully');
-      onSuccess?.(result);
-      return result;
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Upload failed';
-      setState({ uploading: false, progress: 0, error: msg });
-      toast.error(msg);
-      return null;
-    }
-  }, [onSuccess]);
-
-  const reset = useCallback(() =>
-    setState({ uploading: false, progress: 0, error: null }), []);
-
-  return { ...state, upload, reset };
 };

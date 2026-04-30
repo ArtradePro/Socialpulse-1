@@ -1,4 +1,3 @@
-// client/src/hooks/usePlan.ts
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
@@ -22,6 +21,8 @@ export interface PlanInfo {
     name:         string;
     monthlyPrice: number;
     limits:       Record<string, any>;
+    badge?:       string;
+    color?:       string;
 }
 
 interface UsePlanReturn {
@@ -73,75 +74,4 @@ export const usePlan = (): UsePlanReturn => {
     };
 
     return { plan, usage, loading, refetch, isAtLimit, usedPercent };
-};
-
-export interface PlanInfo {
-  key:   string;
-  name:  string;
-  price: string;
-  badge: string;
-  color: string;
-}
-
-export interface PlanLimits {
-  socialAccounts:   number | 'unlimited';
-  postsPerMonth:    number | 'unlimited';
-  aiCreditsPerMonth:number | 'unlimited';
-  teamMembers:      number | 'unlimited';
-  scheduledPosts:   number | 'unlimited';
-  mediaStorageMb:   number | 'unlimited';
-  mediaFileSizeMb:  number | 'unlimited';
-  customBranding:   boolean;
-  apiAccess:        boolean;
-  whiteLabel:       boolean;
-  prioritySupport:  boolean;
-}
-
-export interface PlanUsage {
-  socialAccounts: number;
-  postsThisMonth: number;
-  mediaBytes:     number;
-  mediaMb:        number;
-  aiCredits:      number;
-}
-
-export interface BillingPlan {
-  key:      string;
-  name:     string;
-  price:    string;
-  color:    string;
-  badge:    string;
-  features: string[];
-  limits:   PlanLimits;
-  current:  boolean;
-}
-
-interface BillingData {
-  plan:     PlanInfo;
-  limits:   PlanLimits;
-  usage:    PlanUsage;
-  allPlans: BillingPlan[];
-}
-
-export const usePlan = () => {
-  const [data, setData]       = useState<BillingData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
-
-  const fetch = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api.get<BillingData>('/billing');
-      setData(res.data);
-    } catch {
-      setError('Failed to load plan info');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetch(); }, []);
-
-  return { plan: data?.plan, limits: data?.limits, usage: data?.usage, allPlans: data?.allPlans, loading, error, refetch: fetch };
 };

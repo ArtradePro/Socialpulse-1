@@ -1,4 +1,3 @@
-// client/src/components/media/MediaCard.tsx
 import React, { useState } from 'react';
 import { Trash2, Play, FileImage, Copy, Check } from 'lucide-react';
 import { MediaFile } from '../../services/media.service';
@@ -123,72 +122,3 @@ const MediaCard: React.FC<MediaCardProps> = ({
 };
 
 export default MediaCard;
-
-const fmt = (bytes: number) => {
-  if (bytes < 1024)       return `${bytes} B`;
-  if (bytes < 1024 ** 2)  return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-};
-
-const TypeIcon = ({ type }: { type: string }) => {
-  if (type === 'image') return <Image className="w-5 h-5 text-blue-400" />;
-  if (type === 'video') return <Video className="w-5 h-5 text-purple-400" />;
-  return <FileText className="w-5 h-5 text-gray-400" />;
-};
-
-interface Props {
-  file:       MediaFile;
-  selected?:  boolean;
-  onSelect?:  (file: MediaFile) => void;
-  onDelete?:  (id: string) => void;
-}
-
-export default function MediaCard({ file, selected, onSelect, onDelete }: Props) {
-  const isImage = file.resourceType === 'image';
-
-  return (
-    <div
-      onClick={() => onSelect?.(file)}
-      className={`group relative rounded-xl overflow-hidden border-2 cursor-pointer transition-all
-        ${selected
-          ? 'border-violet-500 ring-2 ring-violet-500/30'
-          : 'border-white/10 hover:border-white/30'}`}
-    >
-      {/* Thumbnail */}
-      <div className="aspect-square bg-white/5 flex items-center justify-center overflow-hidden">
-        {isImage ? (
-          <img src={file.url} alt={file.originalName} className="w-full h-full object-cover" />
-        ) : (
-          <div className="flex flex-col items-center gap-2 text-gray-400">
-            <TypeIcon type={file.resourceType} />
-            <span className="text-xs">{file.resourceType}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Info overlay */}
-      <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 to-transparent p-2">
-        <p className="text-xs text-white truncate">{file.originalName}</p>
-        <p className="text-xs text-gray-300">{fmt(file.sizeBytes)}</p>
-      </div>
-
-      {/* Delete */}
-      {onDelete && (
-        <button
-          onClick={e => { e.stopPropagation(); onDelete(file.id); }}
-          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity
-                     bg-black/60 text-red-400 hover:text-red-300 rounded-lg p-1"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
-      )}
-
-      {/* Selection tick */}
-      {selected && (
-        <div className="absolute top-1 left-1 w-5 h-5 bg-violet-500 rounded-full flex items-center justify-center text-white text-xs">
-          ✓
-        </div>
-      )}
-    </div>
-  );
-}
