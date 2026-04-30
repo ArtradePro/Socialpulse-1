@@ -42,6 +42,7 @@
     "stripe": "^22.0.2",
     "twitter-api-v2": "^1.29.0",
     "uuid": "^9.0.1",
+    "axios": "^1.6.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {

@@ -8,13 +8,15 @@ import { EmailService } from '../services/email.service';
 import { NotificationService } from '../services/notification.service';
 import { triggerUserSync } from './analyticsSync';
 
-const postQueue = new Bull('post-publishing', process.env.REDIS_URL ?? {
-    redis: {
-        host:     process.env.REDIS_HOST || 'localhost',
-        port:     parseInt(process.env.REDIS_PORT || '6379'),
-        password: process.env.REDIS_PASSWORD || undefined,
-    },
-});
+const postQueue = process.env.REDIS_URL
+    ? new Bull('post-publishing', process.env.REDIS_URL)
+    : new Bull('post-publishing', {
+        redis: {
+            host:     process.env.REDIS_HOST || 'localhost',
+            port:     parseInt(process.env.REDIS_PORT || '6379'),
+            password: process.env.REDIS_PASSWORD || undefined,
+        },
+    });
 
 export const initScheduler = () => {
     postQueue.process('publish-post', async (job) => {

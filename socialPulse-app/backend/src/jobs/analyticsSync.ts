@@ -5,15 +5,15 @@ import { query } from '../config/database';
 import { SocialAccountModel } from '../models/SocialAccount';
 import { TwitterApi } from 'twitter-api-v2';
 
-const redisOpts = process.env.REDIS_URL ?? {
-    redis: {
-        host:     process.env.REDIS_HOST || 'localhost',
-        port:     parseInt(process.env.REDIS_PORT || '6379'),
-        password: process.env.REDIS_PASSWORD || undefined,
-    },
-};
-
-export const analyticsQueue = new Bull('analytics-sync', redisOpts);
+export const analyticsQueue = process.env.REDIS_URL
+    ? new Bull('analytics-sync', process.env.REDIS_URL)
+    : new Bull('analytics-sync', {
+        redis: {
+            host:     process.env.REDIS_HOST || 'localhost',
+            port:     parseInt(process.env.REDIS_PORT || '6379'),
+            password: process.env.REDIS_PASSWORD || undefined,
+        },
+    });
 
 // ─── Per-platform metric fetchers ────────────────────────────────────────────
 
