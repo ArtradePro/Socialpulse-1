@@ -1,6 +1,12 @@
-// frontend/src/components/scheduler/BulkScheduler.tsx
+// src/components/scheduler/BulkScheduler.tsx
 import React, { useState } from 'react';
-import { Plus, Trash2, Send, Loader2, AlertCircle, CheckCircle, Twitter, Instagram, Linkedin, Facebook } from 'lucide-react';
+import { 
+    Plus, Trash2, Send, Loader2, AlertCircle, CheckCircle, 
+    Share2 as Twitter, 
+    Share2 as Instagram, 
+    Share2 as Linkedin, 
+    Share2 as Facebook 
+} from "lucide-react";
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 
@@ -68,7 +74,6 @@ export const BulkScheduler: React.FC = () => {
             setResults({ created: data.created.length, errors: data.errors ?? [] });
             if (data.created.length > 0) {
                 toast.success(`${data.created.length} post${data.created.length !== 1 ? 's' : ''} scheduled`);
-                // Clear successfully scheduled rows
                 const failedIndices = new Set((data.errors ?? []).map((e: ResultItem) => e.index));
                 setRows(prev => {
                     const remaining = prev.filter((_, i) => failedIndices.has(i));
@@ -91,7 +96,6 @@ export const BulkScheduler: React.FC = () => {
 
     return (
         <div className="space-y-4">
-            {/* Results banner */}
             {results && (
                 <div className={`flex items-start gap-3 p-4 rounded-xl border text-sm ${
                     results.errors.length === 0
@@ -114,7 +118,6 @@ export const BulkScheduler: React.FC = () => {
                 </div>
             )}
 
-            {/* Column headers */}
             <div className="hidden md:grid grid-cols-[1fr_auto_auto_auto] gap-3 px-1 text-xs font-medium text-gray-500 uppercase tracking-wide">
                 <span>Content</span>
                 <span>Platforms</span>
@@ -122,12 +125,10 @@ export const BulkScheduler: React.FC = () => {
                 <span />
             </div>
 
-            {/* Rows */}
             <div className="space-y-3">
                 {rows.map((row, i) => (
                     <div key={row.id} className="bg-white border border-gray-200 rounded-xl p-4">
                         <div className="flex items-start gap-3 flex-wrap md:flex-nowrap">
-                            {/* Content */}
                             <textarea
                                 value={row.content}
                                 onChange={e => updateRow(row.id, 'content', e.target.value)}
@@ -136,7 +137,6 @@ export const BulkScheduler: React.FC = () => {
                                 className="flex-1 min-w-0 resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                             />
 
-                            {/* Platforms */}
                             <div className="flex gap-1 flex-wrap shrink-0">
                                 {PLATFORMS.map(({ id, Icon, color }) => (
                                     <button
@@ -154,7 +154,6 @@ export const BulkScheduler: React.FC = () => {
                                 ))}
                             </div>
 
-                            {/* DateTime */}
                             <input
                                 type="datetime-local"
                                 value={row.scheduledAt}
@@ -163,7 +162,6 @@ export const BulkScheduler: React.FC = () => {
                                 className="shrink-0 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                             />
 
-                            {/* Remove */}
                             <button
                                 onClick={() => removeRow(row.id)}
                                 className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
@@ -175,7 +173,6 @@ export const BulkScheduler: React.FC = () => {
                 ))}
             </div>
 
-            {/* Add row + submit */}
             <div className="flex items-center gap-3 flex-wrap">
                 <button
                     onClick={addRow}
@@ -191,7 +188,7 @@ export const BulkScheduler: React.FC = () => {
                 <button
                     onClick={submit}
                     disabled={submitting}
-                    className="flex items-center gap-2 px-5 py-2 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+                    className="flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
                 >
                     {submitting
                         ? <><Loader2 className="w-4 h-4 animate-spin" /> Scheduling…</>

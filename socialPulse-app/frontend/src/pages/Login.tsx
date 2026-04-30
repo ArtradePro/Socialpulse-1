@@ -19,7 +19,7 @@ export const Login = () => {
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-lg p-8">
           <div className="flex justify-center mb-8">
-            <img src="/logo.png" alt="SocialPulse" className="h-20 w-auto object-contain" />
+            <img src="/logo.png" alt="SocialPulse" className="h-12 w-auto mx-auto" />
           </div>
           <h2 className="text-xl font-semibold text-gray-900 mb-6">Sign in to your account</h2>
 

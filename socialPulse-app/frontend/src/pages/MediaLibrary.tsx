@@ -286,7 +286,7 @@ const MediaLibraryPage: React.FC = () => {
                 </div>
             )}
 
-            <UpgradeModal
+ <UpgradeModal
                 open={upgradeOpen}
                 onClose={() => setUpgradeOpen(false)}
                 reason="storage"
@@ -295,45 +295,3 @@ const MediaLibraryPage: React.FC = () => {
     );
 };
 
-export default MediaLibraryPage;
-
-export default function MediaLibraryPage() {
-  const [showUploader, setShowUploader] = useState(false);
-  const [refreshKey, setRefreshKey]     = useState(0);
-
-  const handleUploaded = (_file: MediaFile) => {
-    setShowUploader(false);
-    setRefreshKey(k => k + 1);
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Media Library</h1>
-          <p className="text-gray-400 text-sm mt-1">Upload and manage your media files</p>
-        </div>
-        <button
-          onClick={() => setShowUploader(v => !v)}
-          className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-xl text-sm font-medium transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Upload
-        </button>
-      </div>
-
-      {/* Uploader (toggle) */}
-      {showUploader && (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-          <MediaUploader onUploaded={handleUploaded} />
-        </div>
-      )}
-
-      {/* Library */}
-      <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-        <MediaLibraryComponent key={refreshKey} />
-      </div>
-    </div>
-  );
-}

@@ -17,12 +17,12 @@ const engagementData = [
 interface StatsCardProps { title: string; value: string; change: number; icon: React.ReactNode; color: string; }
 
 const StatsCard: React.FC<StatsCardProps> = ({ title, value, change, icon, color }) => (
-    <div className={g-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow}>
+    <div className=bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow'>
         <div className='flex items-center justify-between mb-4'>
-            <div className={w-12 h-12  rounded-xl flex items-center justify-center}>{icon}</div>
-            <div className={lex items-center gap-1 text-sm font-medium }>
-                {change >= 0 ? <ArrowUpRight className='w-4 h-4' /> : <ArrowDownRight className='w-4 h-4' />}
-                {Math.abs(change)}%
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>{icon}</div>
+            <div className='flex items-center gap-1 text-sm font-medium'>
+                {change >= 0 ? <ArrowUpRight className='w-4 h-4 text-green-500' /> : <ArrowDownRight className='w-4 h-4 text-red-500' />}
+                <span className={change >= 0 ? 'text-green-600' : 'text-red-600'}>{Math.abs(change)}%</span>
             </div>
         </div>
         <p className='text-2xl font-bold text-gray-900'>{value}</p>
@@ -51,7 +51,7 @@ export const Dashboard: React.FC = () => {
 
     return (
         <div className='space-y-6'>
-            <div className='bg-linear-to-r from-purple-600 to-blue-600 rounded-2xl p-6 text-white'>
+            <div className='bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl p-6 text-white'>
                 <div className='flex items-center justify-between'>
                     <div>
                         <h2 className='text-2xl font-bold'>Good morning! 👋</h2>
@@ -84,7 +84,7 @@ export const Dashboard: React.FC = () => {
                     <div className='flex gap-4 mt-2'>
                         {[{ label: 'Likes', color: 'bg-purple-600' }, { label: 'Comments', color: 'bg-blue-600' }, { label: 'Shares', color: 'bg-pink-500' }].map(l => (
                             <div key={l.label} className='flex items-center gap-2'>
-                                <div className={w-3 h-3  rounded-full} />
+                                <div className={`w-3 h-3 rounded-full ${l.color}`} />
                                 <span className='text-xs text-gray-500'>{l.label}</span>
                             </div>
                         ))}
@@ -100,11 +100,11 @@ export const Dashboard: React.FC = () => {
                             { platform: 'Facebook', followers: '2.0K', growth: '-0.5%', color: 'bg-indigo-600' },
                         ].map(item => (
                             <div key={item.platform} className='flex items-center gap-3'>
-                                <div className={w-2 h-10  rounded-full} />
+                                <div className={`w-2 h-10 rounded-full ${item.color}`} />
                                 <div className='flex-1'>
                                     <div className='flex justify-between'>
                                         <span className='text-sm font-medium text-gray-900'>{item.platform}</span>
-                                        <span className={	ext-xs font-medium }>{item.growth}</span>
+                                        <span className={`text-xs font-medium ${item.growth.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>{item.growth}</span>
                                     </div>
                                     <span className='text-xs text-gray-500'>{item.followers} followers</span>
                                 </div>
@@ -135,7 +135,7 @@ export const Dashboard: React.FC = () => {
                                         {post.platforms.map((p: string) => (
                                             <span key={p} className='text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize'>{p}</span>
                                         ))}
-                                        <span className={	ext-xs px-2 py-0.5 rounded-full font-medium }>{post.status}</span>
+                                        <span className='text-xs px-2 py-0.5 rounded-full font-medium bg-purple-50 text-purple-600'>{post.status}</span>
                                     </div>
                                 </div>
                             </div>

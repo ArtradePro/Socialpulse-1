@@ -9,12 +9,12 @@ import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
 import { ContentStudio } from './pages/ContentStudio';
 import { Scheduler } from './pages/Scheduler';
-import { Analytics } from './pages/Analytics';
+import Analytics from "./pages/Analytics";
 import { Settings } from './pages/Settings';
 import MediaLibraryPage from './pages/MediaLibrary';
-import Billing          from './pages/Billing';
+import Billing           from './pages/Billing';
 import { Campaigns }    from './pages/Campaigns';
-import HashtagSets     from './pages/HashtagSets';
+import HashtagSets      from './pages/HashtagSets';
 import Templates       from './pages/Templates';
 import AcceptInvite    from './pages/AcceptInvite';
 import { RssFeeds }       from './pages/RssFeeds';
@@ -37,9 +37,12 @@ const App: React.FC = () => {
             <Router>
                 <Toaster position="top-right" />
                 <Routes>
+                    {/* Public Routes */}
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
                     <Route path="/team-invite/:token" element={<AcceptInvite />} />
+
+                    {/* Private Dashboard Routes */}
                     <Route path="/" element={<PrivateRoute><AppLayout /></PrivateRoute>}>
                         <Route index element={<Navigate to="/dashboard" replace />} />
                         <Route path="dashboard"  element={<Dashboard />} />
@@ -61,6 +64,9 @@ const App: React.FC = () => {
                         <Route path="image-editor" element={<ImageEditor />} />
                         <Route path="workspaces"   element={<Workspaces />} />
                     </Route>
+
+                    {/* NEW: Catch-all route. If path not found, go to login */}
+                    <Route path="*" element={<Navigate to="/login" replace />} />
                 </Routes>
             </Router>
             </BrandProvider>

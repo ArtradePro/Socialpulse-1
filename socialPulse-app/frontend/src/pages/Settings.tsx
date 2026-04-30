@@ -1,11 +1,13 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { socialService, SocialAccount } from '../services/socialService';
-import {
-    Twitter, Linkedin, Facebook, Instagram,
-    Trash2, Check, AlertCircle, User, Lock, Link, Bell,
-    Users, UserPlus, Mail, LogOut,
-} from 'lucide-react';
+import { 
+    Trash2, Check, AlertCircle, User, Lock, Link, Bell, Users, UserPlus, Mail, LogOut,
+    Share2 as Twitter, 
+    Share2 as Linkedin, 
+    Share2 as Facebook, 
+    Share2 as Instagram 
+} from "lucide-react";
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '../store/hooks';

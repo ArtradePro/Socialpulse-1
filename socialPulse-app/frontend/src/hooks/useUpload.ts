@@ -1,21 +1,21 @@
-// client/src/hooks/useUpload.ts
 import { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import MediaService, { MediaFile } from '../services/media.service';
 
 interface UploadState {
-    uploading:  boolean;
-    progress:   number;         // 0-100
-    uploaded:   MediaFile[];
-    error:      string | null;
+    uploading: boolean;
+    progress:  number;         // 0-100
+    uploaded:  MediaFile[];
+    error:     string | null;
 }
 
 interface UseUploadReturn extends UploadState {
-    upload:      (files: File[], folder?: string) => Promise<MediaFile[]>;
+    upload:       (files: File | File[], folder?: string) => Promise<MediaFile[]>;
     clearUploaded: () => void;
+    reset:         () => void;
 }
 
-export const useUpload = (): UseUploadReturn => {
+export const useUpload = (onSuccess?: (file: MediaFile) => void): UseUploadReturn => {
     const [state, setState] = useState<UploadState>({
         uploading: false,
         progress:  0,
@@ -23,14 +23,25 @@ export const useUpload = (): UseUploadReturn => {
         error:     null,
     });
 
-    const upload = useCallback(async (files: File[], folder = 'uploads'): Promise<MediaFile[]> => {
+    const upload = useCallback(async (input: File | File[], folder = 'uploads'): Promise<MediaFile[]> => {
+        const files = Array.isArray(input) ? input : [input];
+        
         setState(s => ({ ...s, uploading: true, progress: 0, error: null }));
+        
         try {
-            const result = await MediaService.upload(files, folder, pct =>
+            const result = await MediaService.upload(files, folder, (pct) =>
                 setState(s => ({ ...s, progress: pct }))
             );
+            
             setState(s => ({ ...s, uploading: false, progress: 100, uploaded: result }));
+            
             toast.success(`${result.length} file${result.length > 1 ? 's' : ''} uploaded!`);
+            
+            // If a callback was provided for single-file scenarios
+            if (onSuccess && result.length > 0) {
+                onSuccess(result[0]);
+            }
+            
             return result;
         } catch (err: any) {
             const message =
@@ -50,55 +61,22 @@ export const useUpload = (): UseUploadReturn => {
             }
 
             if (isQuota) {
-                // Fire a custom event so UpgradeModal can intercept
+                // Fire custom event for UpgradeModal
                 window.dispatchEvent(new CustomEvent('plan:upgrade-required', {
                     detail: { reason: 'storage' },
                 }));
             }
             return [];
         }
+    }, [onSuccess]);
+
+    const reset = useCallback(() => {
+        setState({ uploading: false, progress: 0, uploaded: [], error: null });
     }, []);
 
     const clearUploaded = useCallback(() => {
         setState(s => ({ ...s, uploaded: [], progress: 0 }));
     }, []);
 
-    return { ...state, upload, clearUploaded };
-};
-
-interface UploadState {
-  uploading: boolean;
-  progress:  number;
-  error:     string | null;
-}
-
-export const useUpload = (onSuccess?: (file: MediaFile) => void) => {
-  const [state, setState] = useState<UploadState>({
-    uploading: false,
-    progress:  0,
-    error:     null,
-  });
-
-  const upload = useCallback(async (file: File) => {
-    setState({ uploading: true, progress: 0, error: null });
-    try {
-      const result = await mediaService.upload(file, pct =>
-        setState(s => ({ ...s, progress: pct })),
-      );
-      setState({ uploading: false, progress: 100, error: null });
-      toast.success('Uploaded successfully');
-      onSuccess?.(result);
-      return result;
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Upload failed';
-      setState({ uploading: false, progress: 0, error: msg });
-      toast.error(msg);
-      return null;
-    }
-  }, [onSuccess]);
-
-  const reset = useCallback(() =>
-    setState({ uploading: false, progress: 0, error: null }), []);
-
-  return { ...state, upload, reset };
+    return { ...state, upload, clearUploaded, reset };
 };

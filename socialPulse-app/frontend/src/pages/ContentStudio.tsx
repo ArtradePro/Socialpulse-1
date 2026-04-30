@@ -1,15 +1,22 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Wand2, Image, Hash, Smile, Twitter, Instagram, Linkedin, Facebook, Calendar, Send, Save, Loader2, X, FolderOpen, FileText, Tag, Megaphone } from 'lucide-react';
+import { 
+    Wand2, Image, Hash, Smile, Calendar, Send, Save, 
+    Loader2, X, FolderOpen, FileText, Tag, Megaphone,
+    Share2 as TwitterIcon, 
+    Share2 as InstagramIcon, 
+    Share2 as LinkedinIcon, 
+    Share2 as FacebookIcon 
+} from "lucide-react";
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import MediaPicker from '../components/media/MediaPicker';
 import { MediaFile } from '../services/media.service';
 
 const platforms = [
-    { id: 'twitter', label: 'Twitter/X', icon: Twitter, color: 'text-sky-500', limit: 280 },
-    { id: 'instagram', label: 'Instagram', icon: Instagram, color: 'text-pink-600', limit: 2200 },
-    { id: 'linkedin', label: 'LinkedIn', icon: Linkedin, color: 'text-blue-700', limit: 3000 },
-    { id: 'facebook', label: 'Facebook', icon: Facebook, color: 'text-blue-600', limit: 63206 },
+    { id: 'twitter', label: 'Twitter/X', icon: TwitterIcon, color: 'text-sky-500', limit: 280 },
+    { id: 'instagram', label: 'Instagram', icon: InstagramIcon, color: 'text-pink-600', limit: 2200 },
+    { id: 'linkedin', label: 'LinkedIn', icon: LinkedinIcon, color: 'text-blue-700', limit: 3000 },
+    { id: 'facebook', label: 'Facebook', icon: FacebookIcon, color: 'text-blue-600', limit: 63206 },
 ];
 const tones = ['Professional', 'Casual', 'Humorous', 'Inspirational', 'Educational', 'Promotional'];
 const contentLengths = ['Short', 'Medium', 'Long'];
@@ -17,7 +24,6 @@ const contentLengths = ['Short', 'Medium', 'Long'];
 interface Template { id: string; name: string; content: string; }
 interface HashtagSet { id: string; name: string; hashtags: string[]; }
 interface Campaign { id: string; name: string; }
-
 
 export const ContentStudio: React.FC = () => {
     const [content, setContent] = useState('');
@@ -34,13 +40,12 @@ export const ContentStudio: React.FC = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<'write' | 'ai'>('write');
 
-    // Priority 2 additions
     const [showMediaPicker, setShowMediaPicker] = useState(false);
-    const [templates,    setTemplates]    = useState<Template[]>([]);
-    const [hashtagSets,  setHashtagSets]  = useState<HashtagSet[]>([]);
-    const [campaigns,    setCampaigns]    = useState<Campaign[]>([]);
-    const [campaignId,   setCampaignId]   = useState('');
-    const [showTemplates,   setShowTemplates]   = useState(false);
+    const [templates, setTemplates] = useState<Template[]>([]);
+    const [hashtagSets, setHashtagSets] = useState<HashtagSet[]>([]);
+    const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+    const [campaignId, setCampaignId] = useState('');
+    const [showTemplates, setShowTemplates] = useState(false);
     const [showHashtagSets, setShowHashtagSets] = useState(false);
 
     useEffect(() => {
@@ -48,7 +53,6 @@ export const ContentStudio: React.FC = () => {
         api.get('/hashtag-sets').then(r => setHashtagSets(r.data)).catch(() => {});
         api.get('/campaigns').then(r => setCampaigns(r.data)).catch(() => {});
     }, []);
-
 
     const togglePlatform = (id: string) =>
         setSelectedPlatforms(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
@@ -70,7 +74,6 @@ export const ContentStudio: React.FC = () => {
         if (urls.length + mediaUrls.length > 4) { toast.error('Maximum 4 media files allowed'); return; }
         setMediaUrls(prev => [...prev, ...urls]);
     };
-
 
     const handleAIGenerate = async () => {
         if (!aiTopic.trim()) { toast.error('Please enter a topic'); return; }
@@ -145,7 +148,7 @@ export const ContentStudio: React.FC = () => {
                         <div className='flex border-b border-gray-100'>
                             {(['write', 'ai'] as const).map(tab => (
                                 <button key={tab} onClick={() => setActiveTab(tab)}
-                                    className={lex-1 py-3 text-sm font-medium transition-colors }>
+                                    className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === tab ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50/50' : 'text-gray-500 hover:text-gray-700'}`}>
                                     {tab === 'write' ? '✍️ Write' : '🤖 AI Writer'}
                                 </button>
                             ))}
@@ -179,12 +182,10 @@ export const ContentStudio: React.FC = () => {
                                 )}
                                 <div className='flex items-center justify-between mt-4 pt-3 border-t border-gray-100'>
                                     <div className='flex items-center gap-1 flex-wrap'>
-                                        {/* Upload from device */}
                                         <label className='p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors' title='Upload file'>
                                             <Image className='w-5 h-5 text-gray-500' />
                                             <input type='file' className='hidden' accept='image/*,video/*' multiple onChange={handleFileUpload} />
                                         </label>
-                                        {/* Pick from media library */}
                                         <button
                                             onClick={() => setShowMediaPicker(true)}
                                             className='p-2 hover:bg-gray-100 rounded-lg transition-colors'
@@ -192,7 +193,6 @@ export const ContentStudio: React.FC = () => {
                                         >
                                             <FolderOpen className='w-5 h-5 text-gray-500' />
                                         </button>
-                                        {/* Hashtag set */}
                                         <div className='relative'>
                                             <button
                                                 onClick={() => { setShowHashtagSets(v => !v); setShowTemplates(false); }}
@@ -215,13 +215,7 @@ export const ContentStudio: React.FC = () => {
                                                     ))}
                                                 </div>
                                             )}
-                                            {showHashtagSets && hashtagSets.length === 0 && (
-                                                <div className='absolute left-0 top-9 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-sm text-gray-500 min-w-40'>
-                                                    No hashtag sets yet
-                                                </div>
-                                            )}
                                         </div>
-                                        {/* Template */}
                                         <div className='relative'>
                                             <button
                                                 onClick={() => { setShowTemplates(v => !v); setShowHashtagSets(false); }}
@@ -241,11 +235,6 @@ export const ContentStudio: React.FC = () => {
                                                             {t.name}
                                                         </button>
                                                     ))}
-                                                </div>
-                                            )}
-                                            {showTemplates && templates.length === 0 && (
-                                                <div className='absolute left-0 top-9 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-3 text-sm text-gray-500 min-w-40'>
-                                                    No templates yet
                                                 </div>
                                             )}
                                         </div>
@@ -284,15 +273,9 @@ export const ContentStudio: React.FC = () => {
                                     </div>
                                 </div>
                                 <button onClick={handleAIGenerate} disabled={isGenerating}
-                                    className='w-full flex items-center justify-center gap-2 py-3 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-60'>
+                                    className='w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-60'>
                                     {isGenerating ? <><Loader2 className='w-4 h-4 animate-spin' /> Generating...</> : <><Wand2 className='w-4 h-4' /> Generate with AI</>}
                                 </button>
-                                {content && (
-                                    <div className='p-4 bg-gray-50 rounded-xl'>
-                                        <p className='text-sm font-medium text-gray-700 mb-2'>Generated Content:</p>
-                                        <p className='text-sm text-gray-600'>{content}</p>
-                                    </div>
-                                )}
                             </div>
                         )}
                     </div>
@@ -316,7 +299,7 @@ export const ContentStudio: React.FC = () => {
                             </button>
                         ) : (
                             <button onClick={() => handleSaveOrPublish('publish')} disabled={isPublishing}
-                                className='flex-1 flex items-center justify-center gap-2 py-2.5 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-60'>
+                                className='flex-1 flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-60'>
                                 {isPublishing ? <Loader2 className='w-4 h-4 animate-spin' /> : <Send className='w-4 h-4' />} Publish Now
                             </button>
                         )}
@@ -327,12 +310,12 @@ export const ContentStudio: React.FC = () => {
                     <div className='bg-white rounded-2xl border border-gray-100 shadow-sm p-4'>
                         <h3 className='text-sm font-semibold text-gray-900 mb-3'>Publish To</h3>
                         <div className='space-y-2'>
-                            {platforms.map(({ id, label, icon: Icon, color }) => (
+                            {platforms.map(({ id, label, icon: Icon }) => (
                                 <button key={id} onClick={() => togglePlatform(id)}
-                                    className={w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all }>
-                                    <Icon className={w-5 h-5 } />
-                                    <span className='text-sm font-medium text-gray-700'>{label}</span>
-                                    {selectedPlatforms.includes(id) && <div className='ml-auto w-4 h-4 bg-purple-600 rounded-full flex items-center justify-center'><span className='text-white text-xs'>✓</span></div>}
+                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all ${selectedPlatforms.includes(id) ? 'border-purple-600 bg-purple-50' : 'border-transparent bg-gray-50 hover:bg-gray-100'}`}>
+                                    <Icon className={`w-5 h-5 ${selectedPlatforms.includes(id) ? 'text-purple-600' : 'text-gray-400'}`} />
+                                    <span className={`text-sm font-medium ${selectedPlatforms.includes(id) ? 'text-purple-900' : 'text-gray-700'}`}>{label}</span>
+                                    {selectedPlatforms.includes(id) && <div className='ml-auto w-4 h-4 bg-purple-600 rounded-full flex items-center justify-center'><span className='text-white text-[10px]'>✓</span></div>}
                                 </button>
                             ))}
                         </div>
@@ -344,7 +327,7 @@ export const ContentStudio: React.FC = () => {
                             {content ? (
                                 <div>
                                     <div className='flex items-center gap-2 mb-3'>
-                                        <div className='w-8 h-8 bg-linear-to-br from-purple-600 to-blue-600 rounded-full' />
+                                        <div className='w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full' />
                                         <div><p className='text-xs font-medium text-gray-900'>Your Name</p><p className='text-xs text-gray-500'>@username</p></div>
                                     </div>
                                     <p className='text-sm text-gray-800 whitespace-pre-wrap'>{content}</p>
@@ -355,7 +338,6 @@ export const ContentStudio: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Campaign selector */}
                     {campaigns.length > 0 && (
                         <div className='bg-white rounded-2xl border border-gray-100 shadow-sm p-4'>
                             <div className='flex items-center gap-2 mb-2'>
@@ -375,21 +357,20 @@ export const ContentStudio: React.FC = () => {
                         </div>
                     )}
 
-                    <div className='bg-linear-to-br from-purple-50 to-blue-50 rounded-2xl border border-purple-100 p-4'>
+                    <div className='bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl border border-purple-100 p-4'>
                         <div className='flex items-center gap-2 mb-2'>
                             <Wand2 className='w-4 h-4 text-purple-600' />
                             <span className='text-sm font-semibold text-purple-900'>AI Tips</span>
                         </div>
                         <ul className='space-y-1.5'>
                             {['Post between 9-11am for max reach', 'Include a question to boost comments', 'Use 3-5 hashtags on Instagram', 'Tag relevant accounts to expand reach'].map(tip => (
-                                <li key={tip} className='text-xs text-purple-700 flex items-start gap-1.5'><span className='mt-0.5'>•</span>{tip}</li>
+                                <li key={tip} className='text-[10px] text-purple-700 flex items-start gap-1.5'><span className='mt-0.5'>•</span>{tip}</li>
                             ))}
                         </ul>
                     </div>
                 </div>
             </div>
 
-            {/* Media Picker modal */}
             <MediaPicker
                 open={showMediaPicker}
                 onClose={() => setShowMediaPicker(false)}
