@@ -31,6 +31,7 @@ jobs:
       JWT_SECRET: ci-test-secret-minimum-32-characters-long
       JWT_EXPIRES_IN: 7d
       TEST_DATABASE_URL: postgresql://postgres:password@localhost:5432/socialpulse_test
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
     steps:
       - uses: actions/checkout@v4
