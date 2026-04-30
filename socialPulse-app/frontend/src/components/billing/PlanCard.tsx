@@ -1,4 +1,3 @@
-// client/src/components/billing/PlanCard.tsx
 import React from 'react';
 import { Check, Zap, Loader2 } from 'lucide-react';
 
@@ -69,8 +68,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
                 : `$${(price / 100 / 12).toFixed(0)}/mo`;
 
     return (
-        <div className={`relative bg-white rounded-2xl border-2 p-6 flex flex-col
-                         transition-all duration-200 ${
+        <div className={`relative bg-white rounded-2xl border-2 p-6 flex flex-col transition-all duration-200 ${
             isPro
                 ? 'border-purple-500 shadow-xl shadow-purple-100'
                 : isCurrent
@@ -80,8 +78,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
             {/* Badge */}
             {plan.badge && (
                 <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                    <span className="bg-linear-to-r from-purple-600 to-blue-600 text-white
-                                     text-xs font-bold px-4 py-1 rounded-full shadow-md">
+                    <span className="bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-bold px-4 py-1 rounded-full shadow-md whitespace-nowrap">
                         {plan.badge}
                     </span>
                 </div>
@@ -97,8 +94,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
             <div className="mb-6">
                 <span className="text-4xl font-extrabold text-gray-900">{displayPrice}</span>
                 {interval === 'yearly' && plan.monthlyPrice > 0 && (
-                    <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5
-                                     rounded-full font-semibold">
+                    <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">
                         Save 20%
                     </span>
                 )}
@@ -110,7 +106,7 @@ const PlanCard: React.FC<PlanCardProps> = ({
             </div>
 
             {/* Features */}
-            <ul className="space-y-2.5 flex-1 mb-6">
+            <ul className="space-y-3 mb-8 flex-1">
                 {FEATURE_LABELS.map(({ key, label }) => {
                     const val = plan.limits[key];
                     const isBoolean = typeof val === 'boolean';
@@ -127,39 +123,25 @@ const PlanCard: React.FC<PlanCardProps> = ({
                 })}
             </ul>
 
-            {/* CTA */}
-            {isCurrent ? (
-                <button disabled
-                    className="w-full py-2.5 rounded-xl border-2 border-green-400
-                                text-green-700 font-semibold text-sm bg-green-50">
-                    ✓ Current Plan
-                </button>
-            ) : plan.monthlyPrice === 0 ? (
-                <button disabled
-                    className="w-full py-2.5 rounded-xl border border-gray-200
-                                text-gray-400 text-sm cursor-default">
-                    Free forever
-                </button>
-            ) : (
-                <button
-                    onClick={() => onSelect(priceId)}
-                    disabled={loading}
-                    className={`w-full py-2.5 rounded-xl font-semibold text-sm
-                                transition-all flex items-center justify-center gap-2 ${
-                        isPro
-                            ? 'bg-linear-to-r from-purple-600 to-blue-600 text-white hover:opacity-90'
-                            : 'bg-gray-900 text-white hover:bg-gray-800'
-                    } disabled:opacity-60`}
-                >
-                    {loading
-                        ? <Loader2 className="w-4 h-4 animate-spin" />
-                        : <Zap className="w-4 h-4" />}
-                    {currentPlan === 'free' ? 'Start free trial' : 'Switch plan'}
-                </button>
-            )}
+            <button
+                onClick={() => onSelect(priceId)}
+                disabled={isCurrent || loading}
+                className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                    isCurrent
+                        ? 'bg-gray-100 text-gray-500 cursor-default'
+                        : 'bg-purple-600 text-white hover:bg-purple-700 shadow-sm'
+                }`}
+            >
+                {loading ? (
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+                ) : isCurrent ? (
+                    'Current Plan'
+                ) : (
+                    'Select Plan'
+                )}
+            </button>
         </div>
     );
 };
-
 
 export default PlanCard;

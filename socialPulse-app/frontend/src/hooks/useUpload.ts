@@ -78,5 +78,5 @@ export const useUpload = (onSuccess?: (file: MediaFile) => void): UseUploadRetur
         setState(s => ({ ...s, uploaded: [], progress: 0 }));
     }, []);
 
-    return { ...state, upload, clearUploaded, reset };
+    return { ...state, upload, clearUploaded };
 };

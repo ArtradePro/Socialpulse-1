@@ -1,4 +1,3 @@
-// client/src/components/media/MediaCard.tsx
 import React, { useState } from 'react';
 import { Trash2, Play, FileImage, Copy, Check } from 'lucide-react';
 import { MediaFile } from '../../services/media.service';

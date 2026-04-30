@@ -1,122 +1,101 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
-// --- Interfaces ---
-
-export interface PlanLimits {
-    socialAccounts: number | 'unlimited';
-    postsPerMonth: number | 'unlimited';
-    aiCreditsPerMonth: number | 'unlimited';
-    teamMembers: number | 'unlimited';
-    scheduledPosts: number | 'unlimited';
-    mediaStorageMb: number | 'unlimited';
-    mediaFileSizeMb: number | 'unlimited';
-    customBranding: boolean;
-    apiAccess: boolean;
-    whiteLabel: boolean;
-    prioritySupport: boolean;
+export interface UsageItem {
+    used:  number;
+    limit: number | 'unlimited';
 }
 
-export interface PlanUsage {
-    socialAccounts: number;
-    postsThisMonth: number;
-    mediaBytes: number;
-    mediaMb: number;
-    aiCredits: number;
+export interface UsageSummary {
+    posts:          UsageItem;
+    aiCredits:      UsageItem;
+    socialAccounts: UsageItem;
+    storage: {
+        usedBytes: number;
+        limitMB:   number | 'unlimited';
+    };
 }
 
 export interface PlanInfo {
-    id: string;
-    key: string;
-    name: string;
-    price: string;
-    badge?: string;
-    color?: string;
-}
-
-export interface BillingPlan {
-    key: string;
-    name: string;
-    price: string;
-    color: string;
-    badge: string;
-    features: string[];
-    limits: PlanLimits;
-    current: boolean;
-}
-
-interface BillingData {
-    plan: PlanInfo;
-    limits: PlanLimits;
-    usage: PlanUsage;
-    allPlans: BillingPlan[];
+    id:           string;
+    name:         string;
+    monthlyPrice: number;
+    limits:       Record<string, any>;
 }
 
 interface UsePlanReturn {
-    plan: PlanInfo | undefined;
-    limits: PlanLimits | undefined;
-    usage: PlanUsage | undefined;
-    allPlans: BillingPlan[] | undefined;
+    plan:    PlanInfo | null;
+    usage:   UsageSummary | null;
     loading: boolean;
-    error: string | null;
-    refetch: () => Promise<void>;
-    usedPercent: (key: keyof PlanUsage) => number;
+    refetch: () => void;
+    isAtLimit: (key: keyof UsageSummary) => boolean;
+    usedPercent: (key: 'posts' | 'aiCredits' | 'socialAccounts') => number;
 }
 
-// --- Hook Implementation ---
-
 export const usePlan = (): UsePlanReturn => {
-    const [data, setData] = useState<BillingData | null>(null);
+    const [plan,    setPlan]    = useState<PlanInfo | null>(null);
+    const [usage,   setUsage]   = useState<UsageSummary | null>(null);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [tick,    setTick]    = useState(0);
 
-    const fetchPlanData = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            // We use the /billing endpoint as seen in your second version
-            const res = await api.get<BillingData>('/billing');
-            setData(res.data);
-        } catch (err) {
-            console.error('Failed to load plan info', err);
-            setError('Failed to load plan info');
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+    const refetch = useCallback(() => setTick(t => t + 1), []);
 
     useEffect(() => {
-        fetchPlanData();
-    }, [fetchPlanData]);
+        let cancelled = false;
+        setLoading(true);
 
-    /**
-     * Calculates percentage used for a given resource.
-     * Maps usage keys to their corresponding limit keys.
-     */
-    const usedPercent = (usageKey: keyof PlanUsage): number => {
-        if (!data?.usage || !data?.limits) return 0;
+        api.get('/billing/usage').then(({ data }) => {
+            if (!cancelled) {
+                setPlan(data.plan);
+                setUsage(data.usage);
+                setLoading(false);
+            }
+        }).catch(() => {
+            if (!cancelled) setLoading(false);
+        });
 
-        const usedValue = data.usage[usageKey];
-        
-        // Map usage keys to limit keys
-        let limitValue: number | 'unlimited' = 'unlimited';
-        if (usageKey === 'postsThisMonth') limitValue = data.limits.postsPerMonth;
-        if (usageKey === 'aiCredits') limitValue = data.limits.aiCreditsPerMonth;
-        if (usageKey === 'socialAccounts') limitValue = data.limits.socialAccounts;
-        if (usageKey === 'mediaMb') limitValue = data.limits.mediaStorageMb;
+        return () => { cancelled = true; };
+    }, [tick]);
 
-        if (limitValue === 'unlimited') return 0;
-        return Math.min((usedValue / limitValue) * 100, 100);
+    const isAtLimit = (key: keyof UsageSummary): boolean => {
+        if (!usage) return false;
+        const item = usage[key] as UsageItem;
+        if (!item || item.limit === 'unlimited') return false;
+        return item.used >= (item.limit as number);
     };
 
-    return {
-        plan: data?.plan,
-        limits: data?.limits,
-        usage: data?.usage,
-        allPlans: data?.allPlans,
-        loading,
-        error,
-        refetch: fetchPlanData,
-        usedPercent
+    const usedPercent = (key: 'posts' | 'aiCredits' | 'socialAccounts'): number => {
+        if (!usage) return 0;
+        const item = usage[key];
+        if (item.limit === 'unlimited') return 0;
+        return Math.min((item.used / (item.limit as number)) * 100, 100);
     };
+
+    return { plan, usage, loading, refetch, isAtLimit, usedPercent };
+};
+  usage:    PlanUsage;
+  allPlans: BillingPlan[];
+}
+
+export const usePlan = () => {
+  const [data, setData]       = useState<BillingData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(null);
+
+  const fetch = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.get<BillingData>('/billing');
+      setData(res.data);
+    } catch {
+      setError('Failed to load plan info');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetch(); }, []);
+
+  return { plan: data?.plan, limits: data?.limits, usage: data?.usage, allPlans: data?.allPlans, loading, error, refetch: fetch };
 };

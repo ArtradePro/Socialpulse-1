@@ -1,15 +1,14 @@
-// client/src/components/media/MediaUploader.tsx
 import React, { useCallback, useRef, useState } from 'react';
-import { Upload, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Upload, X, Loader2, Check, AlertCircle } from 'lucide-react';
 import { useUpload } from '../../hooks/useUpload';
 import MediaService, { MediaFile } from '../../services/media.service';
 
 interface MediaUploaderProps {
-    folder?:       string;
+    folder?:        string;
     onUploaded?:   (files: MediaFile[]) => void;
-    maxFiles?:     number;
-    accept?:       string;
-    compact?:      boolean;
+    maxFiles?:      number;
+    accept?:        string;
+    compact?:       boolean;
 }
 
 interface PreviewFile {
@@ -50,6 +49,12 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({
         });
     };
 
+    const clear = () => {
+        previews.forEach(p => URL.revokeObjectURL(p.preview));
+        setPreviews([]);
+        setSucceeded(false);
+    };
+
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         setDragging(false);
@@ -61,7 +66,7 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({
         const files   = previews.map(p => p.file);
         const results = await upload(files, folder);
 
-        if (results.length > 0) {
+        if (results && results.length > 0) {
             setSucceeded(true);
             setTimeout(() => setSucceeded(false), 3000);
             previews.forEach(p => URL.revokeObjectURL(p.preview));
@@ -122,6 +127,14 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({
                 </p>
             </div>
 
+            {/* Error Message */}
+            {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-xl text-sm">
+                    <AlertCircle className="w-4 h-4" />
+                    {error}
+                </div>
+            )}
+
             {previews.length > 0 && (
                 <div className="grid grid-cols-4 gap-3">
                     {previews.map((p, i) => (
@@ -129,13 +142,13 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({
                             {p.isImage
                                 ? <img src={p.preview} alt="" className="w-full h-full object-cover" />
                                 : <div className="w-full h-full flex items-center justify-center">
-                                      <span className="text-xs text-gray-500 text-center px-1 truncate">{p.file.name}</span>
+                                      <span className="text-xs text-gray-500">{p.file.name}</span>
                                   </div>
                             }
                             <button
-                                onClick={(e) => { e.stopPropagation(); removePreview(i); }}
+                                onClick={() => removePreview(i)}
                                 className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white
-                                           rounded-full flex items-center justify-center z-10"
+                                           rounded-full flex items-center justify-center"
                             >
                                 <X className="w-3 h-3" />
                             </button>
@@ -148,6 +161,7 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({
                 </div>
             )}
 
+            {/* Upload button */}
             {previews.length > 0 && (
                 <div className="flex items-center gap-3">
                     <button

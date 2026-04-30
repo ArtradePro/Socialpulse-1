@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
     Wand2, Image, Hash, Smile, Calendar, Send, Save, 
     Loader2, X, FolderOpen, FileText, Tag, Megaphone,
@@ -125,7 +125,7 @@ export const ContentStudio: React.FC = () => {
         try {
             await api.post('/posts', {
                 content: `${content}\n\n`.trim(),
-                platforms: selectedPlatforms, hashtags, mediaUrls,
+                platforms: selectedPlatforms, hashtags: hashtags, mediaUrls: mediaUrls,
                 scheduledAt: action === 'schedule' ? scheduledAt : null,
                 aiGenerated: activeTab === 'ai',
                 campaignId: campaignId || null,
@@ -141,40 +141,40 @@ export const ContentStudio: React.FC = () => {
     const charLimit = currentPlatform?.limit || 280;
 
     return (
-        <div className='max-w-6xl mx-auto'>
-            <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
-                <div className='lg:col-span-2 space-y-4'>
-                    <div className='bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden'>
-                        <div className='flex border-b border-gray-100'>
+        <div className="max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-4">
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                        <div className="flex border-b border-gray-100">
                             {(['write', 'ai'] as const).map(tab => (
                                 <button key={tab} onClick={() => setActiveTab(tab)}
-                                    className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === tab ? 'text-purple-600 border-b-2 border-purple-600 bg-purple-50/50' : 'text-gray-500 hover:text-gray-700'}`}>
+                                    className={lex-1 py-3 text-sm font-medium transition-colors }>
                                     {tab === 'write' ? '✍️ Write' : '🤖 AI Writer'}
                                 </button>
                             ))}
                         </div>
                         {activeTab === 'write' ? (
-                            <div className='p-4'>
+                            <div className="p-4">
                                 <textarea value={content} onChange={e => setContent(e.target.value)}
-                                    placeholder='Start writing your post...'
-                                    className='w-full h-48 resize-none focus:outline-none text-gray-800 placeholder-gray-400 text-base' />
+                                    placeholder="Start writing your post..."
+                                    className="w-full h-48 resize-none focus:outline-none text-gray-800 placeholder-gray-400 text-base" />
                                 {hashtags.length > 0 && (
-                                    <div className='flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100'>
+                                    <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
                                         {hashtags.map(tag => (
-                                            <div key={tag} className='flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 rounded-lg text-sm'>
+                                            <div key={tag} className="flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 rounded-lg text-sm">
                                                 <span>{tag}</span>
-                                                <button onClick={() => setHashtags(prev => prev.filter(h => h !== tag))}><X className='w-3 h-3' /></button>
+                                                <button onClick={() => setHashtags(prev => prev.filter(h => h !== tag))}><X className="w-3 h-3" /></button>
                                             </div>
                                         ))}
                                     </div>
                                 )}
                                 {mediaUrls.length > 0 && (
-                                    <div className='grid grid-cols-4 gap-2 mt-3'>
+                                    <div className="grid grid-cols-4 gap-2 mt-3">
                                         {mediaUrls.map((url, i) => (
-                                            <div key={i} className='relative rounded-lg overflow-hidden aspect-square'>
-                                                <img src={url} alt='' className='w-full h-full object-cover' />
-                                                <button onClick={() => removeMedia(i)} className='absolute top-1 right-1 w-5 h-5 bg-black/50 text-white rounded-full flex items-center justify-center'>
-                                                    <X className='w-3 h-3' />
+                                            <div key={i} className="relative rounded-lg overflow-hidden aspect-square">
+                                                <img src={url} alt="" className="w-full h-full object-cover" />
+                                                <button onClick={() => removeMedia(i)} className="absolute top-1 right-1 w-5 h-5 bg-black/50 text-white rounded-full flex items-center justify-center">
+                                                    <X className="w-3 h-3" />
                                                 </button>
                                             </div>
                                         ))}
@@ -182,55 +182,58 @@ export const ContentStudio: React.FC = () => {
                                 )}
                                 <div className='flex items-center justify-between mt-4 pt-3 border-t border-gray-100'>
                                     <div className='flex items-center gap-1 flex-wrap'>
+                                        {/* Upload from device */}
                                         <label className='p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors' title='Upload file'>
                                             <Image className='w-5 h-5 text-gray-500' />
                                             <input type='file' className='hidden' accept='image/*,video/*' multiple onChange={handleFileUpload} />
                                         </label>
                                         <button
                                             onClick={() => setShowMediaPicker(true)}
-                                            className='p-2 hover:bg-gray-100 rounded-lg transition-colors'
-                                            title='Pick from Media Library'
+                                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                            title="Pick from Media Library"
                                         >
-                                            <FolderOpen className='w-5 h-5 text-gray-500' />
+                                            <FolderOpen className="w-5 h-5 text-gray-500" />
                                         </button>
+                                        {/* Hashtag set */}
                                         <div className='relative'>
                                             <button
                                                 onClick={() => { setShowHashtagSets(v => !v); setShowTemplates(false); }}
-                                                className='p-2 hover:bg-gray-100 rounded-lg transition-colors'
-                                                title='Insert Hashtag Set'
+                                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                                title="Insert Hashtag Set"
                                             >
-                                                <Tag className='w-5 h-5 text-gray-500' />
+                                                <Tag className="w-5 h-5 text-gray-500" />
                                             </button>
                                             {showHashtagSets && hashtagSets.length > 0 && (
-                                                <div className='absolute left-0 top-9 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-48 py-1'>
+                                                <div className="absolute left-0 top-9 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-48 py-1">
                                                     {hashtagSets.map(s => (
                                                         <button
                                                             key={s.id}
                                                             onClick={() => applyHashtagSet(s)}
-                                                            className='w-full text-left px-4 py-2 text-sm hover:bg-gray-50 truncate'
+                                                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 truncate"
                                                         >
-                                                            <span className='font-medium'>{s.name}</span>
-                                                            <span className='text-gray-400 ml-1'>({s.hashtags.length})</span>
+                                                            <span className="font-medium">{s.name}</span>
+                                                            <span className="text-gray-400 ml-1">({s.hashtags.length})</span>
                                                         </button>
                                                     ))}
                                                 </div>
                                             )}
                                         </div>
+                                        {/* Template */}
                                         <div className='relative'>
                                             <button
                                                 onClick={() => { setShowTemplates(v => !v); setShowHashtagSets(false); }}
-                                                className='p-2 hover:bg-gray-100 rounded-lg transition-colors'
-                                                title='Load Template'
+                                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                                title="Load Template"
                                             >
-                                                <FileText className='w-5 h-5 text-gray-500' />
+                                                <FileText className="w-5 h-5 text-gray-500" />
                                             </button>
                                             {showTemplates && templates.length > 0 && (
-                                                <div className='absolute left-0 top-9 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-56 py-1 max-h-56 overflow-y-auto'>
+                                                <div className="absolute left-0 top-9 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-56 py-1 max-h-56 overflow-y-auto">
                                                     {templates.map(t => (
                                                         <button
                                                             key={t.id}
                                                             onClick={() => applyTemplate(t)}
-                                                            className='w-full text-left px-4 py-2 text-sm hover:bg-gray-50 truncate'
+                                                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 truncate"
                                                         >
                                                             {t.name}
                                                         </button>
@@ -238,11 +241,11 @@ export const ContentStudio: React.FC = () => {
                                                 </div>
                                             )}
                                         </div>
-                                        <button onClick={handleGenerateHashtags} className='p-2 hover:bg-gray-100 rounded-lg transition-colors' title='Generate hashtags'>
-                                            <Hash className='w-5 h-5 text-gray-500' />
+                                        <button onClick={handleGenerateHashtags} className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Generate hashtags">
+                                            <Hash className="w-5 h-5 text-gray-500" />
                                         </button>
-                                        <button className='p-2 hover:bg-gray-100 rounded-lg transition-colors' title='Add emoji'>
-                                            <Smile className='w-5 h-5 text-gray-500' />
+                                        <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Add emoji">
+                                            <Smile className="w-5 h-5 text-gray-500" />
                                         </button>
                                     </div>
                                     <span className={`text-sm font-medium ${content.length > charLimit * 0.9 ? 'text-red-500' : 'text-gray-400'}`}>
@@ -251,55 +254,55 @@ export const ContentStudio: React.FC = () => {
                                 </div>
                             </div>
                         ) : (
-                            <div className='p-4 space-y-4'>
+                            <div className="p-4 space-y-4">
                                 <div>
-                                    <label className='block text-sm font-medium text-gray-700 mb-1'>Topic or Prompt</label>
-                                    <input type='text' value={aiTopic} onChange={e => setAiTopic(e.target.value)}
-                                        placeholder='e.g. Benefits of remote work for productivity'
-                                        className='w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm' />
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Topic or Prompt</label>
+                                    <input type="text" value={aiTopic} onChange={e => setAiTopic(e.target.value)}
+                                        placeholder="e.g. Benefits of remote work for productivity"
+                                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
                                 </div>
-                                <div className='grid grid-cols-2 gap-3'>
+                                <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className='block text-sm font-medium text-gray-700 mb-1'>Tone</label>
-                                        <select value={aiTone} onChange={e => setAiTone(e.target.value)} className='w-full px-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm'>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Tone</label>
+                                        <select value={aiTone} onChange={e => setAiTone(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
                                             {tones.map(t => <option key={t}>{t}</option>)}
                                         </select>
                                     </div>
                                     <div>
-                                        <label className='block text-sm font-medium text-gray-700 mb-1'>Length</label>
-                                        <select value={aiLength} onChange={e => setAiLength(e.target.value)} className='w-full px-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm'>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Length</label>
+                                        <select value={aiLength} onChange={e => setAiLength(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
                                             {contentLengths.map(l => <option key={l}>{l}</option>)}
                                         </select>
                                     </div>
                                 </div>
                                 <button onClick={handleAIGenerate} disabled={isGenerating}
-                                    className='w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-60'>
+                                    className='w-full flex items-center justify-center gap-2 py-3 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-60'>
                                     {isGenerating ? <><Loader2 className='w-4 h-4 animate-spin' /> Generating...</> : <><Wand2 className='w-4 h-4' /> Generate with AI</>}
                                 </button>
                             </div>
                         )}
                     </div>
 
-                    <div className='bg-white rounded-2xl border border-gray-100 shadow-sm p-4'>
-                        <label className='block text-sm font-medium text-gray-700 mb-2'>Schedule (optional)</label>
-                        <input type='datetime-local' value={scheduledAt} onChange={e => setScheduledAt(e.target.value)}
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Schedule (optional)</label>
+                        <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)}
                             min={new Date().toISOString().slice(0, 16)}
-                            className='w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm' />
+                            className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm" />
                     </div>
 
-                    <div className='flex gap-3'>
+                    <div className="flex gap-3">
                         <button onClick={() => handleSaveOrPublish('draft')} disabled={isSaving}
-                            className='flex items-center gap-2 px-5 py-2.5 border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors'>
-                            <Save className='w-4 h-4' /> Save Draft
+                            className="flex items-center gap-2 px-5 py-2.5 border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors">
+                            <Save className="w-4 h-4" /> Save Draft
                         </button>
                         {scheduledAt ? (
                             <button onClick={() => handleSaveOrPublish('schedule')} disabled={isPublishing}
-                                className='flex-1 flex items-center justify-center gap-2 py-2.5 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 transition-colors'>
-                                <Calendar className='w-4 h-4' /> Schedule Post
+                                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 transition-colors">
+                                <Calendar className="w-4 h-4" /> Schedule Post
                             </button>
                         ) : (
                             <button onClick={() => handleSaveOrPublish('publish')} disabled={isPublishing}
-                                className='flex-1 flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-60'>
+                                className='flex-1 flex items-center justify-center gap-2 py-2.5 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-60'>
                                 {isPublishing ? <Loader2 className='w-4 h-4 animate-spin' /> : <Send className='w-4 h-4' />} Publish Now
                             </button>
                         )}
@@ -310,46 +313,46 @@ export const ContentStudio: React.FC = () => {
                     <div className='bg-white rounded-2xl border border-gray-100 shadow-sm p-4'>
                         <h3 className='text-sm font-semibold text-gray-900 mb-3'>Publish To</h3>
                         <div className='space-y-2'>
-                            {platforms.map(({ id, label, icon: Icon }) => (
+                            {platforms.map(({ id, label, icon: Icon, color }) => (
                                 <button key={id} onClick={() => togglePlatform(id)}
-                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all ${selectedPlatforms.includes(id) ? 'border-purple-600 bg-purple-50' : 'border-transparent bg-gray-50 hover:bg-gray-100'}`}>
-                                    <Icon className={`w-5 h-5 ${selectedPlatforms.includes(id) ? 'text-purple-600' : 'text-gray-400'}`} />
-                                    <span className={`text-sm font-medium ${selectedPlatforms.includes(id) ? 'text-purple-900' : 'text-gray-700'}`}>{label}</span>
-                                    {selectedPlatforms.includes(id) && <div className='ml-auto w-4 h-4 bg-purple-600 rounded-full flex items-center justify-center'><span className='text-white text-[10px]'>✓</span></div>}
+                                    className={w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all }>
+                                    <Icon className={w-5 h-5 } />
+                                    <span className='text-sm font-medium text-gray-700'>{label}</span>
+                                    {selectedPlatforms.includes(id) && <div className='ml-auto w-4 h-4 bg-purple-600 rounded-full flex items-center justify-center'><span className='text-white text-xs'>✓</span></div>}
                                 </button>
                             ))}
                         </div>
                     </div>
 
-                    <div className='bg-white rounded-2xl border border-gray-100 shadow-sm p-4'>
-                        <h3 className='text-sm font-semibold text-gray-900 mb-3'>Preview</h3>
-                        <div className='bg-gray-50 rounded-xl p-4 min-h-32'>
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+                        <h3 className="text-sm font-semibold text-gray-900 mb-3">Preview</h3>
+                        <div className="bg-gray-50 rounded-xl p-4 min-h-32">
                             {content ? (
                                 <div>
                                     <div className='flex items-center gap-2 mb-3'>
-                                        <div className='w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full' />
+                                        <div className='w-8 h-8 bg-linear-to-br from-purple-600 to-blue-600 rounded-full' />
                                         <div><p className='text-xs font-medium text-gray-900'>Your Name</p><p className='text-xs text-gray-500'>@username</p></div>
                                     </div>
-                                    <p className='text-sm text-gray-800 whitespace-pre-wrap'>{content}</p>
-                                    {hashtags.length > 0 && <p className='text-sm text-blue-500 mt-2'>{hashtags.join(' ')}</p>}
-                                    {mediaUrls[0] && <img src={mediaUrls[0]} alt='' className='mt-3 rounded-lg w-full object-cover max-h-40' />}
+                                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{content}</p>
+                                    {hashtags.length > 0 && <p className="text-sm text-blue-500 mt-2">{hashtags.map(h => `#${h}`).join(' ')}</p>}
+                                    {mediaUrls[0] && <img src={mediaUrls[0]} alt="" className="mt-3 rounded-lg w-full object-cover max-h-40" />}
                                 </div>
-                            ) : <p className='text-sm text-gray-400 text-center pt-8'>Start writing to see preview...</p>}
+                            ) : <p className="text-sm text-gray-400 text-center pt-8">Start writing to see preview...</p>}
                         </div>
                     </div>
 
                     {campaigns.length > 0 && (
-                        <div className='bg-white rounded-2xl border border-gray-100 shadow-sm p-4'>
-                            <div className='flex items-center gap-2 mb-2'>
-                                <Megaphone className='w-4 h-4 text-indigo-600' />
-                                <h3 className='text-sm font-semibold text-gray-900'>Campaign (optional)</h3>
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Megaphone className="w-4 h-4 text-indigo-600" />
+                                <h3 className="text-sm font-semibold text-gray-900">Campaign (optional)</h3>
                             </div>
                             <select
                                 value={campaignId}
                                 onChange={e => setCampaignId(e.target.value)}
-                                className='w-full px-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm'
+                                className="w-full px-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                             >
-                                <option value=''>No campaign</option>
+                                <option value="">No campaign</option>
                                 {campaigns.map(c => (
                                     <option key={c.id} value={c.id}>{c.name}</option>
                                 ))}
@@ -357,14 +360,14 @@ export const ContentStudio: React.FC = () => {
                         </div>
                     )}
 
-                    <div className='bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl border border-purple-100 p-4'>
+                    <div className='bg-linear-to-br from-purple-50 to-blue-50 rounded-2xl border border-purple-100 p-4'>
                         <div className='flex items-center gap-2 mb-2'>
                             <Wand2 className='w-4 h-4 text-purple-600' />
                             <span className='text-sm font-semibold text-purple-900'>AI Tips</span>
                         </div>
-                        <ul className='space-y-1.5'>
+                        <ul className="space-y-1.5">
                             {['Post between 9-11am for max reach', 'Include a question to boost comments', 'Use 3-5 hashtags on Instagram', 'Tag relevant accounts to expand reach'].map(tip => (
-                                <li key={tip} className='text-[10px] text-purple-700 flex items-start gap-1.5'><span className='mt-0.5'>•</span>{tip}</li>
+                                <li key={tip} className='text-xs text-purple-700 flex items-start gap-1.5'><span className='mt-0.5'>•</span>{tip}</li>
                             ))}
                         </ul>
                     </div>
