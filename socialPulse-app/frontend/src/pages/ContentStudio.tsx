@@ -147,17 +147,23 @@ export const ContentStudio: React.FC = () => {
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                         <div className="flex border-b border-gray-100">
                             {(['write', 'ai'] as const).map(tab => (
-                                <button key={tab} onClick={() => setActiveTab(tab)}
-                                    className={lex-1 py-3 text-sm font-medium transition-colors }>
+                                <button 
+                                    key={tab} 
+                                    onClick={() => setActiveTab(tab)}
+                                    className="flex-1 py-3 text-sm font-medium transition-colors"
+                                >
                                     {tab === 'write' ? '✍️ Write' : '🤖 AI Writer'}
                                 </button>
                             ))}
                         </div>
                         {activeTab === 'write' ? (
                             <div className="p-4">
-                                <textarea value={content} onChange={e => setContent(e.target.value)}
+                                <textarea 
+                                    value={content} 
+                                    onChange={e => setContent(e.target.value)}
                                     placeholder="Start writing your post..."
-                                    className="w-full h-48 resize-none focus:outline-none text-gray-800 placeholder-gray-400 text-base" />
+                                    className="w-full h-48 resize-none focus:outline-none text-gray-800 placeholder-gray-400 text-base" 
+                                />
                                 {hashtags.length > 0 && (
                                     <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
                                         {hashtags.map(tag => (
@@ -182,7 +188,6 @@ export const ContentStudio: React.FC = () => {
                                 )}
                                 <div className='flex items-center justify-between mt-4 pt-3 border-t border-gray-100'>
                                     <div className='flex items-center gap-1 flex-wrap'>
-                                        {/* Upload from device */}
                                         <label className='p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors' title='Upload file'>
                                             <Image className='w-5 h-5 text-gray-500' />
                                             <input type='file' className='hidden' accept='image/*,video/*' multiple onChange={handleFileUpload} />
@@ -194,7 +199,6 @@ export const ContentStudio: React.FC = () => {
                                         >
                                             <FolderOpen className="w-5 h-5 text-gray-500" />
                                         </button>
-                                        {/* Hashtag set */}
                                         <div className='relative'>
                                             <button
                                                 onClick={() => { setShowHashtagSets(v => !v); setShowTemplates(false); }}
@@ -218,7 +222,6 @@ export const ContentStudio: React.FC = () => {
                                                 </div>
                                             )}
                                         </div>
-                                        {/* Template */}
                                         <div className='relative'>
                                             <button
                                                 onClick={() => { setShowTemplates(v => !v); setShowHashtagSets(false); }}
@@ -313,12 +316,19 @@ export const ContentStudio: React.FC = () => {
                     <div className='bg-white rounded-2xl border border-gray-100 shadow-sm p-4'>
                         <h3 className='text-sm font-semibold text-gray-900 mb-3'>Publish To</h3>
                         <div className='space-y-2'>
-                            {platforms.map(({ id, label, icon: Icon, color }) => (
-                                <button key={id} onClick={() => togglePlatform(id)}
-                                    className={w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all }>
-                                    <Icon className={w-5 h-5 } />
+                            {platforms.map(({ id, label, icon: Icon }) => (
+                                <button 
+                                    key={id} 
+                                    onClick={() => togglePlatform(id)}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all"
+                                >
+                                    <Icon className="w-5 h-5" />
                                     <span className='text-sm font-medium text-gray-700'>{label}</span>
-                                    {selectedPlatforms.includes(id) && <div className='ml-auto w-4 h-4 bg-purple-600 rounded-full flex items-center justify-center'><span className='text-white text-xs'>✓</span></div>}
+                                    {selectedPlatforms.includes(id) && (
+                                        <div className='ml-auto w-4 h-4 bg-purple-600 rounded-full flex items-center justify-center'>
+                                            <span className='text-white text-xs'>✓</span>
+                                        </div>
+                                    )}
                                 </button>
                             ))}
                         </div>
@@ -331,13 +341,22 @@ export const ContentStudio: React.FC = () => {
                                 <div>
                                     <div className='flex items-center gap-2 mb-3'>
                                         <div className='w-8 h-8 bg-linear-to-br from-purple-600 to-blue-600 rounded-full' />
-                                        <div><p className='text-xs font-medium text-gray-900'>Your Name</p><p className='text-xs text-gray-500'>@username</p></div>
+                                        <div>
+                                            <p className='text-xs font-medium text-gray-900'>Your Name</p>
+                                            <p className='text-xs text-gray-500'>@username</p>
+                                        </div>
                                     </div>
                                     <p className="text-sm text-gray-800 whitespace-pre-wrap">{content}</p>
-                                    {hashtags.length > 0 && <p className="text-sm text-blue-500 mt-2">{hashtags.map(h => `#${h}`).join(' ')}</p>}
-                                    {mediaUrls[0] && <img src={mediaUrls[0]} alt="" className="mt-3 rounded-lg w-full object-cover max-h-40" />}
+                                    {hashtags.length > 0 && (
+                                        <p className="text-sm text-blue-500 mt-2">{hashtags.map(h => `#${h}`).join(' ')}</p>
+                                    )}
+                                    {mediaUrls[0] && (
+                                        <img src={mediaUrls[0]} alt="" className="mt-3 rounded-lg w-full object-cover max-h-40" />
+                                    )}
                                 </div>
-                            ) : <p className="text-sm text-gray-400 text-center pt-8">Start writing to see preview...</p>}
+                            ) : (
+                                <p className="text-sm text-gray-400 text-center pt-8">Start writing to see preview...</p>
+                            )}
                         </div>
                     </div>
 
@@ -367,7 +386,9 @@ export const ContentStudio: React.FC = () => {
                         </div>
                         <ul className="space-y-1.5">
                             {['Post between 9-11am for max reach', 'Include a question to boost comments', 'Use 3-5 hashtags on Instagram', 'Tag relevant accounts to expand reach'].map(tip => (
-                                <li key={tip} className='text-xs text-purple-700 flex items-start gap-1.5'><span className='mt-0.5'>•</span>{tip}</li>
+                                <li key={tip} className='text-xs text-purple-700 flex items-start gap-1.5'>
+                                    <span className='mt-0.5'>•</span>{tip}
+                                </li>
                             ))}
                         </ul>
                     </div>
