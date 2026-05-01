@@ -1,30 +1,33 @@
 // client/src/components/media/MediaLibrary.tsx
 import { useState, useEffect, useCallback } from 'react';
 import { Search, RefreshCw } from 'lucide-react';
-import { mediaService, MediaFile } from '../../services/media.service';
+import mediaService, { MediaFile } from '../../services/media.service';
 import MediaCard from './MediaCard';
 import toast from 'react-hot-toast';
 
 interface Props {
   selectable?: boolean;
-  onSelect?:   (file: MediaFile) => void;
-  selected?:   string | null;
+  onSelect?: (file: MediaFile) => void;
+  selected?: string | null;
 }
 
 export default function MediaLibrary({ selectable, onSelect, selected }: Props) {
-  const [files, setFiles]         = useState<MediaFile[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [page, setPage]           = useState(1);
-  const [pages, setPages]         = useState(1);
-  const [type, setType]           = useState('');
-  const [query, setQuery]         = useState('');
+  const [files, setFiles] = useState<MediaFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [type, setType] = useState('');
+  const [query, setQuery] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await mediaService.list({ page, limit: 24, type: type || undefined });
-      setFiles(data.items);
-      setPages(data.pages);
+      // Cast type to any to bypass the MediaTypeFilter strictness if necessary
+      const data = await mediaService.list({ page, limit: 24, type: (type || undefined) as any });
+      
+      // FIX: Use 'files' and calculate 'pages' correctly based on your API structure
+      setFiles(data.files || []); 
+      setPages(data.total ? Math.ceil(data.total / 24) : 1);
     } catch {
       toast.error('Failed to load media');
     } finally {
@@ -32,9 +35,12 @@ export default function MediaLibrary({ selectable, onSelect, selected }: Props) 
     }
   }, [page, type]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this file?')) return;
     try {
       await mediaService.delete(id);
       setFiles(f => f.filter(x => x.id !== id));
@@ -87,14 +93,22 @@ export default function MediaLibrary({ selectable, onSelect, selected }: Props) 
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {filtered.map(f => (
-            <MediaCard
-              key={f.id}
-              file={f}
-              selected={selectable ? selected === f.id : undefined}
-              onSelect={selectable ? onSelect : undefined}
-              onDelete={!selectable ? handleDelete : undefined}
-            />
-          ))}
+    <MediaCard
+        key={f.id}
+        file={f}
+        // 1. Ensure this is always a boolean
+        selected={selectable ? selected === f.id : false}
+        
+        // 2. Pass the full file object to onSelect
+        onSelect={(file) => selectable && onSelect ? onSelect(file) : null}
+        
+        // 3. Pass the ID string to onDelete
+        onDelete={(id) => !selectable ? handleDelete(id) : null}
+        
+        // 4. Handle the URL copy feedback
+        onCopyUrl={(url) => toast.success('Link copied!')}
+    />
+))}
         </div>
       )}
 

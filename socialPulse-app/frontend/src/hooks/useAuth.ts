@@ -12,8 +12,16 @@ export const useAuth = () => {
     error,
     isAuthenticated: !!accessToken,
     login: (email: string, password: string) => dispatch(login({ email, password })),
+    
+    // FIX: Map the incoming data to the 'fullName' property expected by the store
     register: (data: { email: string; password: string; username: string; displayName: string }) =>
-      dispatch(register(data)),
-    logout: () => dispatch(logout()),
+      dispatch(register({ 
+        email: data.email, 
+        password: data.password, 
+        // Logic: Use displayName if it exists, otherwise use username, otherwise fallback to 'User'
+        fullName: data.displayName || data.username || 'User' 
+      })),
+      
+    logout: () => dispatch(logout())
   };
 };

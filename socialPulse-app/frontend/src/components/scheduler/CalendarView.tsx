@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePosts } from '../../hooks/usePosts';
-import { useEffect } from 'react';
 
 // Simple month calendar view showing scheduled posts
 export const CalendarView = () => {
@@ -10,7 +9,9 @@ export const CalendarView = () => {
     return { year: d.getFullYear(), month: d.getMonth() };
   });
 
-  useEffect(() => { fetchPosts({ limit: 100 }); }, []);
+  useEffect(() => { 
+    fetchPosts({ limit: 100 }); 
+  }, [fetchPosts]); // Added fetchPosts to dependency array for best practice
 
   const daysInMonth = new Date(currentMonth.year, currentMonth.month + 1, 0).getDate();
   const firstDay = new Date(currentMonth.year, currentMonth.month, 1).getDay();
@@ -27,9 +28,11 @@ export const CalendarView = () => {
     }
   }
 
-  const cells = Array.from({ length: firstDay }, () => null).concat(
-    Array.from({ length: daysInMonth }, (_, i) => i + 1)
-  );
+  // FIX: Explicitly type the array as (number | null)[]
+  const cells: (number | null)[] = [
+    ...Array.from({ length: firstDay }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1)
+  ];
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-6">

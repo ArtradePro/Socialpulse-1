@@ -1,13 +1,15 @@
-// client/src/components/billing/UpgradeModal.tsx
 import React from 'react';
 import { X, Zap, ArrowRight } from 'lucide-react';
-import { useNavigate }        from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 interface UpgradeModalProps {
-    open:    boolean;
+    open: boolean;
     onClose: () => void;
     reason?: string;    // 'storage' | 'posts' | 'ai' | 'feature' | generic
     message?: string;
+    // FIX: Added missing properties to satisfy the Billing.tsx build requirement
+    plans?: any[]; 
+    onDone?: () => void;
 }
 
 const REASON_COPY: Record<string, { title: string; body: string }> = {
@@ -33,7 +35,14 @@ const REASON_COPY: Record<string, { title: string; body: string }> = {
     },
 };
 
-const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, message }) => {
+const UpgradeModal: React.FC<UpgradeModalProps> = ({ 
+    open, 
+    onClose, 
+    reason, 
+    message,
+    plans, // Destructured though currently unused in your UI logic
+    onDone  // Destructured though currently unused in your UI logic
+}) => {
     const navigate = useNavigate();
     const copy = REASON_COPY[reason ?? 'default'] ?? REASON_COPY.default;
 
@@ -54,7 +63,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, mess
                 </button>
 
                 {/* Icon */}
-                <div className="w-14 h-14 bg-linear-to-br from-purple-600 to-blue-600
+                <div className="w-14 h-14 bg-gradient-to-br from-purple-600 to-blue-600
                                 rounded-2xl flex items-center justify-center mx-auto mb-5">
                     <Zap className="w-7 h-7 text-white" />
                 </div>
@@ -70,7 +79,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ open, onClose, reason, mess
                     <button
                         onClick={() => { onClose(); navigate('/billing'); }}
                         className="w-full flex items-center justify-center gap-2 py-3
-                                   bg-linear-to-r from-purple-600 to-blue-600 text-white
+                                   bg-gradient-to-r from-purple-600 to-blue-600 text-white
                                    rounded-xl font-semibold hover:opacity-90 transition-opacity"
                     >
                         View Plans

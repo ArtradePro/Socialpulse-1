@@ -1,14 +1,14 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Upload, X, Loader2, Check, AlertCircle } from 'lucide-react';
+import { Upload, X, Loader2, Check, AlertCircle, CheckCircle2 } from 'lucide-react'; // Fixed: Added CheckCircle2
 import { useUpload } from '../../hooks/useUpload';
 import MediaService, { MediaFile } from '../../services/media.service';
 
 interface MediaUploaderProps {
-    folder?:        string;
-    onUploaded?:   (files: MediaFile[]) => void;
-    maxFiles?:      number;
-    accept?:        string;
-    compact?:       boolean;
+    folder?:         string;
+    onUploaded?:    (files: MediaFile[]) => void;
+    maxFiles?:       number;
+    accept?:         string;
+    compact?:        boolean;
 }
 
 interface PreviewFile {
@@ -18,7 +18,7 @@ interface PreviewFile {
     isVideo:  boolean;
 }
 
-const MediaUploader: React.FC<MediaUploaderProps> = ({
+export const MediaUploader: React.FC<MediaUploaderProps> = ({
     folder     = 'uploads',
     onUploaded,
     maxFiles   = 10,
@@ -44,15 +44,9 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({
 
     const removePreview = (idx: number) => {
         setPreviews(prev => {
-            URL.revokeObjectURL(prev[idx].preview);
+            if (prev[idx]) URL.revokeObjectURL(prev[idx].preview);
             return prev.filter((_, i) => i !== idx);
         });
-    };
-
-    const clear = () => {
-        previews.forEach(p => URL.revokeObjectURL(p.preview));
-        setPreviews([]);
-        setSucceeded(false);
     };
 
     const handleDrop = useCallback((e: React.DragEvent) => {
@@ -75,6 +69,7 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({
         }
     };
 
+    // Compact mode for small UI areas
     if (compact) {
         return (
             <label
@@ -87,7 +82,14 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({
                 <input
                     type="file" className="hidden"
                     accept={accept} multiple
-                    onChange={e => { addFiles(Array.from(e.target.files ?? [])); handleUpload(); }}
+                    onChange={e => {
+                        const files = Array.from(e.target.files ?? []);
+                        if (files.length > 0) {
+                             addFiles(files);
+                             // Small delay to ensure state updates or upload directly
+                             handleUpload();
+                        }
+                    }}
                 />
             </label>
         );
@@ -123,11 +125,10 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({
                     Drop files here or <span className="text-purple-600">browse</span>
                 </p>
                 <p className="text-sm text-gray-400 mt-1">
-                    Images & videos up to your plan's limit
+                    Images & videos up to {maxFiles} files
                 </p>
             </div>
 
-            {/* Error Message */}
             {error && (
                 <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-xl text-sm">
                     <AlertCircle className="w-4 h-4" />
@@ -136,45 +137,43 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({
             )}
 
             {previews.length > 0 && (
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {previews.map((p, i) => (
-                        <div key={i} className="relative rounded-xl overflow-hidden aspect-square bg-gray-100">
+                        <div key={i} className="relative rounded-xl overflow-hidden aspect-square bg-gray-100 border border-gray-100">
                             {p.isImage
                                 ? <img src={p.preview} alt="" className="w-full h-full object-cover" />
-                                : <div className="w-full h-full flex items-center justify-center">
-                                      <span className="text-xs text-gray-500">{p.file.name}</span>
+                                : <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center">
+                                      <Upload className="w-5 h-5 text-gray-400 mb-1" />
+                                      <span className="text-[10px] text-gray-500 truncate w-full">{p.file.name}</span>
                                   </div>
                             }
                             <button
-                                onClick={() => removePreview(i)}
-                                className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white
-                                           rounded-full flex items-center justify-center"
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); removePreview(i); }}
+                                className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white
+                                           rounded-full flex items-center justify-center shadow-sm hover:bg-red-600"
                             >
-                                <X className="w-3 h-3" />
+                                <X className="w-4 h-4" />
                             </button>
-                            <div className="absolute bottom-1 left-1 text-[9px] bg-black/50
-                                            text-white px-1 rounded">
-                                {MediaService.formatSize(p.file.size)}
-                            </div>
                         </div>
                     ))}
                 </div>
             )}
 
-            {/* Upload button */}
             {previews.length > 0 && (
                 <div className="flex items-center gap-3">
                     <button
+                        type="button"
                         onClick={handleUpload}
                         disabled={uploading}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-purple-600 text-white
                                    rounded-xl font-medium text-sm hover:bg-purple-700
                                    disabled:opacity-60 transition-colors"
                     >
                         {uploading ? (
                             <>
                                 <Loader2 className="w-4 h-4 animate-spin" />
-                                Uploading… {progress}%
+                                {progress}%
                             </>
                         ) : succeeded ? (
                             <>
@@ -184,25 +183,18 @@ const MediaUploader: React.FC<MediaUploaderProps> = ({
                         ) : (
                             <>
                                 <Upload className="w-4 h-4" />
-                                Upload {previews.length} file{previews.length > 1 ? 's' : ''}
+                                Upload {previews.length} File{previews.length > 1 ? 's' : ''}
                             </>
                         )}
                     </button>
 
                     {uploading && (
-                        <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                        <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden hidden sm:block">
                             <div
                                 className="h-2 bg-purple-600 rounded-full transition-all"
                                 style={{ width: `${progress}%` }}
                             />
                         </div>
-                    )}
-
-                    {error && (
-                        <p className="flex items-center gap-1.5 text-sm text-red-600">
-                            <AlertCircle className="w-4 h-4" />
-                            {error}
-                        </p>
                     )}
                 </div>
             )}

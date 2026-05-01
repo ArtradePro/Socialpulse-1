@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
     Plus, Settings, Users, Globe, 
     MoreVertical, Trash2, Shield, 
-    Check, X, Loader2, Building2 
+    Check, X, Loader2, Building2,
+    Crown, User, Eye, UserPlus, Palette
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -28,7 +29,7 @@ interface PendingInvite {
 }
 
 interface WorkspaceDetail extends Workspace {
-    members:        Member[];
+    members:         Member[];
     pendingInvites: PendingInvite[];
 }
 
@@ -45,30 +46,30 @@ export const Workspaces: React.FC = () => {
     const dispatch = useAppDispatch();
     const { workspaces, activeId } = useAppSelector(s => s.workspace);
 
-    const [selected,    setSelected]    = useState<WorkspaceDetail | null>(null);
-    const [loading,     setLoading]     = useState(true);
+    const [selected, setSelected] = useState<WorkspaceDetail | null>(null);
+    const [loading, setLoading] = useState(true);
     const [loadingDetail, setLoadingDetail] = useState(false);
 
     // Detail tabs
     const [detailTab, setDetailTab] = useState<'members' | 'branding'>('members');
 
     // Branding form
-    const [brandName,    setBrandName]    = useState('');
-    const [brandColor,   setBrandColor]   = useState('#6366f1');
+    const [brandName, setBrandName] = useState('');
+    const [brandColor, setBrandColor] = useState('#6366f1');
     const [brandLogoUrl, setBrandLogoUrl] = useState('');
     const [customDomain, setCustomDomain] = useState('');
-    const [savingBrand,  setSavingBrand]  = useState(false);
+    const [savingBrand, setSavingBrand] = useState(false);
 
     // Create workspace modal
-    const [showCreate,  setShowCreate]  = useState(false);
-    const [newName,     setNewName]     = useState('');
-    const [creating,    setCreating]    = useState(false);
+    const [showCreate, setShowCreate] = useState(false);
+    const [newName, setNewName] = useState('');
+    const [creating, setCreating] = useState(false);
 
     // Invite modal
-    const [showInvite,  setShowInvite]  = useState(false);
+    const [showInvite, setShowInvite] = useState(false);
     const [inviteEmail, setInviteEmail] = useState('');
-    const [inviteRole,  setInviteRole]  = useState('member');
-    const [inviting,    setInviting]    = useState(false);
+    const [inviteRole, setInviteRole] = useState('member');
+    const [inviting, setInviting] = useState(false);
 
     // ── Load workspace list ──────────────────────────────────────────────────
 
@@ -99,7 +100,6 @@ export const Workspaces: React.FC = () => {
         if (workspaces.length > 0 && !selected) loadDetail(workspaces[0]);
     }, [workspaces, selected, loadDetail]);
 
-    // Sync branding form when workspace selection changes
     useEffect(() => {
         if (!selected) return;
         setBrandName((selected as any).brand_name   ?? '');
@@ -116,7 +116,7 @@ export const Workspaces: React.FC = () => {
         setCreating(true);
         try {
             const { data } = await api.post('/workspaces', { name: newName });
-            setWorkspaces(prev => [...prev, data]);
+            dispatch(addWorkspace(data)); // Fixed: dispatching the action
             setNewName('');
             setShowCreate(false);
             toast.success('Workspace created!');
@@ -138,14 +138,11 @@ export const Workspaces: React.FC = () => {
             });
             setInviteEmail('');
             setShowInvite(false);
-            setInviteEmail('');
             loadDetail(selected);
         } catch (err: any) {
             toast.error(err?.response?.data?.message ?? 'Failed to send invite');
         } finally { setInviting(false); }
     };
-
-    // ── Remove member ────────────────────────────────────────────────────────
 
     const handleRemoveMember = async (userId: string, name: string) => {
         if (!selected) return;
@@ -159,8 +156,6 @@ export const Workspaces: React.FC = () => {
         } catch { toast.error('Failed to remove member'); }
     };
 
-    // ── Cancel invite ────────────────────────────────────────────────────────
-
     const handleCancelInvite = async (inviteId: string) => {
         if (!selected) return;
         try {
@@ -171,8 +166,6 @@ export const Workspaces: React.FC = () => {
             loadDetail(selected);
         } catch { toast.error('Failed to cancel invite'); }
     };
-
-    // ── Save branding ────────────────────────────────────────────────────────
 
     const handleSaveBranding = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -192,8 +185,6 @@ export const Workspaces: React.FC = () => {
         } finally { setSavingBrand(false); }
     };
 
-    // ── Delete workspace ─────────────────────────────────────────────────────
-
     const handleDelete = async () => {
         if (!selected) return;
         if (!window.confirm(`Delete "${selected.name}"? This cannot be undone.`)) return;
@@ -207,8 +198,6 @@ export const Workspaces: React.FC = () => {
             loadList();
         } catch { toast.error('Failed to delete workspace'); }
     };
-
-    // ── Update member role ───────────────────────────────────────────────────
 
     const handleRoleChange = async (userId: string, role: string) => {
         if (!selected) return;
@@ -291,7 +280,6 @@ export const Workspaces: React.FC = () => {
                         </div>
                     ) : (
                         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                            {/* Tab bar */}
                             <div className="flex border-b border-gray-100">
                                 {(['members', 'branding'] as const).map(tab => (
                                     <button key={tab} onClick={() => setDetailTab(tab)}
@@ -305,7 +293,6 @@ export const Workspaces: React.FC = () => {
                                 ))}
                             </div>
 
-                            {/* Header */}
                             <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-xl bg-linear-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold">
@@ -332,150 +319,136 @@ export const Workspaces: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Members tab */}
-                            {detailTab === 'branding' && ['owner', 'admin'].includes(selected.role) && (
-                                <form onSubmit={handleSaveBranding} className="px-6 py-5 space-y-5">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Brand name</label>
-                                        <input type="text" value={brandName}
-                                            onChange={e => setBrandName(e.target.value)}
-                                            placeholder="Your Company (leave blank to use workspace name)"
-                                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                                        <p className="text-xs text-gray-400 mt-1">Shown in the sidebar instead of "Social Pulse"</p>
-                                    </div>
+                            {detailTab === 'branding' ? (
+                                ['owner', 'admin'].includes(selected.role) ? (
+                                    <form onSubmit={handleSaveBranding} className="px-6 py-5 space-y-5">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Brand name</label>
+                                            <input type="text" value={brandName}
+                                                onChange={e => setBrandName(e.target.value)}
+                                                placeholder="Your Company (leave blank to use workspace name)"
+                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                        </div>
 
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Brand color</label>
-                                        <div className="flex items-center gap-3">
-                                            <label className="relative w-10 h-10 rounded-xl border border-gray-200 cursor-pointer overflow-hidden shrink-0">
-                                                <span className="block w-full h-full" style={{ background: brandColor }} />
-                                                <input type="color" value={brandColor}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Brand color</label>
+                                            <div className="flex items-center gap-3">
+                                                <label className="relative w-10 h-10 rounded-xl border border-gray-200 cursor-pointer overflow-hidden shrink-0">
+                                                    <span className="block w-full h-full" style={{ background: brandColor }} />
+                                                    <input type="color" value={brandColor}
+                                                        onChange={e => setBrandColor(e.target.value)}
+                                                        className="absolute opacity-0 inset-0" />
+                                                </label>
+                                                <input type="text" value={brandColor}
                                                     onChange={e => setBrandColor(e.target.value)}
-                                                    className="absolute opacity-0 inset-0" />
-                                            </label>
-                                            <input type="text" value={brandColor}
-                                                onChange={e => setBrandColor(e.target.value)}
-                                                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                                        </div>
-                                        <p className="text-xs text-gray-400 mt-1">Applied as CSS --brand-color variable throughout the app</p>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Logo URL</label>
-                                        <input type="url" value={brandLogoUrl}
-                                            onChange={e => setBrandLogoUrl(e.target.value)}
-                                            placeholder="https://cdn.example.com/logo.png"
-                                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                                        {brandLogoUrl && (
-                                            <img src={brandLogoUrl} alt="Preview" className="mt-2 h-10 object-contain rounded" />
-                                        )}
-                                        <p className="text-xs text-gray-400 mt-1">Replaces the Zap icon in the sidebar</p>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Custom domain</label>
-                                        <input type="text" value={customDomain}
-                                            onChange={e => setCustomDomain(e.target.value)}
-                                            placeholder="app.yourcompany.com"
-                                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                                        <p className="text-xs text-gray-400 mt-1">Point your DNS CNAME to this app's domain, then enter your domain here</p>
-                                    </div>
-
-                                    <button type="submit" disabled={savingBrand}
-                                        className="w-full py-2.5 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
-                                        {savingBrand ? 'Saving…' : 'Save branding'}
-                                    </button>
-                                </form>
-                            )}
-
-                            {detailTab === 'branding' && !['owner', 'admin'].includes(selected.role) && (
-                                <div className="px-6 py-12 text-center text-sm text-gray-400">
-                                    Only admins and owners can manage branding.
-                                </div>
-                            )}
-
-                            {/* Members tab */}
-                            {detailTab === 'members' && <div className="px-6 py-4">
-                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                                    <Users className="w-3.5 h-3.5" /> Members ({selected.members.length})
-                                </p>
-                                <div className="space-y-2">
-                                    {selected.members.map(m => (
-                                        <div key={m.id} className="flex items-center gap-3 py-1.5">
-                                            <img
-                                                src={m.avatar_url ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(m.full_name)}&background=7C3AED&color=fff&size=32`}
-                                                alt={m.full_name}
-                                                className="w-8 h-8 rounded-full shrink-0"
-                                            />
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-gray-900 truncate">{m.full_name}</p>
-                                                <p className="text-xs text-gray-400 truncate">{m.email}</p>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {['owner', 'admin'].includes(selected.role) && m.role !== 'owner' ? (
-                                                    <select
-                                                        value={m.role}
-                                                        onChange={e => handleRoleChange(m.id, e.target.value)}
-                                                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                                                        <option value="admin">Admin</option>
-                                                        <option value="member">Member</option>
-                                                        <option value="viewer">Viewer</option>
-                                                    </select>
-                                                ) : (
-                                                    <span className="flex items-center gap-1 text-xs text-gray-500 capitalize">
-                                                        {ROLE_ICONS[m.role]} {m.role}
-                                                    </span>
-                                                )}
-                                                {['owner', 'admin'].includes(selected.role) && m.role !== 'owner' && (
-                                                    <button onClick={() => handleRemoveMember(m.id, m.full_name)}
-                                                        className="p-1 text-red-400 hover:bg-red-50 rounded-lg transition-colors">
-                                                        <X className="w-3.5 h-3.5" />
-                                                    </button>
-                                                )}
+                                                    className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
 
-                                {/* Pending invites */}
-                                {selected.pendingInvites.length > 0 && (
-                                    <div className="mt-5">
-                                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                                            Pending invites ({selected.pendingInvites.length})
-                                        </p>
-                                        <div className="space-y-2">
-                                            {selected.pendingInvites.map(inv => (
-                                                <div key={inv.id} className="flex items-center gap-3 py-1.5">
-                                                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                                                        <User className="w-4 h-4 text-gray-400" />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-sm text-gray-700 truncate">{inv.email}</p>
-                                                        <p className="text-xs text-gray-400 capitalize">{inv.role} · expires {new Date(inv.expires_at).toLocaleDateString()}</p>
-                                                    </div>
-                                                    {['owner', 'admin'].includes(selected.role) && (
-                                                        <button onClick={() => handleCancelInvite(inv.id)}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Logo URL</label>
+                                            <input type="url" value={brandLogoUrl}
+                                                onChange={e => setBrandLogoUrl(e.target.value)}
+                                                placeholder="https://cdn.example.com/logo.png"
+                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                            {brandLogoUrl && <img src={brandLogoUrl} alt="Preview" className="mt-2 h-10 object-contain rounded" />}
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Custom domain</label>
+                                            <input type="text" value={customDomain}
+                                                onChange={e => setCustomDomain(e.target.value)}
+                                                placeholder="app.yourcompany.com"
+                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                        </div>
+
+                                        <button type="submit" disabled={savingBrand}
+                                            className="w-full py-2.5 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
+                                            {savingBrand ? 'Saving…' : 'Save branding'}
+                                        </button>
+                                    </form>
+                                ) : (
+                                    <div className="px-6 py-12 text-center text-sm text-gray-400">
+                                        Only admins and owners can manage branding.
+                                    </div>
+                                )
+                            ) : (
+                                <div className="px-6 py-4">
+                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                        <Users className="w-3.5 h-3.5" /> Members ({selected.members.length})
+                                    </p>
+                                    <div className="space-y-2">
+                                        {selected.members.map(m => (
+                                            <div key={m.id} className="flex items-center gap-3 py-1.5">
+                                                <img
+                                                    src={m.avatar_url ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(m.full_name)}&background=7C3AED&color=fff&size=32`}
+                                                    alt={m.full_name}
+                                                    className="w-8 h-8 rounded-full shrink-0"
+                                                />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-gray-900 truncate">{m.full_name}</p>
+                                                    <p className="text-xs text-gray-400 truncate">{m.email}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {['owner', 'admin'].includes(selected.role) && m.role !== 'owner' ? (
+                                                        <select
+                                                            value={m.role}
+                                                            onChange={e => handleRoleChange(m.id, e.target.value)}
+                                                            className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                                                            <option value="admin">Admin</option>
+                                                            <option value="member">Member</option>
+                                                            <option value="viewer">Viewer</option>
+                                                        </select>
+                                                    ) : (
+                                                        <span className="flex items-center gap-1 text-xs text-gray-500 capitalize">
+                                                            {ROLE_ICONS[m.role]} {m.role}
+                                                        </span>
+                                                    )}
+                                                    {['owner', 'admin'].includes(selected.role) && m.role !== 'owner' && (
+                                                        <button onClick={() => handleRemoveMember(m.id, m.full_name)}
                                                             className="p-1 text-red-400 hover:bg-red-50 rounded-lg transition-colors">
                                                             <X className="w-3.5 h-3.5" />
                                                         </button>
                                                     )}
                                                 </div>
-                                            ))}
-                                        </div>
+                                            </div>
+                                        ))}
                                     </div>
-                                )}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="h-full flex flex-col items-center justify-center p-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
-                            <Building2 className="w-12 h-12 text-gray-300 mb-4" />
-                            <p className="text-gray-500 font-medium">Select a workspace to view details</p>
+                                    
+                                    {selected.pendingInvites.length > 0 && (
+                                        <div className="mt-5">
+                                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                                                Pending invites ({selected.pendingInvites.length})
+                                            </p>
+                                            <div className="space-y-2">
+                                                {selected.pendingInvites.map(inv => (
+                                                    <div key={inv.id} className="flex items-center gap-3 py-1.5">
+                                                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                                                            <User className="w-4 h-4 text-gray-400" />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-sm text-gray-700 truncate">{inv.email}</p>
+                                                            <p className="text-xs text-gray-400 capitalize">{inv.role} · expires {new Date(inv.expires_at).toLocaleDateString()}</p>
+                                                        </div>
+                                                        {['owner', 'admin'].includes(selected.role) && (
+                                                            <button onClick={() => handleCancelInvite(inv.id)}
+                                                                className="p-1 text-red-400 hover:bg-red-50 rounded-lg transition-colors">
+                                                                <X className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* ── Create workspace modal ────────────────────────────────── */}
+            {/* Modals */}
             {showCreate && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
@@ -486,14 +459,9 @@ export const Workspaces: React.FC = () => {
                         <form onSubmit={handleCreate} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Workspace name</label>
-                                <input
-                                    type="text"
-                                    value={newName}
-                                    onChange={e => setNewName(e.target.value)}
-                                    placeholder="Acme Corp, My Brand…"
-                                    autoFocus
-                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                />
+                                <input type="text" value={newName} onChange={e => setNewName(e.target.value)}
+                                    placeholder="Acme Corp, My Brand…" autoFocus
+                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                             </div>
                             <div className="flex gap-3 pt-1">
                                 <button type="button" onClick={() => setShowCreate(false)}
@@ -510,27 +478,19 @@ export const Workspaces: React.FC = () => {
                 </div>
             )}
 
-            {/* ── Invite member modal ───────────────────────────────────── */}
             {showInvite && selected && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
                         <div className="flex items-center justify-between">
                             <h2 className="text-lg font-semibold text-gray-900">Invite to {selected.name}</h2>
-                            <button onClick={() => setShowInvite(false)} className="p-2 hover:bg-gray-100 rounded-xl">
-                                <X className="w-5 h-5 text-gray-500" />
-                            </button>
+                            <button onClick={() => setShowInvite(false)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-5 h-5 text-gray-500" /></button>
                         </div>
                         <form onSubmit={handleInvite} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Email address</label>
-                                <input
-                                    type="email"
-                                    value={inviteEmail}
-                                    onChange={e => setInviteEmail(e.target.value)}
-                                    placeholder="colleague@example.com"
-                                    autoFocus
-                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                />
+                                <input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)}
+                                    placeholder="colleague@example.com" autoFocus
+                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>

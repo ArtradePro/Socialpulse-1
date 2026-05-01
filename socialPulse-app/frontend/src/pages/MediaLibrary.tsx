@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Grid3X3, List, Trash2, Search,
-    SortAsc, RefreshCw, HardDrive, Plus
+    RefreshCw, HardDrive, Plus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import MediaService, { MediaFile, MediaListParams,
                          MediaSortOption, MediaTypeFilter } from '../services/media.service';
-import MediaCard     from '../components/media/MediaCard';
-import MediaUploader from '../components/media/MediaUploader';
-import UsageBar      from '../components/billing/UsageBar';
-import UpgradeModal  from '../components/billing/UpgradeModal';
+import MediaCard from '../components/media/MediaCard';
+import { MediaUploader } from '../components/media/MediaUploader'; // Ensure named import
+import { UsageBar } from '../components/billing/UsageBar'; // Ensure named import
+import UpgradeModal from '../components/billing/UpgradeModal';
 
 const SORT_OPTIONS: { value: MediaSortOption; label: string }[] = [
     { value: 'newest', label: 'Newest first' },
@@ -22,7 +22,6 @@ const SORT_OPTIONS: { value: MediaSortOption; label: string }[] = [
 const MediaLibraryPage: React.FC = () => {
     const [files,      setFiles]      = useState<MediaFile[]>([]);
     const [total,      setTotal]      = useState(0);
-    const [page,       setPage]       = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [loading,    setLoading]    = useState(true);
     const [selected,   setSelected]   = useState<Set<string>>(new Set());
@@ -34,6 +33,7 @@ const MediaLibraryPage: React.FC = () => {
     const [storage,    setStorage]    = useState<any>(null);
     const [upgradeOpen, setUpgradeOpen] = useState(false);
     const [showUploader, setShowUploader] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     // Fetch files
     const fetchFiles = useCallback(async () => {
@@ -58,8 +58,8 @@ const MediaLibraryPage: React.FC = () => {
         } catch { /* silent */ }
     }, []);
 
-    useEffect(() => { fetchFiles(); }, [fetchFiles]);
-    useEffect(() => { fetchStorage(); }, [fetchStorage]);
+    useEffect(() => { fetchFiles(); }, [fetchFiles, refreshKey]);
+    useEffect(() => { fetchStorage(); }, [fetchStorage, refreshKey]);
 
     // Listen for upgrade events from useUpload hook
     useEffect(() => {
@@ -81,8 +81,7 @@ const MediaLibraryPage: React.FC = () => {
         try {
             await MediaService.delete(id);
             toast.success('File deleted');
-            fetchFiles();
-            fetchStorage();
+            setRefreshKey(k => k + 1);
         } catch {
             toast.error('Delete failed');
         }
@@ -95,21 +94,19 @@ const MediaLibraryPage: React.FC = () => {
             const { deleted } = await MediaService.bulkDelete([...selected]);
             toast.success(`${deleted} file(s) deleted`);
             setSelected(new Set());
-            fetchFiles();
-            fetchStorage();
+            setRefreshKey(k => k + 1);
         } catch {
             toast.error('Bulk delete failed');
         }
     };
 
-    const handleUploaded = () => {
-        fetchFiles();
-        fetchStorage();
-        toast.success(`Files added to your library`);
+    const handleUploaded = (results: MediaFile[]) => {
+        setRefreshKey(k => k + 1);
+        toast.success(`${results.length} files added to your library`);
         setShowUploader(false);
     };
 
-    const handleCopyUrl = (url: string) => toast.success('URL copied!', { duration: 2000 });
+    const handleCopyUrl = (_url: string) => toast.success('URL copied!', { duration: 2000 });
 
     return (
         <div className="space-y-6">
@@ -160,7 +157,7 @@ const MediaLibraryPage: React.FC = () => {
                         type="text"
                         placeholder="Search files…"
                         value={search}
-                        onChange={e => { setSearch(e.target.value); setPage(1); }}
+                        onChange={e => { setSearch(e.target.value); setParams(p => ({ ...p, page: 1 })); }}
                         className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
                     />
                 </div>
@@ -232,9 +229,9 @@ const MediaLibraryPage: React.FC = () => {
                             key={f.id}
                             file={f}
                             selected={selected.has(f.id)}
-                            onSelect={toggleSelect}
-                            onDelete={handleDelete}
-                            onCopyUrl={handleCopyUrl}
+                            onSelect={() => toggleSelect(f.id)}
+                            onDelete={() => handleDelete(f.id)}
+                            onCopyUrl={() => handleCopyUrl(f.url)}
                         />
                     ))}
                 </div>
@@ -264,51 +261,9 @@ const MediaLibraryPage: React.FC = () => {
             <UpgradeModal
                 open={upgradeOpen}
                 onClose={() => setUpgradeOpen(false)}
-                reason="storage"
             />
         </div>
     );
 };
 
 export default MediaLibraryPage;
-
-export default function MediaLibraryPage() {
-  const [showUploader, setShowUploader] = useState(false);
-  const [refreshKey, setRefreshKey]     = useState(0);
-
-  const handleUploaded = (_file: MediaFile) => {
-    setShowUploader(false);
-    setRefreshKey(k => k + 1);
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Media Library</h1>
-          <p className="text-gray-400 text-sm mt-1">Upload and manage your media files</p>
-        </div>
-        <button
-          onClick={() => setShowUploader(v => !v)}
-          className="flex items-center gap-2 px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-xl text-sm font-medium transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Upload
-        </button>
-      </div>
-
-      {/* Uploader (toggle) */}
-      {showUploader && (
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-          <MediaUploader onUploaded={handleUploaded} />
-        </div>
-      )}
-
-      {/* Library */}
-      <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-        <MediaLibraryComponent key={refreshKey} />
-      </div>
-    </div>
-  );
-}

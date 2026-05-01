@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { Trash2, Play, FileImage, Copy, Check } from 'lucide-react';
-import { MediaFile } from '../../services/media.service';
-import MediaService   from '../../services/media.service';
+import { Play, FileImage, Copy, Trash2, Check } from 'lucide-react';
+import MediaService, { MediaFile } from '../../services/media.service';
 
 interface MediaCardProps {
-    file:        MediaFile;
-    selected:    boolean;
-    onSelect:    (id: string) => void;
-    onDelete:    (id: string) => void;
-    onCopyUrl:   (url: string) => void;
+    file:      MediaFile;
+    selected:  boolean;
+    // Updated to (file: MediaFile) to match the parent's expectations
+    onSelect:  (file: MediaFile) => void; 
+    onDelete:  (id: string) => void;
+    onCopyUrl: (url: string) => void;
 }
 
 const MediaCard: React.FC<MediaCardProps> = ({
@@ -35,7 +35,8 @@ const MediaCard: React.FC<MediaCardProps> = ({
 
     return (
         <div
-            onClick={() => onSelect(file.id)}
+            // Updated to pass the full 'file' object
+            onClick={() => onSelect(file)}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
             className={`relative rounded-xl overflow-hidden cursor-pointer border-2
@@ -89,18 +90,18 @@ const MediaCard: React.FC<MediaCardProps> = ({
             {hovered && (
                 <div className="absolute inset-0 bg-black/30 flex items-end justify-between p-2">
                     <button
+                        type="button"
                         onClick={handleCopy}
                         className="p-1.5 bg-white/90 rounded-lg hover:bg-white transition-colors"
-                        title="Copy URL"
                     >
                         {copied
                             ? <Check   className="w-3.5 h-3.5 text-green-600" />
                             : <Copy    className="w-3.5 h-3.5 text-gray-700" />}
                     </button>
                     <button
+                        type="button"
                         onClick={handleDelete}
                         className="p-1.5 bg-red-500 rounded-lg hover:bg-red-600 transition-colors"
-                        title="Delete"
                     >
                         <Trash2 className="w-3.5 h-3.5 text-white" />
                     </button>
@@ -109,11 +110,11 @@ const MediaCard: React.FC<MediaCardProps> = ({
 
             {/* File info */}
             <div className="p-2 bg-white">
-                <p className="text-xs text-gray-700 truncate font-medium" title={file.originalName}>
+                <p className="text-xs text-gray-700 truncate font-medium">
                     {file.originalName}
                 </p>
                 <p className="text-[10px] text-gray-400 mt-0.5">
-                    {MediaService.formatSize(file.sizeBytes)}
+                    {MediaService.formatSize(file.sizeBytes || 0)}
                     {file.width && file.height && ` · ${file.width}×${file.height}`}
                 </p>
             </div>

@@ -1,82 +1,72 @@
 import { useState, useCallback } from 'react';
-import toast from 'react-hot-toast';
-import MediaService, { MediaFile } from '../services/media.service';
+import mediaService, { MediaFile } from '../services/media.service';
 
-interface UploadState {
+export interface UseUploadReturn {
     uploading: boolean;
-    progress:  number;         // 0-100
-    uploaded:  MediaFile[];
-    error:     string | null;
-}
-
-interface UseUploadReturn extends UploadState {
-    upload:       (files: File | File[], folder?: string) => Promise<MediaFile[]>;
+    progress: number;
+    error: string | null;
+    uploaded: MediaFile[];
+    upload: (input: File | File[], folder?: string) => Promise<MediaFile[]>;
     clearUploaded: () => void;
-    reset:         () => void;
+    reset: () => void;
 }
 
-export const useUpload = (onSuccess?: (file: MediaFile) => void): UseUploadReturn => {
-    const [state, setState] = useState<UploadState>({
-        uploading: false,
-        progress:  0,
-        uploaded:  [],
-        error:     null,
-    });
+export const useUpload = (): UseUploadReturn => {
+    const [uploading, setUploading] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const [error, setError] = useState<string | null>(null);
+    const [uploaded, setUploaded] = useState<MediaFile[]>([]);
 
-    const upload = useCallback(async (input: File | File[], folder = 'uploads'): Promise<MediaFile[]> => {
-        const files = Array.isArray(input) ? input : [input];
-        
-        setState(s => ({ ...s, uploading: true, progress: 0, error: null }));
-        
-        try {
-            const result = await MediaService.upload(files, folder, (pct) =>
-                setState(s => ({ ...s, progress: pct }))
-            );
-            
-            setState(s => ({ ...s, uploading: false, progress: 100, uploaded: result }));
-            
-            toast.success(`${result.length} file${result.length > 1 ? 's' : ''} uploaded!`);
-            
-            // If a callback was provided for single-file scenarios
-            if (onSuccess && result.length > 0) {
-                onSuccess(result[0]);
-            }
-            
-            return result;
-        } catch (err: any) {
-            const message =
-                err.response?.data?.message ??
-                err.message ??
-                'Upload failed';
-
-            const isQuota = err.response?.data?.code === 'STORAGE_QUOTA_EXCEEDED';
-            const isPlan  = err.response?.data?.upgrade;
-
-            setState(s => ({ ...s, uploading: false, error: message }));
-
-            if (isPlan) {
-                toast.error(message, { duration: 6000 });
-            } else {
-                toast.error(message);
-            }
-
-            if (isQuota) {
-                // Fire custom event for UpgradeModal
-                window.dispatchEvent(new CustomEvent('plan:upgrade-required', {
-                    detail: { reason: 'storage' },
-                }));
-            }
-            return [];
-        }
-    }, [onSuccess]);
+    const clearUploaded = useCallback(() => setUploaded([]), []);
 
     const reset = useCallback(() => {
-        setState({ uploading: false, progress: 0, uploaded: [], error: null });
+        setUploading(false);
+        setProgress(0);
+        setError(null);
+        setUploaded([]);
     }, []);
 
-    const clearUploaded = useCallback(() => {
-        setState(s => ({ ...s, uploaded: [], progress: 0 }));
-    }, []);
+    const upload = async (input: File | File[], folder: string = 'general'): Promise<MediaFile[]> => {
+        setUploading(true);
+        setError(null);
+        setProgress(10);
 
-    return { ...state, upload, clearUploaded };
+        const files = Array.isArray(input) ? input : [input];
+        const results: MediaFile[] = [];
+
+        try {
+            for (const file of files) {
+                // FIX: Wrapped 'file' in brackets [file] to satisfy the File[] requirement of the service
+                const response = await mediaService.upload([file], folder);
+                
+                // If the service returns an array (e.g. from [file]), take the first element
+                const fileData = Array.isArray(response) ? response[0] : response;
+                
+                // Push the single MediaFile object into our local results array
+                results.push(fileData as MediaFile);
+                
+                setProgress((prev) => Math.min(prev + (90 / files.length), 95));
+            }
+            
+            setUploaded((prev) => [...prev, ...results]);
+            setProgress(100);
+            return results;
+        } catch (err: any) {
+            const msg = err.response?.data?.message || 'Upload failed';
+            setError(msg);
+            throw new Error(msg);
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    return { 
+        uploading, 
+        progress, 
+        error, 
+        uploaded, 
+        upload, 
+        clearUploaded, 
+        reset 
+    };
 };
