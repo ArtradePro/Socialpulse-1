@@ -41,10 +41,10 @@ export const NotificationBell: React.FC = () => {
         }
     }, []);
 
-    // Fetch on mount and every 30 s
+    // Fetch on mount and every 60 s
     useEffect(() => {
         fetchNotifications();
-        const id = setInterval(fetchNotifications, 30_000);
+        const id = setInterval(fetchNotifications, 60_000);
         return () => clearInterval(id);
     }, [fetchNotifications]);
 
