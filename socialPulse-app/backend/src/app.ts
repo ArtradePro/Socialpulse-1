@@ -27,7 +27,17 @@ import { errorHandler, notFound } from './middleware/errorHandler';
 export const app = express();
 
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:3000', credentials: true }));
+const allowedOrigins = [
+    process.env.CLIENT_URL || 'http://localhost:3000',
+    process.env.CLIENT_URL_ALT,
+].filter(Boolean) as string[];
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+    },
+    credentials: true,
+}));
 
 // Relaxed rate limit in test environment
 if (process.env.NODE_ENV !== 'test') {
