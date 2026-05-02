@@ -51,6 +51,7 @@ export const register = async (req: Request, res: Response) => {
         EmailService.sendWelcome(user.email, user.full_name).catch(console.error);
         if (referralCode) applyReferralCode(user.id, referralCode).catch(console.error);
     } catch (error) {
+        console.error('[register] error:', error);
         res.status(500).json({ message: 'Server error' });
     }
 };
