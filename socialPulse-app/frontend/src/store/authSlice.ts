@@ -27,8 +27,7 @@ const initialState: AuthState = {
 export const login = createAsyncThunk('auth/login', async (creds: { email: string; password: string }, { rejectWithValue }) => {
   try {
     const { data } = await api.post('/auth/login', creds);
-    localStorage.setItem('accessToken', data.accessToken);
-    localStorage.setItem('refreshToken', data.refreshToken);
+    localStorage.setItem('accessToken', data.token);
     return data;
   } catch (err: unknown) {
     const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Login failed';
@@ -39,8 +38,7 @@ export const login = createAsyncThunk('auth/login', async (creds: { email: strin
 export const register = createAsyncThunk('auth/register', async (data: { email: string; password: string; fullName: string }, { rejectWithValue }) => {
   try {
     const res = await api.post('/auth/register', data);
-    localStorage.setItem('accessToken', res.data.accessToken);
-    localStorage.setItem('refreshToken', res.data.refreshToken);
+    localStorage.setItem('accessToken', res.data.token);
     return res.data;
   } catch (err: unknown) {
     const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Registration failed';
@@ -64,10 +62,10 @@ const authSlice = createSlice({
   extraReducers: (builder) => {
     builder
       .addCase(login.pending, (s) => { s.loading = true; s.error = null; })
-      .addCase(login.fulfilled, (s, a) => { s.loading = false; s.user = a.payload.user; s.accessToken = a.payload.accessToken; })
+      .addCase(login.fulfilled, (s, a) => { s.loading = false; s.user = a.payload.user; s.accessToken = a.payload.token; })
       .addCase(login.rejected, (s, a) => { s.loading = false; s.error = a.payload as string; })
       .addCase(register.pending, (s) => { s.loading = true; s.error = null; })
-      .addCase(register.fulfilled, (s, a) => { s.loading = false; s.user = a.payload.user; s.accessToken = a.payload.accessToken; })
+      .addCase(register.fulfilled, (s, a) => { s.loading = false; s.user = a.payload.user; s.accessToken = a.payload.token; })
       .addCase(register.rejected, (s, a) => { s.loading = false; s.error = a.payload as string; });
   },
 });
