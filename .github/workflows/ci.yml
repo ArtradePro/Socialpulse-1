@@ -35,6 +35,8 @@ jobs:
       JWT_EXPIRES_IN: 7d
       TEST_DATABASE_URL: postgresql://postgres:password@localhost:5432/socialpulse_test
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      STRIPE_SECRET_KEY: sk_test_dummy_ci_key_for_module_load
+      STRIPE_WEBHOOK_SECRET: whsec_dummy_ci_webhook_secret
 
     steps:
       - uses: actions/checkout@v4

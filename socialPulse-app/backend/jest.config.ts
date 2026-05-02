@@ -18,7 +18,7 @@ const config: Config = {
     coverageDirectory: '../coverage',
     coverageReporters: ['text', 'lcov'],
     transform: {
-        '^.+\.tsx?$': ['ts-jest', { tsconfig: './tsconfig.json' }],
+        '^.+\.tsx?$': ['ts-jest', { tsconfig: './tsconfig.test.json' }],
     },
 };
 
