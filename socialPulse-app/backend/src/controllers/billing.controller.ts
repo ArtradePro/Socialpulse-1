@@ -7,9 +7,15 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { EmailService } from '../services/email.service';
 import { NotificationService } from '../services/notification.service';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2026-03-25.dahlia' as any,
-});
+let _stripe: InstanceType<typeof Stripe> | null = null;
+const getStripe = (): InstanceType<typeof Stripe> => {
+    if (!_stripe) {
+        _stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+            apiVersion: '2026-03-25.dahlia' as any,
+        });
+    }
+    return _stripe;
+};
 
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
 
@@ -22,7 +28,7 @@ const ensureStripeCustomer = async (userId: string, email: string): Promise<stri
     );
     if (existing.rows[0]) return existing.rows[0].stripe_customer_id;
 
-    const customer = await stripe.customers.create({ email, metadata: { userId } });
+    const customer = await getStripe().customers.create({ email, metadata: { userId } });
 
     await db.query(
         `INSERT INTO stripe_customers (user_id, stripe_customer_id) VALUES ($1, $2)`,
@@ -43,7 +49,7 @@ export const createCheckoutSession = async (req: Request, res: Response): Promis
 
         const customerId = await ensureStripeCustomer(userId, email);
 
-        const session = await stripe.checkout.sessions.create({
+        const session = await getStripe().checkout.sessions.create({
             customer:    customerId,
             mode:        'subscription',
             line_items:  [{ price: priceId, quantity: 1 }],
@@ -77,7 +83,7 @@ export const createPortalSession = async (req: Request, res: Response): Promise<
             return;
         }
 
-        const session = await stripe.billingPortal.sessions.create({
+        const session = await getStripe().billingPortal.sessions.create({
             customer:   rows[0].stripe_customer_id,
             return_url: `${process.env.CLIENT_URL}/billing`,
         });
@@ -113,7 +119,7 @@ export const getSubscription = async (req: Request, res: Response): Promise<void
         // Fetch live from Stripe if subscription exists
         let subscription: any = null;
         if (sc.stripe_subscription_id) {
-            subscription = await stripe.subscriptions.retrieve(sc.stripe_subscription_id);
+            subscription = await getStripe().subscriptions.retrieve(sc.stripe_subscription_id);
         }
 
         res.json({ plan, subscription });
@@ -186,7 +192,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
     let event: any;
 
     try {
-        event = stripe.webhooks.constructEvent(req.body, sig, WEBHOOK_SECRET);
+        event = getStripe().webhooks.constructEvent(req.body, sig, WEBHOOK_SECRET);
     } catch (err: any) {
         res.status(400).json({ message: `Webhook signature failed: ${err.message}` });
         return;
@@ -254,7 +260,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
                 const subId   = invoice.subscription as string;
                 if (!subId) break;
 
-                const sub    = await stripe.subscriptions.retrieve(subId);
+                const sub    = await getStripe().subscriptions.retrieve(subId);
                 const userId = sub.metadata.userId;
                 if (!userId) break;
 
@@ -276,7 +282,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
                 const subId   = invoice.subscription as string;
                 if (!subId) break;
 
-                const sub    = await stripe.subscriptions.retrieve(subId);
+                const sub    = await getStripe().subscriptions.retrieve(subId);
                 const userId = sub.metadata.userId;
                 if (!userId) break;
 
