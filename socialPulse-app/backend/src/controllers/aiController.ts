@@ -1,6 +1,22 @@
-﻿import { Response } from 'express';
+import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { AIService } from '../services/ai.service';
+
+const handleAiError = (err: any, res: Response, defaultMessage: string) => {
+    if (err.message?.includes('credits')) {
+        res.status(402).json({ message: err.message });
+        return;
+    }
+    
+    // Handle OpenAI specific errors (like 429 Quota Exceeded)
+    if (err.status === 429 || (err.message && err.message.includes('quota'))) {
+        res.status(429).json({ message: 'The AI service is currently unavailable due to capacity limits. Please try again later or contact support.' });
+        return;
+    }
+    
+    console.error(`[AI Error] ${defaultMessage}:`, err.message || err);
+    res.status(500).json({ message: defaultMessage });
+};
 
 export const generateContent = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -8,8 +24,7 @@ export const generateContent = async (req: AuthRequest, res: Response): Promise<
         const result = await AIService.generateContent(userId, req.body);
         res.json(result);
     } catch (err: any) {
-        const status = err.message?.includes('credits') ? 402 : 500;
-        res.status(status).json({ message: err.message || 'AI generation failed' });
+        handleAiError(err, res, 'AI generation failed');
     }
 };
 
@@ -19,7 +34,7 @@ export const generateHashtags = async (req: AuthRequest, res: Response): Promise
         const hashtags = await AIService.generateHashtags(req.user!.userId, topic, platform, count);
         res.json({ hashtags });
     } catch (err: any) {
-        res.status(500).json({ message: err.message || 'Hashtag generation failed' });
+        handleAiError(err, res, 'Hashtag generation failed');
     }
 };
 
@@ -29,7 +44,7 @@ export const improveContent = async (req: AuthRequest, res: Response): Promise<v
         const improved = await AIService.improveContent(req.user!.userId, content, platform, improvement);
         res.json({ content: improved });
     } catch (err: any) {
-        res.status(500).json({ message: err.message || 'Content improvement failed' });
+        handleAiError(err, res, 'Content improvement failed');
     }
 };
 
@@ -39,7 +54,7 @@ export const generateImageCaption = async (req: AuthRequest, res: Response): Pro
         const caption = await AIService.generateImageCaption(req.user!.userId, imageDescription, platform, tone);
         res.json({ caption });
     } catch (err: any) {
-        res.status(500).json({ message: err.message || 'Caption generation failed' });
+        handleAiError(err, res, 'Caption generation failed');
     }
 };
 
@@ -50,7 +65,6 @@ export const generateImage = async (req: AuthRequest, res: Response): Promise<vo
         const url = await AIService.generateImage(req.user!.userId, prompt, size);
         res.json({ url });
     } catch (err: any) {
-        const status = err.message?.includes('credits') ? 402 : 500;
-        res.status(status).json({ message: err.message || 'Image generation failed' });
+        handleAiError(err, res, 'Image generation failed');
     }
 };

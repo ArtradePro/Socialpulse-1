@@ -39,6 +39,7 @@ services:
       DATABASE_URL: postgresql://postgres:password@postgres:5432/socialpulse
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
       NODE_ENV: development
     depends_on:
       postgres:

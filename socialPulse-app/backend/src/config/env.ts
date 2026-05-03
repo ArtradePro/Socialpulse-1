@@ -37,7 +37,7 @@ export const env = {
     expiresIn: process.env.JWT_EXPIRES_IN || '15m',
   },
 
-  openai: { apiKey: process.env.OPENAI_API_KEY || '' },
+  gemini: { apiKey: process.env.GEMINI_API_KEY || '' },
 
   twitter: {
     apiKey: process.env.TWITTER_API_KEY || '',
