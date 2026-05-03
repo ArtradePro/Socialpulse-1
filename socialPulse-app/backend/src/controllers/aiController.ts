@@ -3,7 +3,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { AIService } from '../services/ai.service';
 
 const handleAiError = (err: any, res: Response, defaultMessage: string) => {
-    if (err.message?.includes('credits')) {
+    if (err.message === 'Insufficient AI credits. Please upgrade your plan.') {
         res.status(402).json({ message: err.message });
         return;
     }
