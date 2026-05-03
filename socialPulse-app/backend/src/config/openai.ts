@@ -7,4 +7,4 @@ export const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export const AI_MODEL = 'gpt-4';
+export const AI_MODEL = 'gpt-3.5-turbo';

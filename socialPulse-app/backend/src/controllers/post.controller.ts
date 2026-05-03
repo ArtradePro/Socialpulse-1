@@ -1,4 +1,4 @@
-﻿import { Response } from 'express';
+import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { db } from '../config/database';
 import { schedulePost } from '../jobs/postPublisher';
@@ -139,11 +139,13 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
         );
 
         if (!post.rows[0]) {
-            return res.status(404).json({ message: 'Post not found' });
+            res.status(404).json({ message: 'Post not found' });
+            return;
         }
 
         if (post.rows[0].status === 'published') {
-            return res.status(400).json({ message: 'Cannot edit published posts' });
+            res.status(400).json({ message: 'Cannot edit published posts' });
+            return;
         }
 
         const result = await db.query(

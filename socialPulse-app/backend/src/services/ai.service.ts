@@ -1,4 +1,4 @@
-﻿import OpenAI from 'openai';
+import OpenAI from 'openai';
 import { db } from '../config/database';
 
 let _openai: OpenAI | null = null;
@@ -72,7 +72,7 @@ export class AIService {
         `;
 
         const response = await getOpenAI().chat.completions.create({
-            model: 'gpt-4',
+            model: 'gpt-3.5-turbo',
             messages: [
                 {
                     role: 'system',
@@ -101,7 +101,7 @@ export class AIService {
     ): Promise<string[]> {
 
         const response = await getOpenAI().chat.completions.create({
-            model: 'gpt-4',
+            model: 'gpt-3.5-turbo',
             messages: [
                 {
                     role: 'system',
@@ -132,7 +132,7 @@ export class AIService {
     ): Promise<string> {
 
         const response = await getOpenAI().chat.completions.create({
-            model: 'gpt-4',
+            model: 'gpt-3.5-turbo',
             messages: [
                 {
                     role: 'system',
@@ -162,7 +162,7 @@ export class AIService {
     ): Promise<string> {
 
         const response = await getOpenAI().chat.completions.create({
-            model: 'gpt-4',
+            model: 'gpt-3.5-turbo',
             messages: [
                 {
                     role: 'user',
