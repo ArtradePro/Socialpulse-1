@@ -84,7 +84,7 @@ jobs:
           cache-dependency-path: socialPulse-app/frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --prefer-offline
         working-directory: socialPulse-app/frontend
 
       - name: Typecheck

@@ -104,6 +104,30 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
     }
 };
 
+export const getPost = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const userId = req.user!.userId;
+
+        const result = await db.query(
+            `SELECT p.*, COALESCE(json_agg(pa.*) FILTER (WHERE pa.id IS NOT NULL), '[]') as analytics
+             FROM posts p
+             LEFT JOIN post_analytics pa ON p.id = pa.post_id
+             WHERE p.id = $1
+             GROUP BY p.id`,
+            [id]
+        );
+
+        const post = result.rows[0];
+        if (!post) { res.status(404).json({ message: 'Post not found' }); return; }
+        if (post.user_id !== userId) { res.status(403).json({ message: 'Forbidden' }); return; }
+
+        res.json(post);
+    } catch (error) {
+        res.status(500).json({ message: 'Failed to fetch post' });
+    }
+};
+
 export const updatePost = async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
