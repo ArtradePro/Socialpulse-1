@@ -51,7 +51,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
             await schedulePost(post.id, new Date(scheduledAt));
         }
 
-        res.status(201).json({ post, message: 'Post created successfully' });
+        res.status(201).json(post);
     } catch (error) {
         res.status(500).json({ message: 'Failed to create post' });
     }
@@ -131,7 +131,7 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
             [content, platforms, scheduledAt, hashtags, JSON.stringify(mediaUrls || []), id, req.user!.userId]
         );
 
-        res.json({ post: result.rows[0], message: 'Post updated successfully' });
+        res.json(result.rows[0]);
     } catch (error) {
         res.status(500).json({ message: 'Failed to update post' });
     }

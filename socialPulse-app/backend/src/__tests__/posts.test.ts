@@ -90,7 +90,7 @@ describeIfDb('Posts endpoints', () => {
                 .set(bearer(token));
 
             expect(res.status).toBe(200);
-            expect(Array.isArray(res.body.data ?? res.body)).toBe(true);
+            expect(Array.isArray(res.body.posts ?? res.body.data ?? res.body)).toBe(true);
         });
 
         it('returns created posts', async () => {
@@ -109,7 +109,7 @@ describeIfDb('Posts endpoints', () => {
                 .set(bearer(token));
 
             expect(res.status).toBe(200);
-            const posts = res.body.data ?? res.body;
+            const posts = res.body.posts ?? res.body.data ?? res.body;
             expect(posts.length).toBeGreaterThanOrEqual(2);
         });
 
@@ -124,7 +124,7 @@ describeIfDb('Posts endpoints', () => {
                 .set(bearer(token));
 
             expect(res.status).toBe(200);
-            const posts: { status: string }[] = res.body.data ?? res.body;
+            const posts: { status: string }[] = res.body.posts ?? res.body.data ?? res.body;
             expect(posts.every((p) => p.status === 'draft')).toBe(true);
         });
 
@@ -139,7 +139,7 @@ describeIfDb('Posts endpoints', () => {
                 .get('/api/posts')
                 .set(bearer(token));
 
-            const posts: { content: string }[] = res.body.data ?? res.body;
+            const posts: { content: string }[] = res.body.posts ?? res.body.data ?? res.body;
             expect(posts.some((p) => p.content === 'Other user post')).toBe(false);
         });
     });

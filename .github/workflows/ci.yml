@@ -88,7 +88,7 @@ jobs:
         working-directory: socialPulse-app/frontend
 
       - name: Typecheck
-        run: ./node_modules/.bin/tsc --noEmit -p tsconfig.app.json
+        run: npx tsc --noEmit -p tsconfig.app.json
         working-directory: socialPulse-app/frontend
 
   mobile:
