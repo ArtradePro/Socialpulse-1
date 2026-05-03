@@ -21,7 +21,8 @@ const handleAiError = (err: any, res: Response, defaultMessage: string) => {
 export const generateContent = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const userId = req.user!.userId;
-        const result = await AIService.generateContent(userId, req.body);
+        const workspaceId = req.header('x-workspace-id');
+        const result = await AIService.generateContent(userId, workspaceId, req.body);
         res.json(result);
     } catch (err: any) {
         handleAiError(err, res, 'AI generation failed');

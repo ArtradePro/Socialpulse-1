@@ -1,4 +1,4 @@
-﻿-- SocialPulse Database Schema
+-- SocialPulse Database Schema
 
 -- Users Table
 CREATE TABLE IF NOT EXISTS users (
@@ -436,3 +436,4 @@ ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_color    VARCHAR(20)  DEFA
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_name     VARCHAR(255);
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_logo_url TEXT;
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS custom_domain  VARCHAR(255) UNIQUE;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS ai_guidelines  TEXT;

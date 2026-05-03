@@ -58,6 +58,7 @@ export const Workspaces: React.FC = () => {
     const [brandColor, setBrandColor] = useState('#6366f1');
     const [brandLogoUrl, setBrandLogoUrl] = useState('');
     const [customDomain, setCustomDomain] = useState('');
+    const [aiGuidelines, setAiGuidelines] = useState('');
     const [savingBrand, setSavingBrand] = useState(false);
 
     // Create workspace modal
@@ -106,6 +107,7 @@ export const Workspaces: React.FC = () => {
         setBrandColor((selected as any).brand_color ?? '#6366f1');
         setBrandLogoUrl((selected as any).brand_logo_url ?? '');
         setCustomDomain((selected as any).custom_domain  ?? '');
+        setAiGuidelines((selected as any).ai_guidelines ?? '');
     }, [selected]);
 
     // ── Create workspace ─────────────────────────────────────────────────────
@@ -177,6 +179,7 @@ export const Workspaces: React.FC = () => {
                 brandColor:   brandColor,
                 brandLogoUrl: brandLogoUrl || null,
                 customDomain: customDomain || null,
+                aiGuidelines: aiGuidelines || null,
             }, { headers: { 'X-Workspace-Id': selected.id } });
             toast.success('Branding saved');
             loadDetail(selected);
@@ -360,6 +363,15 @@ export const Workspaces: React.FC = () => {
                                                 onChange={e => setCustomDomain(e.target.value)}
                                                 placeholder="app.yourcompany.com"
                                                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">AI Brand Guidelines</label>
+                                            <p className="text-xs text-gray-500 mb-2">Instructions the AI should follow when generating posts for this workspace (e.g., tone rules, mandatory hashtags, structure).</p>
+                                            <textarea value={aiGuidelines}
+                                                onChange={e => setAiGuidelines(e.target.value)}
+                                                placeholder="Always include a clear problem, a clear solution, and a clear action to buy. Never use emojis."
+                                                className="w-full h-32 resize-none px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                                         </div>
 
                                         <button type="submit" disabled={savingBrand}

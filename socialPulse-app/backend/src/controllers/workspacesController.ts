@@ -289,7 +289,7 @@ export const updateBranding = async (req: Request, res: Response): Promise<void>
     const role = (req as any).workspaceRole as string;
     if (!['owner', 'admin'].includes(role)) { res.status(403).json({ message: 'Admin or owner required' }); return; }
 
-    const { brandName, brandColor, brandLogoUrl, customDomain } = req.body;
+    const { brandName, brandColor, brandLogoUrl, customDomain, aiGuidelines } = req.body;
     try {
         const { rows } = await db.query(
             `UPDATE workspaces
@@ -297,9 +297,10 @@ export const updateBranding = async (req: Request, res: Response): Promise<void>
                  brand_color    = COALESCE($2, brand_color),
                  brand_logo_url = COALESCE($3, brand_logo_url),
                  custom_domain  = $4,
+                 ai_guidelines  = COALESCE($5, ai_guidelines),
                  updated_at     = NOW()
-             WHERE id = $5 RETURNING *`,
-            [brandName ?? null, brandColor ?? null, brandLogoUrl ?? null, customDomain ?? null, wid]
+             WHERE id = $6 RETURNING *`,
+            [brandName ?? null, brandColor ?? null, brandLogoUrl ?? null, customDomain ?? null, aiGuidelines ?? null, wid]
         );
         res.json(rows[0]);
     } catch (err: any) {

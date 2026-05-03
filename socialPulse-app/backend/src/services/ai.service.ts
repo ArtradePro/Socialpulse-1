@@ -26,6 +26,7 @@ export class AIService {
 
     static async generateContent(
         userId: string,
+        workspaceId: string | undefined,
         options: ContentGenerationOptions
     ): Promise<{ content: string; hashtags: string[] }> {
 
@@ -36,6 +37,14 @@ export class AIService {
 
         if (user.rows[0].ai_credits <= 0) {
             throw new Error('Insufficient AI credits. Please upgrade your plan.');
+        }
+
+        let customGuidelines = '';
+        if (workspaceId) {
+            const ws = await db.query('SELECT ai_guidelines FROM workspaces WHERE id = $1', [workspaceId]);
+            if (ws.rows.length > 0 && ws.rows[0].ai_guidelines) {
+                customGuidelines = ws.rows[0].ai_guidelines;
+            }
         }
 
         const platformGuide: Record<string, string> = {
@@ -71,13 +80,17 @@ export class AIService {
             }
         `;
 
+        const systemInstruction = customGuidelines 
+            ? `You are a professional social media content creator.\n\nCRITICAL BRAND GUIDELINES YOU MUST FOLLOW:\n${customGuidelines}\n\nAlways return valid JSON without markdown wrapping.`
+            : 'You are a professional social media content creator. Always return valid JSON without markdown wrapping.';
+
         const response = await getGemini().models.generateContent({
             model: 'gemini-2.5-flash',
             contents: [
                 { role: 'user', parts: [{ text: prompt }] }
             ],
             config: {
-                systemInstruction: 'You are a professional social media content creator. Always return valid JSON without markdown wrapping.',
+                systemInstruction: systemInstruction,
                 temperature: 0.8,
                 responseMimeType: 'application/json',
             }
