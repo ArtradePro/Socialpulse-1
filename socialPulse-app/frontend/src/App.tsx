@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { store } from './store/store';
@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast';
 
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
+import { Home } from './pages/Home';
 import { Dashboard } from './pages/Dashboard';
 import { ContentStudio } from './pages/ContentStudio';
 import { Scheduler } from './pages/Scheduler';
@@ -42,9 +43,10 @@ const App: React.FC = () => {
                     <Route path="/register" element={<Register />} />
                     <Route path="/team-invite/:token" element={<AcceptInvite />} />
 
+                    <Route path="/" element={<Home />} />
+
                     {/* Private Dashboard Routes */}
-                    <Route path="/" element={<PrivateRoute><AppLayout /></PrivateRoute>}>
-                        <Route index element={<Navigate to="/dashboard" replace />} />
+                    <Route element={<PrivateRoute><AppLayout /></PrivateRoute>}>
                         <Route path="dashboard"  element={<Dashboard />} />
                         <Route path="studio"     element={<ContentStudio />} />
                         <Route path="scheduler"  element={<Scheduler />} />

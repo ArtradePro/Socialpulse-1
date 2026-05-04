@@ -12,7 +12,8 @@
     "migrate": "npx ts-node --transpile-only src/database/migrate.ts",
     "test": "jest --runInBand --forceExit",
     "test:watch": "jest --watch --runInBand",
-    "test:coverage": "jest --runInBand --forceExit --coverage"
+    "test:coverage": "jest --runInBand --forceExit --coverage",
+    "db:console": "node -e \"process.env.PGPASSWORD='QwaszX!@#1939';const {execFileSync}=require('child_process');execFileSync('C:\\\\Program Files\\\\PostgreSQL\\\\18\\\\bin\\\\psql.exe',['-U','postgres','-h','127.0.0.1','-d','socialpulse'],{stdio:'inherit'});\""
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.0.0",
