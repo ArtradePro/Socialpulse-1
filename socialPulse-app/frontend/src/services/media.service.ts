@@ -48,6 +48,27 @@ export interface MediaListParams {
 }
 
 const MediaService = {
+    /**
+     * Map snake_case DB row to camelCase frontend interface
+     */
+    mapFile(f: any): MediaFile {
+        return {
+            id:            f.id,
+            originalName:  f.original_name ?? f.originalName,
+            fileName:      f.file_name     ?? f.fileName,
+            mimeType:      f.mime_type     ?? f.mimeType,
+            sizeBytes:     parseInt(f.size_bytes ?? f.sizeBytes ?? '0'),
+            width:         f.width,
+            height:        f.height,
+            durationSecs:  f.duration_secs ?? f.durationSecs,
+            url:           f.url,
+            thumbnailUrl:  f.thumbnail_url ?? f.thumbnailUrl,
+            folder:        f.folder,
+            tags:          f.tags ?? [],
+            createdAt:     f.created_at   ?? f.createdAt,
+        };
+    },
+
     // Upload one or more files
     async upload(
         files:    File[],
@@ -58,7 +79,7 @@ const MediaService = {
         files.forEach(f => form.append('files', f));
         form.append('folder', folder);
 
-        const { data } = await api.post<{ files: MediaFile[] }>('/media', form, {
+        const { data } = await api.post<{ files: any[] }>('/media', form, {
             headers: { 'Content-Type': 'multipart/form-data' },
             onUploadProgress: e => {
                 if (onProgress && e.total) {
@@ -66,17 +87,30 @@ const MediaService = {
                 }
             },
         });
-        return data.files;
+        return data.files.map(f => this.mapFile(f));
     },
 
     async list(params: MediaListParams = {}): Promise<MediaListResponse> {
-        const { data } = await api.get<MediaListResponse>('/media', { params });
-        return data;
+        const { data } = await api.get<any>('/media', { params });
+        return {
+            ...data,
+            files: data.files.map((f: any) => this.mapFile(f))
+        };
     },
 
     async getStorageUsage(): Promise<StorageUsage> {
-        const { data } = await api.get<StorageUsage>('/media/usage');
-        return data;
+        const { data } = await api.get<any>('/media/usage');
+        // Convert snake_case to camelCase
+        return {
+            totalBytes:  parseInt(data.totalBytes ?? data.total_bytes ?? '0'),
+            imageBytes:  parseInt(data.imageBytes ?? data.image_bytes ?? '0'),
+            videoBytes:  parseInt(data.videoBytes ?? data.video_bytes ?? '0'),
+            totalFiles:  parseInt(data.totalFiles ?? data.total_files ?? '0'),
+            imageCount:  parseInt(data.imageCount ?? data.image_count ?? '0'),
+            videoCount:  parseInt(data.videoCount ?? data.video_count ?? '0'),
+            limitBytes:  data.limitBytes ?? data.limit_bytes,
+            usedPercent: data.usedPercent ?? data.used_percent ?? 0,
+        };
     },
 
     async delete(id: string): Promise<void> {
@@ -89,13 +123,13 @@ const MediaService = {
     },
 
     async update(id: string, payload: { tags?: string[]; folder?: string }): Promise<MediaFile> {
-        const { data } = await api.patch<{ file: MediaFile }>(`/media/${id}`, payload);
-        return data.file;
+        const { data } = await api.patch<{ file: any }>(`/media/${id}`, payload);
+        return this.mapFile(data.file);
     },
 
     // Helpers
-    isImage: (f: MediaFile) => f.mimeType.startsWith('image/'),
-    isVideo: (f: MediaFile) => f.mimeType.startsWith('video/'),
+    isImage: (f: MediaFile) => (f.mimeType || '').startsWith('image/'),
+    isVideo: (f: MediaFile) => (f.mimeType || '').startsWith('video/'),
 
     formatSize(bytes: number): string {
         if (bytes >= 1_073_741_824) return `${(bytes / 1_073_741_824).toFixed(1)} GB`;

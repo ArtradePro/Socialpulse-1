@@ -22,6 +22,8 @@ import apiKeysRoutes      from './routes/apiKeys';
 import listeningRoutes    from './routes/listening';
 import inboxRoutes        from './routes/inbox';
 import referralsRoutes    from './routes/referrals';
+import approvalRoutes     from './routes/approval';
+import { LinkService } from './services/link.service';
 import { errorHandler, notFound } from './middleware/errorHandler';
 
 export const app = express();
@@ -66,9 +68,22 @@ app.use('/api/api-keys',      apiKeysRoutes);
 app.use('/api/listening',     listeningRoutes);
 app.use('/api/inbox',         inboxRoutes);
 app.use('/api/referrals',     referralsRoutes);
+app.use('/api/approvals',     approvalRoutes);
 
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/l/:code', async (req, res) => {
+    try {
+        const { code } = req.params;
+        const longUrl = await LinkService.resolve(code);
+        if (!longUrl) return res.status(404).send('Link not found');
+        res.redirect(longUrl);
+    } catch (err) {
+        console.error('[Shortener] Redirect error:', err);
+        res.status(500).send('Server error');
+    }
 });
 
 app.use(notFound);

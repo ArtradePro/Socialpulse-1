@@ -59,6 +59,7 @@ export const Workspaces: React.FC = () => {
     const [brandLogoUrl, setBrandLogoUrl] = useState('');
     const [customDomain, setCustomDomain] = useState('');
     const [aiGuidelines, setAiGuidelines] = useState('');
+    const [purchaseUrl, setPurchaseUrl] = useState('');
     const [savingBrand, setSavingBrand] = useState(false);
 
     // Create workspace modal
@@ -108,6 +109,7 @@ export const Workspaces: React.FC = () => {
         setBrandLogoUrl((selected as any).brand_logo_url ?? '');
         setCustomDomain((selected as any).custom_domain  ?? '');
         setAiGuidelines((selected as any).ai_guidelines ?? '');
+        setPurchaseUrl((selected as any).purchase_url ?? '');
     }, [selected]);
 
     // ── Create workspace ─────────────────────────────────────────────────────
@@ -180,6 +182,7 @@ export const Workspaces: React.FC = () => {
                 brandLogoUrl: brandLogoUrl || null,
                 customDomain: customDomain || null,
                 aiGuidelines: aiGuidelines || null,
+                purchaseUrl:  purchaseUrl  || null,
             }, { headers: { 'X-Workspace-Id': selected.id } });
             toast.success('Branding saved');
             loadDetail(selected);
@@ -362,6 +365,15 @@ export const Workspaces: React.FC = () => {
                                             <input type="text" value={customDomain}
                                                 onChange={e => setCustomDomain(e.target.value)}
                                                 placeholder="app.yourcompany.com"
+                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Purchase/CTA Link</label>
+                                            <p className="text-xs text-gray-500 mb-2">The link you want users to click (e.g., your store URL, a specific product page, or a booking link).</p>
+                                            <input type="url" value={purchaseUrl}
+                                                onChange={e => setPurchaseUrl(e.target.value)}
+                                                placeholder="https://yourstore.com/buy-now"
                                                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                                         </div>
 

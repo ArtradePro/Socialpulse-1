@@ -77,26 +77,32 @@ const MediaLibraryPage: React.FC = () => {
     };
 
     const handleDelete = async (id: string) => {
-        if (!window.confirm('Delete this file?')) return;
         try {
             await MediaService.delete(id);
             toast.success('File deleted');
+            setSelected(prev => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+            });
             setRefreshKey(k => k + 1);
-        } catch {
-            toast.error('Delete failed');
+        } catch (err: any) {
+            console.error('Delete error:', err);
+            toast.error(err.response?.data?.message || 'Delete failed');
         }
     };
 
     const handleBulkDelete = async () => {
         if (!selected.size) return;
-        if (!window.confirm(`Delete ${selected.size} file(s)?`)) return;
+        const ids = Array.from(selected);
         try {
-            const { deleted } = await MediaService.bulkDelete([...selected]);
+            const { deleted } = await MediaService.bulkDelete(ids);
             toast.success(`${deleted} file(s) deleted`);
             setSelected(new Set());
             setRefreshKey(k => k + 1);
-        } catch {
-            toast.error('Bulk delete failed');
+        } catch (err: any) {
+            console.error('Bulk delete error:', err);
+            toast.error(err.response?.data?.message || 'Bulk delete failed');
         }
     };
 
@@ -229,9 +235,9 @@ const MediaLibraryPage: React.FC = () => {
                             key={f.id}
                             file={f}
                             selected={selected.has(f.id)}
-                            onSelect={() => toggleSelect(f.id)}
-                            onDelete={() => handleDelete(f.id)}
-                            onCopyUrl={() => handleCopyUrl(f.url)}
+                            onSelect={toggleSelect}
+                            onDelete={handleDelete}
+                            onCopyUrl={handleCopyUrl}
                         />
                     ))}
                 </div>

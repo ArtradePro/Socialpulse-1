@@ -5,8 +5,7 @@ import MediaService, { MediaFile } from '../../services/media.service';
 interface MediaCardProps {
     file:      MediaFile;
     selected:  boolean;
-    // Updated to (file: MediaFile) to match the parent's expectations
-    onSelect:  (file: MediaFile) => void; 
+    onSelect:  (id: string) => void; 
     onDelete:  (id: string) => void;
     onCopyUrl: (url: string) => void;
 }
@@ -35,8 +34,7 @@ const MediaCard: React.FC<MediaCardProps> = ({
 
     return (
         <div
-            // Updated to pass the full 'file' object
-            onClick={() => onSelect(file)}
+            onClick={() => onSelect(file.id)}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
             className={`relative rounded-xl overflow-hidden cursor-pointer border-2

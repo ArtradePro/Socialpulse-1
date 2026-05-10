@@ -9,12 +9,13 @@ Welcome to **SocialPulse**, your all-in-one, AI-powered social media management 
 2. [Connecting Your Social Accounts](#2-connecting-your-social-accounts)
 3. [Navigating the Dashboard](#3-navigating-the-dashboard)
 4. [The Content Studio & AI Tools](#4-the-content-studio--ai-tools)
-5. [Scheduling & Publishing](#5-scheduling--publishing)
-6. [Media Library & Image Editor](#6-media-library--image-editor)
-7. [Analytics & Reporting](#7-analytics--reporting)
-8. [Advanced Features (Listening, Inbox, RSS)](#8-advanced-features)
-9. [Workspaces & Teams](#9-workspaces--teams)
-10. [Account & Billing](#10-account--billing)
+5. [Campaigns & Magic Planning](#5-campaigns--magic-planning)
+6. [Scheduling & Publishing](#6-scheduling--publishing)
+7. [Media Library & Image Editor](#7-media-library--image-editor)
+8. [Analytics & Reporting](#8-analytics--reporting)
+9. [Advanced Features (Listening, Inbox, Approval)](#9-advanced-features)
+10. [Workspaces & Teams](#10-workspaces--teams)
+11. [Account & Billing](#11-account--billing)
 
 ---
 
@@ -66,17 +67,42 @@ The **Content Studio** is where the magic happens. Here you craft your posts usi
 2. Type your content in the text editor. A character counter will help you stay within platform limits.
 3. Add media from your **Media Library** or upload directly.
 
-### Using AI Features
-SocialPulse is integrated with OpenAI's GPT-4 and DALL-E 3 to turbocharge your content creation:
+### 🛡️ AI Content Reviewer (Revenue Engine)
+Ensure your posts are optimized for sales and engagement with our built-in framework reviewer.
+1. Click the **Sparkle/Wand** icon ("Review with AI") next to the text area.
+2. The AI will score your post against the **Pain-Solution-CTA** framework.
+3. **Framework Components**:
+   - **Hook**: Stops the scroll with a relatable pain point.
+   - **Promise**: Clearly states what you offer.
+   - **Social Proof**: Builds trust with data or testimonials.
+   - **CTA**: Directs the user on what to do next.
+4. **One-Click Remix**: Click "Apply Remix" to instantly replace your draft with a high-conversion version crafted by the AI.
+
+![AI Content Reviewer](file:///C:/Users/Venon/.gemini/antigravity/brain/925cbd90-f1e1-409b-ad42-fdce81a1e353/content_studio_ai_reviewer_1778334250123.png)
+
+### Other AI Features
 * **AI Writer**: Give the AI a topic, tone, length, and target audience. It will generate a complete post for you.
-* **Improve Content**: Have a draft? The AI can rewrite it to be more engaging, professional, or funny.
 * **AI Hashtags**: Automatically generate relevant and trending hashtags based on your topic.
-* **AI Captions**: Upload an image, and the AI will analyze it to write a perfect caption.
 * **AI Image Generation**: Use DALL-E 3 to generate custom images based on text prompts directly within the app.
 
 ---
 
-## 5. Scheduling & Publishing
+## 5. Campaigns & Magic Planning
+
+### Marketing Campaigns
+Organize your marketing efforts into **Campaigns**. A campaign groups posts, goals, and analytics under a single theme (e.g., "Summer Sale" or "Product Launch").
+
+### ✨ Magic 7-Day Plan
+Need a strategy fast? The Magic Plan generator creates a full week of high-conversion content automatically.
+1. Go to the **Campaigns** tab.
+2. Select a campaign and click the **Magic 7-Day Plan** button.
+3. SocialPulse will generate 7 draft posts across your selected platforms, perfectly timed and strategic for your campaign goals.
+
+![Magic 7-Day Plan](file:///C:/Users/Venon/.gemini/antigravity/brain/925cbd90-f1e1-409b-ad42-fdce81a1e353/campaigns_magic_plan_1778334312456.png)
+
+---
+
+## 6. Scheduling & Publishing
 
 Once your content is ready, you have several options:
 
@@ -95,7 +121,7 @@ Have a lot of content? Use the **Bulk Scheduler** (available on Pro/Enterprise p
 
 ---
 
-## 6. Media Library & Image Editor
+## 7. Media Library & Image Editor
 
 The **Media Library** stores all your images and videos in the cloud (AWS S3 or Cloudinary).
 
@@ -105,7 +131,7 @@ The **Media Library** stores all your images and videos in the cloud (AWS S3 or 
 
 ---
 
-## 7. Analytics & Reporting
+## 8. Analytics & Reporting
 
 Track your success in the **Analytics** tab.
 
@@ -118,31 +144,41 @@ Track your success in the **Analytics** tab.
 
 ---
 
-## 8. Advanced Features
+## 9. Advanced Features
 
 For power users, SocialPulse offers advanced tools to automate and monitor your social presence:
 
-### Social Listening
-* Track specific keywords, brand names, or hashtags across platforms.
-* View results in the app to see what people are saying about your brand in real-time.
+### Social Listening & Trend-to-Post
+Monitor the conversation and react instantly to trends.
+* **Keyword Tracking**: Monitor brand mentions or industry keywords.
+* **Draft with AI**: See an interesting trend? Click the **Draft with AI** button on any listening result.
+* SocialPulse will automatically open the Content Studio with a pre-filled, conversion-optimized post based on that specific trend.
+
+![Trend-to-Post Automation](file:///C:/Users/Venon/.gemini/antigravity/brain/925cbd90-f1e1-409b-ad42-fdce81a1e353/social_listening_draft_with_ai_1778334280567.png)
 
 ### Unified Inbox
 * Stop switching between apps! The Unified Inbox pulls in all your mentions, comments, and DMs.
 * Read and mark messages as read across all platforms from one screen.
 
-### RSS Auto-Posting
-* Connect RSS feeds from your favorite blogs or news sites.
-* SocialPulse can automatically fetch new articles and post them to your social accounts at specific intervals.
+### Client Approval Portal
+Managing clients? Share your work professionally.
+1. Go to the **Scheduler**.
+2. Click the **Share/Link** icon on any scheduled post.
+3. Send the secure link to your client. They will see a branded portal where they can approve the post or leave feedback — no login required!
 
 ---
 
-## 9. Workspaces & Teams
+## 10. Workspaces & Teams
 
 Working with others or managing multiple brands?
 
-### Workspaces
+### Workspaces & Branding
 * Switch between different Workspaces using the dropdown in the top navbar.
-* Each Workspace can have its own branding (custom colors) and associated social accounts.
+* **Branding Settings**: Customize each workspace with its own:
+  * **Brand Name & Logo**: Your company name and icon.
+  * **Brand Color**: Personalize the interface to match your corporate identity.
+  * **Purchase/CTA Link**: Define a mandatory link (e.g., your store or booking page). The AI will automatically include this in every post CTA.
+  * **AI Brand Guidelines**: Provide specific instructions (tone, formatting, rules) that the AI should always follow for this brand.
 
 ### Teams (Collaboration)
 * Invite colleagues or clients to your team via email.
@@ -150,7 +186,7 @@ Working with others or managing multiple brands?
 
 ---
 
-## 10. Account & Billing
+## 11. Account & Billing
 
 Manage your subscription from the **Billing** tab.
 
