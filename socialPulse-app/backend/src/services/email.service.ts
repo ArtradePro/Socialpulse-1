@@ -30,11 +30,44 @@ const APP_URL = process.env.APP_URL ?? 'http://localhost:5173';
 // ─── Send helper ─────────────────────────────────────────────────────────────
 
 async function send(to: string, subject: string, html: string): Promise<void> {
-    if (!process.env.SMTP_PASS) {
-        console.log(`[Email] SMTP not configured — skipping "${subject}" to ${to}`);
-        return;
+    const FROM = process.env.EMAIL_FROM ?? 'SocialPulse <no-reply@socialpulse.app>';
+
+    // Priority 1: SendGrid
+    const sgKey = process.env.SENDGRID_API_KEY?.trim();
+    if (sgKey && sgKey.startsWith('SG.')) {
+        try {
+            const sgMail = require('@sendgrid/mail');
+            sgMail.setApiKey(sgKey);
+            await sgMail.send({ to, from: FROM, subject, html });
+            console.log(`[Email] Sent via SendGrid to ${to}`);
+            return;
+        } catch (sgError: any) {
+            console.error(`[Email] SendGrid failed: ${sgError.message}`);
+            if (sgError.response?.body) console.error(JSON.stringify(sgError.response.body));
+            // Fall through to SMTP
+        }
+    } else if (sgKey) {
+        console.warn(`[Email] Invalid SendGrid key format (missing SG. prefix). Falling back to SMTP.`);
     }
-    await getTransporter().sendMail({ from: FROM, to, subject, html });
+
+    // Priority 2: SMTP
+    if (process.env.SMTP_PASS) {
+        try {
+            await getTransporter().sendMail({ from: FROM, to, subject, html });
+            console.log(`[Email] Sent via SMTP to ${to}`);
+            return;
+        } catch (smtpError: any) {
+            console.error(`[Email] SMTP fallback failed: ${smtpError.message}`);
+        }
+    }
+
+    // Priority 3: Console (Development/Last Resort)
+    console.log(`[Email] [FALLBACK] Mock send to ${to}: "${subject}"`);
+    if (process.env.NODE_ENV === 'development') {
+        console.log('--- HTML CONTENT START ---');
+        console.log(html);
+        console.log('--- HTML CONTENT END ---');
+    }
 }
 
 // ─── Templates ───────────────────────────────────────────────────────────────

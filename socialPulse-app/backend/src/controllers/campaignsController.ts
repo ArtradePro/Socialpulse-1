@@ -1,8 +1,10 @@
-// backend/src/controllers/campaignsController.ts
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { db } from '../config/database';
+import { AIService } from '../services/ai.service';
+import { AuthRequest } from '../middleware/auth.middleware';
 
-export const listCampaigns = async (req: Request, res: Response): Promise<void> => {
+export const listCampaigns = async (req: AuthRequest, res: Response): Promise<void> => {
+// ... (rest of the file remains similar but with AuthRequest)
     const { rows } = await db.query(
         `SELECT c.*,
                 COUNT(p.id) FILTER (WHERE p.campaign_id = c.id)             AS post_count,
@@ -18,7 +20,7 @@ export const listCampaigns = async (req: Request, res: Response): Promise<void> 
     res.json(rows);
 };
 
-export const getCampaign = async (req: Request, res: Response): Promise<void> => {
+export const getCampaign = async (req: AuthRequest, res: Response): Promise<void> => {
     const { id } = req.params;
 
     const { rows: campaign } = await db.query(
@@ -45,7 +47,7 @@ export const getCampaign = async (req: Request, res: Response): Promise<void> =>
     res.json({ ...campaign[0], posts });
 };
 
-export const createCampaign = async (req: Request, res: Response): Promise<void> => {
+export const createCampaign = async (req: AuthRequest, res: Response): Promise<void> => {
     const { name, description, startDate, endDate } = req.body;
     if (!name) { res.status(400).json({ message: 'name is required' }); return; }
 
@@ -58,7 +60,7 @@ export const createCampaign = async (req: Request, res: Response): Promise<void>
     res.status(201).json(rows[0]);
 };
 
-export const updateCampaign = async (req: Request, res: Response): Promise<void> => {
+export const updateCampaign = async (req: AuthRequest, res: Response): Promise<void> => {
     const { id } = req.params;
     const { name, description, startDate, endDate, status } = req.body;
 
@@ -77,7 +79,7 @@ export const updateCampaign = async (req: Request, res: Response): Promise<void>
     res.json(rows[0]);
 };
 
-export const deleteCampaign = async (req: Request, res: Response): Promise<void> => {
+export const deleteCampaign = async (req: AuthRequest, res: Response): Promise<void> => {
     const { id } = req.params;
     // Unlink posts from this campaign first
     await db.query('UPDATE posts SET campaign_id = NULL WHERE campaign_id = $1 AND user_id = $2',
@@ -87,4 +89,41 @@ export const deleteCampaign = async (req: Request, res: Response): Promise<void>
     );
     if (!rowCount) { res.status(404).json({ message: 'Not found' }); return; }
     res.status(204).send();
+};
+
+export const generateMagicPlan = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const userId = req.user!.userId;
+
+        const { rows: campaign } = await db.query(
+            'SELECT * FROM campaigns WHERE id = $1 AND user_id = $2',
+            [id, userId]
+        );
+        if (!campaign[0]) { res.status(404).json({ message: 'Campaign not found' }); return; }
+
+        const plan = await AIService.generateMagicPlan(
+            userId, 
+            campaign[0].workspace_id || undefined,
+            campaign[0].name, 
+            campaign[0].description || ''
+        );
+
+        // Create drafts
+        for (const post of plan.posts) {
+            const scheduledAt = new Date();
+            scheduledAt.setDate(scheduledAt.getDate() + post.scheduled_offset_days);
+
+            await db.query(
+                `INSERT INTO posts (user_id, campaign_id, workspace_id, content, platforms, status, scheduled_at, ai_generated)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                [userId, id, campaign[0].workspace_id || null, post.content, [post.platform], 'draft', scheduledAt, true]
+            );
+        }
+
+        res.json({ message: 'Magic plan generated successfully', count: plan.posts.length });
+    } catch (err: any) {
+        console.error('[Magic Plan Error]', err);
+        res.status(500).json({ message: 'Failed to generate magic plan' });
+    }
 };

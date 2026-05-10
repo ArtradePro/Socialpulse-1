@@ -289,21 +289,42 @@ export const updateBranding = async (req: Request, res: Response): Promise<void>
     const role = (req as any).workspaceRole as string;
     if (!['owner', 'admin'].includes(role)) { res.status(403).json({ message: 'Admin or owner required' }); return; }
 
-    const { brandName, brandColor, brandLogoUrl, customDomain, aiGuidelines } = req.body;
+    const { brandName, brandColor, brandLogoUrl, customDomain, aiGuidelines, purchaseUrl } = req.body;
+    const updates: string[] = [];
+    const values: any[] = [];
+    let placeholderIdx = 1;
+
+    const addUpdate = (field: string, value: any) => {
+        if (value !== undefined) {
+            updates.push(`${field} = $${placeholderIdx++}`);
+            values.push(value);
+        }
+    };
+
+    addUpdate('brand_name',     brandName);
+    addUpdate('brand_color',    brandColor);
+    addUpdate('brand_logo_url', brandLogoUrl);
+    addUpdate('custom_domain',  customDomain);
+    addUpdate('ai_guidelines',  aiGuidelines);
+    addUpdate('purchase_url',   purchaseUrl);
+
+    if (updates.length === 0) { res.status(400).json({ message: 'No fields to update' }); return; }
+
     try {
+        values.push(wid);
         const { rows } = await db.query(
             `UPDATE workspaces
-             SET brand_name     = COALESCE($1, brand_name),
-                 brand_color    = COALESCE($2, brand_color),
-                 brand_logo_url = COALESCE($3, brand_logo_url),
-                 custom_domain  = $4,
-                 ai_guidelines  = COALESCE($5, ai_guidelines),
-                 updated_at     = NOW()
-             WHERE id = $6 RETURNING *`,
-            [brandName ?? null, brandColor ?? null, brandLogoUrl ?? null, customDomain ?? null, aiGuidelines ?? null, wid]
+             SET ${updates.join(', ')}, updated_at = NOW()
+             WHERE id = $${placeholderIdx} RETURNING *`,
+            values
         );
+        if (rows.length === 0) {
+            res.status(404).json({ message: 'Workspace not found' });
+            return;
+        }
         res.json(rows[0]);
     } catch (err: any) {
+        console.error('[Workspaces] updateBranding Error:', err.message, err.stack);
         if (err.code === '23505') {
             res.status(409).json({ message: 'Custom domain is already in use' });
         } else {

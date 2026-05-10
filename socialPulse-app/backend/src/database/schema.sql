@@ -43,6 +43,9 @@ CREATE TABLE IF NOT EXISTS posts (
     published_at  TIMESTAMP,
     ai_generated  BOOLEAN      DEFAULT false,
     campaign_id   UUID,
+    approval_token VARCHAR(64) UNIQUE,
+    approval_feedback TEXT,
+    approved_at   TIMESTAMP,
     created_at    TIMESTAMP    DEFAULT NOW(),
     updated_at    TIMESTAMP    DEFAULT NOW()
 );

@@ -6,9 +6,10 @@ const required = [
   'JWT_SECRET', 'JWT_REFRESH_SECRET',
 ];
 
-for (const key of required) {
-  if (!process.env[key]) {
-    console.warn(`Warning: environment variable ${key} is not set`);
+// Warn about missing email config in production
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.SENDGRID_API_KEY && !process.env.SMTP_PASS) {
+    console.warn('Warning: Neither SENDGRID_API_KEY nor SMTP_PASS is set. Emails will not be sent.');
   }
 }
 
@@ -66,6 +67,17 @@ export const env = {
       cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
       apiKey: process.env.CLOUDINARY_API_KEY || '',
       apiSecret: process.env.CLOUDINARY_API_SECRET || '',
+    },
+  },
+  email: {
+    from: process.env.EMAIL_FROM || 'SocialPulse <no-reply@socialpulse.app>',
+    sendgridApiKey: process.env.SENDGRID_API_KEY || '',
+    smtp: {
+      host: process.env.SMTP_HOST || 'smtp.resend.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      user: process.env.SMTP_USER || 'resend',
+      pass: process.env.SMTP_PASS || '',
+      secure: process.env.SMTP_SECURE === 'true',
     },
   },
 };

@@ -39,6 +39,32 @@ export const generateHashtags = async (req: AuthRequest, res: Response): Promise
     }
 };
 
+export const draftFromTrend = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user!.userId;
+        const workspaceId = req.header('x-workspace-id');
+        const { trendContent, platform } = req.body;
+        if (!trendContent) { res.status(400).json({ message: 'trendContent is required' }); return; }
+        const result = await AIService.draftFromTrend(userId, workspaceId, trendContent, platform || 'twitter');
+        res.json(result);
+    } catch (err: any) {
+        handleAiError(err, res, 'Trend drafting failed');
+    }
+};
+
+export const reviewContent = async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        const userId = req.user!.userId;
+        const workspaceId = req.header('x-workspace-id');
+        const { content, platform } = req.body;
+        if (!content) { res.status(400).json({ message: 'content is required' }); return; }
+        const result = await AIService.reviewContent(userId, workspaceId, content, platform || 'twitter');
+        res.json(result);
+    } catch (err: any) {
+        handleAiError(err, res, 'Content review failed');
+    }
+};
+
 export const improveContent = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
         const { content, platform, improvement } = req.body;
