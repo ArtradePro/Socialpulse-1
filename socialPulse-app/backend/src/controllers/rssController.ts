@@ -119,6 +119,7 @@ export const fetchFeedNow = async (req: Request, res: Response): Promise<void> =
 export interface RssFeedRow {
     id: string;
     user_id: string;
+    workspace_id: string | null;
     url: string;
     platforms: string[];
     auto_post: boolean;
@@ -159,7 +160,7 @@ export async function fetchAndStoreFeedEntries(feed: RssFeedRow): Promise<number
                 // For each platform in the feed, generate a tailored post
                 for (const platform of feed.platforms) {
                     try {
-                        const aiPost = await AIService.generateContent(feed.user_id, (feed as any).workspace_id, {
+                        const aiPost = await AIService.generateContent(feed.user_id, feed.workspace_id || undefined, {
                             topic: `RSS Entry: ${entry.title}. Content summary: ${entry.title}`,
                             platform: platform,
                             tone: 'professional',

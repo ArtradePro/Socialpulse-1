@@ -87,7 +87,7 @@ export class AIService {
         Return only JSON.`;
 
         const result = await getAI().models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-1.5-flash',
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             config: { systemInstruction, responseMimeType: 'application/json' }
         });
@@ -111,7 +111,7 @@ export class AIService {
         Return JSON: {"posts": [{"content": "...", "scheduled_offset_days": 1, "platform": "twitter"}]}`;
 
         const result = await getAI().models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-1.5-flash',
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             config: { systemInstruction: guidelines, responseMimeType: 'application/json' }
         });
@@ -131,7 +131,7 @@ export class AIService {
         const { purchaseUrl } = await this.getWorkspaceContext(workspaceId);
 
         const result = await getAI().models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-1.5-flash',
             contents: [{ role: 'user', parts: [{ text: `Convert this trend into a ${platform} post: "${trendContent}". Link: ${purchaseUrl || '[Link]'}` }] }],
             config: { responseMimeType: 'application/json' }
         });
@@ -159,7 +159,7 @@ export class AIService {
         Return JSON: {"score": 0-100, "feedback": [...], "remix": "..."}`;
 
         const result = await getAI().models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-1.5-flash',
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             config: { responseMimeType: 'application/json' }
         });
@@ -171,7 +171,7 @@ export class AIService {
 
     static async generateHashtags(userId: string, topic: string, platform: string, count: number = 10): Promise<string[]> {
         const result = await getAI().models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-1.5-flash',
             contents: [{ role: 'user', parts: [{ text: `Generate ${count} hashtags for ${platform} about ${topic}. Return JSON array.` }] }],
             config: { responseMimeType: 'application/json' }
         });
@@ -182,7 +182,7 @@ export class AIService {
 
     static async improveContent(userId: string, content: string, platform: string, improvement: string): Promise<string> {
         const result = await getAI().models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-1.5-flash',
             contents: [{ role: 'user', parts: [{ text: `Improve this ${platform} post for ${improvement}: "${content}"` }] }]
         });
         await db.query('UPDATE users SET ai_credits = ai_credits - 1 WHERE id = $1', [userId]);
@@ -191,7 +191,7 @@ export class AIService {
 
     static async generateImageCaption(userId: string, imageDescription: string, platform: string, tone: string): Promise<string> {
         const result = await getAI().models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-1.5-flash',
             contents: [{ role: 'user', parts: [{ text: `Caption for ${platform} (${tone}): "${imageDescription}"` }] }]
         });
         await db.query('UPDATE users SET ai_credits = ai_credits - 1 WHERE id = $1', [userId]);
