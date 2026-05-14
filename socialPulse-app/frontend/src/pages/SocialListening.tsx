@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Plus, Trash2, RefreshCw, X, Loader2, Radio, ToggleLeft, ToggleRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Plus, Trash2, RefreshCw, X, Loader2, Radio, ToggleLeft, ToggleRight, Sparkles, Wand2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+
+// ... (Result interface)
+
+
 
 interface Rule {
     id:           string;
@@ -36,6 +41,32 @@ const PLATFORM_COLOR: Record<string, string> = {
 };
 
 export const SocialListening: React.FC = () => {
+    const navigate = useNavigate();
+    const [isDrafting, setIsDrafting] = useState<string | null>(null);
+
+    const handleDraftWithAI = async (result: Result) => {
+        setIsDrafting(result.id);
+        try {
+            const { data } = await api.post('/ai/draft-from-trend', {
+                trendContent: result.content,
+                platform: result.platform
+            });
+            
+            navigate('/studio', { 
+                state: { 
+                    initialContent: data.content,
+                    initialHashtags: data.hashtags,
+                    initialPlatform: result.platform
+                } 
+            });
+            toast.success('Draft generated!');
+        } catch {
+            toast.error('Failed to generate draft');
+        } finally {
+            setIsDrafting(null);
+        }
+    };
+
     const [rules,       setRules]       = useState<Rule[]>([]);
     const [results,     setResults]     = useState<Result[]>([]);
     const [activeRule,  setActiveRule]  = useState<string | null>(null);
@@ -209,6 +240,16 @@ export const SocialListening: React.FC = () => {
                                             {r.likes > 0 && <span>♥ {r.likes}</span>}
                                             {r.reposts > 0 && <span>↩ {r.reposts}</span>}
                                             <span className="text-indigo-600 font-medium px-2 py-0.5 bg-indigo-50 rounded-full">{r.keyword}</span>
+                                            
+                                            <button 
+                                                onClick={() => handleDraftWithAI(r)}
+                                                disabled={isDrafting === r.id}
+                                                className="flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors disabled:opacity-50"
+                                            >
+                                                {isDrafting === r.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                                                Draft with AI
+                                            </button>
+
                                             {r.url && <a href={r.url} target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 ml-auto">View →</a>}
                                         </div>
                                     </div>

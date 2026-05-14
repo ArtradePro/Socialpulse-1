@@ -27,6 +27,7 @@ import { Referrals }      from './pages/Referrals';
 import { ImageEditor }   from './pages/ImageEditor';
 import { Workspaces }   from './pages/Workspaces';
 
+import { ApprovalPortal } from './pages/ApprovalPortal';
 import AppLayout from './components/layout/AppLayout';
 import PrivateRoute from './components/common/PrivateRoute';
 import { BrandProvider } from './contexts/BrandContext';
@@ -42,6 +43,7 @@ const App: React.FC = () => {
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
                     <Route path="/team-invite/:token" element={<AcceptInvite />} />
+                    <Route path="/approve/:token" element={<ApprovalPortal />} />
 
                     <Route path="/" element={<Home />} />
 

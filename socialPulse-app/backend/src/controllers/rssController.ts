@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Parser from 'rss-parser';
 import { db } from '../config/database';
+import { AIService } from '../services/ai.service';
 
 const parser = new Parser({ timeout: 10000 });
 
@@ -151,16 +152,46 @@ export async function fetchAndStoreFeedEntries(feed: RssFeedRow): Promise<number
         );
 
         for (const entry of unposted) {
-            const content = `${entry.title}${entry.url ? `\n\n${entry.url}` : ''}`;
-            await db.query(
-                `INSERT INTO posts (user_id, content, platforms, status)
-                 VALUES ($1, $2, $3, 'draft')`,
-                [feed.user_id, content, feed.platforms]
-            );
-            await db.query(
-                'UPDATE rss_entries SET posted = true WHERE id = $1',
-                [entry.id]
-            );
+            try {
+                // Use AI to generate a professional post from the RSS entry
+                let content = `${entry.title}${entry.url ? `\n\n${entry.url}` : ''}`;
+                
+                // For each platform in the feed, generate a tailored post
+                for (const platform of feed.platforms) {
+                    try {
+                        const aiPost = await AIService.generateContent(feed.user_id, (feed as any).workspace_id, {
+                            topic: `RSS Entry: ${entry.title}. Content summary: ${entry.title}`,
+                            platform: platform,
+                            tone: 'professional',
+                            length: 'medium',
+                            includeHashtags: true,
+                            includeEmojis: true,
+                            language: 'English'
+                        });
+                        
+                        content = aiPost.content;
+                        if (aiPost.hashtags?.length) {
+                            content += '\n\n' + aiPost.hashtags.map(h => h.startsWith('#') ? h : `#${h}`).join(' ');
+                        }
+                    } catch (aiErr) {
+                        console.error(`[RSS] AI generation failed for platform ${platform}:`, aiErr);
+                        // Fallback to basic content if AI fails
+                    }
+
+                    await db.query(
+                        `INSERT INTO posts (user_id, workspace_id, content, platforms, status, ai_generated)
+                         VALUES ($1, $2, $3, $4, 'draft', true)`,
+                        [feed.user_id, (feed as any).workspace_id || null, content, [platform]]
+                    );
+                }
+
+                await db.query(
+                    'UPDATE rss_entries SET posted = true WHERE id = $1',
+                    [entry.id]
+                );
+            } catch (err) {
+                console.error(`[RSS] Failed to process entry ${entry.id}:`, err);
+            }
         }
     }
 

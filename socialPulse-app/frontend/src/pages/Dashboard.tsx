@@ -4,15 +4,7 @@ import { Users, Heart, Eye, PenSquare, Calendar, ArrowUpRight, ArrowDownRight } 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../services/api';
 
-const engagementData = [
-    { day: 'Mon', likes: 120, comments: 45, shares: 23 },
-    { day: 'Tue', likes: 180, comments: 62, shares: 31 },
-    { day: 'Wed', likes: 95, comments: 28, shares: 15 },
-    { day: 'Thu', likes: 240, comments: 88, shares: 52 },
-    { day: 'Fri', likes: 310, comments: 102, shares: 67 },
-    { day: 'Sat', likes: 190, comments: 54, shares: 38 },
-    { day: 'Sun', likes: 145, comments: 41, shares: 29 },
-];
+// Daily engagement data is now fetched from the API and stored in dailyData state
 
 
 interface StatsCardProps { title: string; value: string; change: number; icon: React.ReactNode; }
@@ -41,25 +33,94 @@ export const Dashboard: React.FC = () => {
         status?: string;
     }
     const [recentPosts, setRecentPosts] = useState<Post[]>([]);
-    const [stats] = useState({ totalFollowers: '24.8K', totalEngagement: '8.4K', totalImpressions: '142K', scheduledPosts: 12 });
+    const [stats, setStats] = useState({
+        totalFollowers: '0',
+        totalEngagement: '0',
+        totalImpressions: '0',
+        scheduledPosts: 0,
+        followerChange: 0,
+        engagementChange: 0,
+        impressionsChange: 0,
+        scheduledChange: 0
+    });
+    const [dailyData, setDailyData] = useState<any[]>([]);
+    const [platformData, setPlatformData] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const fetchRecentPosts = async () => {
+    const fetchDashboardData = async () => {
         try {
-            const { data } = await api.get('/posts?limit=5');
-            setRecentPosts(data.posts || []);
-        } catch {
-            console.error('Failed to fetch posts');
+            setLoading(true);
+            const { data } = await api.get('/api/analytics/dashboard?range=30d');
+            
+            // Stats from overview
+            setStats({
+                totalFollowers: formatNumber(data.overview.totalFollowers),
+                totalEngagement: formatNumber(data.overview.totalEngagements),
+                totalImpressions: formatNumber(data.overview.totalImpressions),
+                scheduledPosts: data.overview.postsPublished || 0,
+                followerChange: data.overview.followerGrowthPct || 0,
+                engagementChange: data.overview.engagementsDelta || 0,
+                impressionsChange: data.overview.impressionsDelta || 0,
+                scheduledChange: 0
+            });
+
+            // Charts data
+            setDailyData(data.dailyEngagement.map((d: any) => ({
+                day: new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' }),
+                likes: d.likes,
+                comments: d.comments,
+                shares: d.shares
+            })));
+
+            setPlatformData(data.platformBreakdown.map((p: any) => ({
+                platform: p.platform,
+                followers: formatNumber(p.followers),
+                growth: `${p.followerDelta > 0 ? '+' : ''}${p.followerDelta}`,
+                color: getPlatformColor(p.platform)
+            })));
+
+            // Recent posts
+            setRecentPosts(data.allPosts.slice(0, 5));
+
+        } catch (error) {
+            console.error('Failed to fetch dashboard data', error);
+        } finally {
+            setLoading(false);
         }
     };
 
-    useEffect(() => { fetchRecentPosts(); }, []);
+    useEffect(() => { fetchDashboardData(); }, []);
+
+    const formatNumber = (num: number) => {
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return num.toString();
+    };
+
+    const getPlatformColor = (platform: string) => {
+        const colors: Record<string, string> = {
+            instagram: 'bg-pink-500',
+            twitter: 'bg-sky-500',
+            linkedin: 'bg-blue-600',
+            facebook: 'bg-indigo-600'
+        };
+        return colors[platform.toLowerCase()] || 'bg-gray-500';
+    };
 
     const statsCards = [
-        { title: 'Total Followers', value: stats.totalFollowers, change: 12.5, icon: <Users className="w-6 h-6 text-purple-600" />, color: 'bg-purple-50' },
-        { title: 'Total Engagement', value: stats.totalEngagement, change: 8.2, icon: <Heart className="w-6 h-6 text-pink-600" />, color: 'bg-pink-50' },
-        { title: 'Impressions', value: stats.totalImpressions, change: -2.1, icon: <Eye className="w-6 h-6 text-blue-600" />, color: 'bg-blue-50' },
-        { title: 'Scheduled Posts', value: stats.scheduledPosts.toString(), change: 24.0, icon: <Calendar className="w-6 h-6 text-orange-600" />, color: 'bg-orange-50' },
+        { title: 'Total Followers', value: stats.totalFollowers, change: stats.followerChange, icon: <Users className="w-6 h-6 text-purple-600" />, color: 'bg-purple-50' },
+        { title: 'Total Engagement', value: stats.totalEngagement, change: stats.engagementChange, icon: <Heart className="w-6 h-6 text-pink-600" />, color: 'bg-pink-50' },
+        { title: 'Impressions', value: stats.totalImpressions, change: stats.impressionsChange, icon: <Eye className="w-6 h-6 text-blue-600" />, color: 'bg-blue-50' },
+        { title: 'Posts Published', value: stats.scheduledPosts.toString(), change: stats.scheduledChange, icon: <Calendar className="w-6 h-6 text-orange-600" />, color: 'bg-orange-50' },
     ];
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className='space-y-6'>
@@ -83,7 +144,7 @@ export const Dashboard: React.FC = () => {
                 <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Engagement This Week</h3>
                     <ResponsiveContainer width="100%" height={220}>
-                        <LineChart data={engagementData}>
+                        <LineChart data={dailyData.length > 0 ? dailyData : [{ day: '', likes: 0, comments: 0, shares: 0 }]}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                             <XAxis dataKey="day" tick={{ fontSize: 12 }} />
                             <YAxis tick={{ fontSize: 12 }} />
@@ -105,18 +166,17 @@ export const Dashboard: React.FC = () => {
                 <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Platform Breakdown</h3>
                     <div className="space-y-4">
-                        {[
-                            { platform: 'Instagram', followers: '12.4K', growth: '+5.2%', color: 'bg-pink-500' },
-                            { platform: 'Twitter', followers: '6.8K', growth: '+2.1%', color: 'bg-sky-500' },
-                            { platform: 'LinkedIn', followers: '3.6K', growth: '+8.7%', color: 'bg-blue-600' },
-                            { platform: 'Facebook', followers: '2.0K', growth: '-0.5%', color: 'bg-indigo-600' },
-                        ].map(item => (
+                        {platformData.length === 0 ? (
+                            <p className="text-sm text-gray-400 text-center py-10">No accounts connected</p>
+                        ) : platformData.map(item => (
                             <div key={item.platform} className='flex items-center gap-3'>
                                 <div className={`w-2 h-10 rounded-full ${item.color}`} />
                                 <div className='flex-1'>
                                     <div className='flex justify-between'>
                                         <span className='text-sm font-medium text-gray-900'>{item.platform}</span>
-                                        <span className="text-xs font-medium">{item.growth}</span>
+                                        <span className={`text-xs font-medium ${parseFloat(item.growth) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {item.growth}
+                                        </span>
                                     </div>
                                     <span className="text-xs text-gray-500">{item.followers} followers</span>
                                 </div>

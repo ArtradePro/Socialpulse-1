@@ -19,7 +19,7 @@ export const ScheduleModel = {
 
   findPending: (before: Date) =>
     query(
-      `SELECT s.*, p.content, p.media_url, p.platforms
+      `SELECT s.*, p.content, p.media_urls, p.platforms
        FROM schedules s JOIN posts p ON s.post_id = p.id
        WHERE s.status = 'pending' AND s.scheduled_at <= $1`,
       [before]
@@ -27,7 +27,7 @@ export const ScheduleModel = {
 
   findByUser: (userId: string) =>
     query(
-      `SELECT s.*, p.content, p.media_url FROM schedules s
+      `SELECT s.*, p.content, p.media_urls FROM schedules s
        JOIN posts p ON s.post_id = p.id
        WHERE s.user_id = $1 ORDER BY s.scheduled_at ASC`,
       [userId]
@@ -36,7 +36,7 @@ export const ScheduleModel = {
   create: (data: Partial<Schedule>) =>
     query(
       `INSERT INTO schedules (id, post_id, user_id, platform, scheduled_at, status)
-       VALUES (uuid_generate_v4(), $1, $2, $3, $4, 'pending') RETURNING *`,
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, 'pending') RETURNING *`,
       [data.post_id, data.user_id, data.platform, data.scheduled_at]
     ).then(r => r.rows[0] as Schedule),
 

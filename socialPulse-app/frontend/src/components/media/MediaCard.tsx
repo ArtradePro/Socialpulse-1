@@ -21,20 +21,22 @@ const MediaCard: React.FC<MediaCardProps> = ({
 
     const handleCopy = (e: React.MouseEvent) => {
         e.stopPropagation();
-        navigator.clipboard.writeText(file.url);
-        setCopied(true);
-        onCopyUrl(file.url);
-        setTimeout(() => setCopied(false), 2000);
+        if (file?.url) {
+            navigator.clipboard.writeText(file.url);
+            setCopied(true);
+            onCopyUrl(file.url);
+            setTimeout(() => setCopied(false), 2000);
+        }
     };
 
     const handleDelete = (e: React.MouseEvent) => {
         e.stopPropagation();
-        onDelete(file.id);
+        if (file?.id) onDelete(file.id);
     };
 
     return (
         <div
-            onClick={() => onSelect(file.id)}
+            onClick={() => file?.id && onSelect(file.id)}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
             className={`relative rounded-xl overflow-hidden cursor-pointer border-2
@@ -48,15 +50,15 @@ const MediaCard: React.FC<MediaCardProps> = ({
             <div className="aspect-square bg-gray-100 flex items-center justify-center">
                 {isImage && (
                     <img
-                        src={file.thumbnailUrl ?? file.url}
-                        alt={file.originalName}
+                        src={file?.thumbnailUrl ?? file?.url}
+                        alt={file?.originalName || 'Image'}
                         className="w-full h-full object-cover"
                         loading="lazy"
                     />
                 )}
                 {isVideo && (
                     <>
-                        {file.thumbnailUrl
+                        {file?.thumbnailUrl
                             ? <img src={file.thumbnailUrl} alt="" className="w-full h-full object-cover" />
                             : <div className="w-full h-full bg-gray-200 flex items-center justify-center">
                                   <Play className="w-10 h-10 text-gray-400" />
@@ -109,11 +111,11 @@ const MediaCard: React.FC<MediaCardProps> = ({
             {/* File info */}
             <div className="p-2 bg-white">
                 <p className="text-xs text-gray-700 truncate font-medium">
-                    {file.originalName}
+                    {file?.originalName || 'Untitled'}
                 </p>
                 <p className="text-[10px] text-gray-400 mt-0.5">
-                    {MediaService.formatSize(file.sizeBytes || 0)}
-                    {file.width && file.height && ` · ${file.width}×${file.height}`}
+                    {MediaService.formatSize(file?.sizeBytes || 0)}
+                    {file?.width && file?.height && ` · ${file.width}×${file.height}`}
                 </p>
             </div>
         </div>

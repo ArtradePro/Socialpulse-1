@@ -1,6 +1,5 @@
-// frontend/src/pages/Campaigns.tsx
 import React, { useState, useEffect } from 'react';
-import { Plus, Megaphone, BarChart2, FileText, Trash2, X, Calendar, Loader2, ChevronRight } from 'lucide-react';
+import { Plus, Megaphone, BarChart2, FileText, Trash2, X, Calendar, Loader2, ChevronRight, Wand2, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 
@@ -40,6 +39,22 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 export const Campaigns: React.FC = () => {
+    const [isPlanning, setIsPlanning] = useState<string | null>(null);
+
+    const handleMagicPlan = async (id: string) => {
+        setIsPlanning(id);
+        try {
+            await api.post(`/campaigns/${id}/magic-plan`);
+            toast.success('Magic 7-day plan generated as drafts!');
+            await fetchCampaigns();
+            if (selected?.id === id) await openDetail(id);
+        } catch {
+            toast.error('Failed to generate magic plan');
+        } finally {
+            setIsPlanning(null);
+        }
+    };
+
     const [campaigns,   setCampaigns]   = useState<Campaign[]>([]);
     const [loading,     setLoading]     = useState(true);
     const [showCreate,  setShowCreate]  = useState(false);
@@ -305,6 +320,14 @@ export const Campaigns: React.FC = () => {
                                     <span className="ml-auto text-sm text-gray-500">
                                         {selected.post_count} posts · {selected.published_count} published
                                     </span>
+                                    <button 
+                                        onClick={() => handleMagicPlan(selected.id)}
+                                        disabled={isPlanning === selected.id}
+                                        className="ml-2 flex items-center gap-1.5 px-3 py-1 bg-purple-600 text-white rounded-lg text-xs font-bold hover:bg-purple-700 transition-colors disabled:opacity-50"
+                                    >
+                                        {isPlanning === selected.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                                        Magic 7-Day Plan
+                                    </button>
                                 </div>
 
                                 {/* Aggregate stats */}

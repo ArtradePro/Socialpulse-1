@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { 
     Wand2, Image, Hash, Smile, Calendar, Send, Save, 
     Loader2, X, FolderOpen, FileText, Tag, Megaphone,
+    Search, CheckCircle2, AlertCircle, Sparkles,
     Share2 as TwitterIcon, 
     Share2 as InstagramIcon, 
     Share2 as LinkedinIcon, 
@@ -26,9 +28,22 @@ interface HashtagSet { id: string; name: string; hashtags: string[]; }
 interface Campaign { id: string; name: string; }
 
 export const ContentStudio: React.FC = () => {
+    const location = useLocation();
     const [content, setContent] = useState('');
     const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['twitter']);
     const [hashtags, setHashtags] = useState<string[]>([]);
+    
+    useEffect(() => {
+        const state = location.state as any;
+        if (state) {
+            if (state.initialContent) setContent(state.initialContent);
+            if (state.initialHashtags) setHashtags(state.initialHashtags);
+            if (state.initialPlatform) setSelectedPlatforms([state.initialPlatform]);
+            
+            // Clear state so it doesn't re-apply on refresh
+            window.history.replaceState({}, document.title);
+        }
+    }, [location]);
     const [mediaUrls, setMediaUrls] = useState<string[]>([]);
     const [mediaFiles, setMediaFiles] = useState<File[]>([]);
     const [scheduledAt, setScheduledAt] = useState('');
@@ -115,6 +130,38 @@ export const ContentStudio: React.FC = () => {
     const removeMedia = (i: number) => {
         setMediaFiles(prev => prev.filter((_, idx) => idx !== i));
         setMediaUrls(prev => prev.filter((_, idx) => idx !== i));
+    };
+
+    const [isReviewing, setIsReviewing] = useState(false);
+    const [reviewResult, setReviewResult] = useState<{
+        score: number;
+        feedback: { component: string; status: 'pass' | 'fail' | 'warn'; message: string }[];
+        remix: string;
+    } | null>(null);
+
+    const handleAIReview = async () => {
+        if (!content.trim()) { toast.error('Write something first'); return; }
+        setIsReviewing(true);
+        try {
+            const { data } = await api.post('/ai/review', {
+                content,
+                platform: selectedPlatforms[0] || 'twitter'
+            });
+            setReviewResult(data);
+            toast.success('Review complete!');
+        } catch {
+            toast.error('Failed to review content');
+        } finally {
+            setIsReviewing(false);
+        }
+    };
+
+    const handleApplyRemix = () => {
+        if (reviewResult) {
+            setContent(reviewResult.remix);
+            setReviewResult(null);
+            toast.success('AI Remix applied!');
+        }
     };
 
     const handleSaveOrPublish = async (action: 'draft' | 'schedule' | 'publish') => {
@@ -247,6 +294,14 @@ export const ContentStudio: React.FC = () => {
                                         <button onClick={handleGenerateHashtags} className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Generate hashtags">
                                             <Hash className="w-5 h-5 text-gray-500" />
                                         </button>
+                                         <button 
+                                            onClick={handleAIReview} 
+                                            disabled={isReviewing || !content.trim()}
+                                            className="flex items-center gap-2 px-4 py-2 bg-linear-to-r from-purple-600 to-indigo-600 text-white rounded-xl text-sm font-bold hover:opacity-90 transition-all shadow-md shadow-purple-200 disabled:opacity-50 disabled:shadow-none"
+                                        >
+                                            {isReviewing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                                            Review & Remix with AI
+                                        </button>
                                         <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Add emoji">
                                             <Smile className="w-5 h-5 text-gray-500" />
                                         </button>
@@ -255,6 +310,57 @@ export const ContentStudio: React.FC = () => {
                                         {content.length}/{charLimit}
                                     </span>
                                 </div>
+
+                                {reviewResult && (
+                                    <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200 animate-in fade-in slide-in-from-top-2">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="flex items-center gap-2">
+                                                <div className={`text-lg font-bold ${reviewResult.score > 80 ? 'text-green-600' : reviewResult.score > 50 ? 'text-orange-500' : 'text-red-500'}`}>
+                                                    {reviewResult.score}%
+                                                </div>
+                                                <span className="text-sm font-medium text-gray-600">Conversion Score</span>
+                                            </div>
+                                            <button onClick={() => setReviewResult(null)} className="text-gray-400 hover:text-gray-600">
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            {reviewResult.feedback.map((f, i) => (
+                                                <div key={i} className="flex items-start gap-2.5">
+                                                    {f.status === 'pass' ? (
+                                                        <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
+                                                    ) : f.status === 'fail' ? (
+                                                        <X className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                                                    ) : (
+                                                        <AlertCircle className="w-4 h-4 text-orange-500 mt-0.5 shrink-0" />
+                                                    )}
+                                                    <div className="flex-1">
+                                                        <p className="text-xs font-bold text-gray-800">{f.component}</p>
+                                                        <p className="text-xs text-gray-600">{f.message}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="mt-5 pt-4 border-t border-gray-200">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                                                    <Sparkles className="w-3 h-3 text-purple-600" /> AI Optimized Remix
+                                                </span>
+                                                <button 
+                                                    onClick={handleApplyRemix}
+                                                    className="text-[10px] font-bold bg-purple-600 text-white px-2 py-1 rounded-lg hover:bg-purple-700 transition-colors"
+                                                >
+                                                    APPLY REMIX
+                                                </button>
+                                            </div>
+                                            <p className="text-xs text-gray-700 italic bg-white p-3 rounded-lg border border-gray-100 leading-relaxed line-clamp-4 hover:line-clamp-none transition-all">
+                                                "{reviewResult.remix}"
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="p-4 space-y-4">

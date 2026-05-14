@@ -1,7 +1,8 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { logout } from '../../store/authSlice';
+import { logout, setUser } from '../../store/authSlice';
+import api from '../../services/api';
 import {
     LayoutDashboard, PenSquare, Calendar, BarChart3, Settings,
     LogOut, Menu, X, HardDrive, CreditCard, Megaphone, Hash, FileText,
@@ -16,7 +17,7 @@ const navSections = [
         label: 'Publish',
         items: [
             { path: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
-            { path: '/studio',     icon: PenSquare,       label: 'Content Studio' },
+            { path: '/studio',     icon: Sparkles,        label: 'Content Studio' },
             { path: '/scheduler',  icon: Calendar,        label: 'Scheduler' },
             { path: '/analytics',  icon: BarChart3,       label: 'Analytics' },
             { path: '/campaigns',  icon: Megaphone,       label: 'Campaigns' },
@@ -61,6 +62,18 @@ const AppLayout: React.FC = () => {
     const brand = useBrand();
     const dispatch = useAppDispatch();
     const navigate = useNavigate();
+
+    React.useEffect(() => {
+        const fetchProfile = async () => {
+            try {
+                const { data } = await api.get('/auth/profile');
+                if (data.user) dispatch(setUser(data.user));
+            } catch (err) {
+                console.error('Failed to sync profile:', err);
+            }
+        };
+        fetchProfile();
+    }, [dispatch]);
 
     const handleLogout = () => {
         dispatch(logout());

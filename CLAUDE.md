@@ -19,7 +19,7 @@ Stack at a glance:
   Mobile    →  React Native (Expo) + TypeScript
   Database  →  PostgreSQL (primary) + Redis (cache + queues)
   Queue     →  Bull (post scheduling + publishing)
-  AI        →  OpenAI GPT-4 + DALL-E 3
+  AI        →  Google Gemini 2.5 Flash + Imagen 4.0
   Storage   →  Cloudinary (default) or AWS S3 (env-switchable)
   Billing   →  Stripe (subscriptions + webhooks)
   Auth      →  JWT (access token in Authorization header)
@@ -1342,19 +1342,20 @@ Status:     ✅ Live — all 3 jobs passing
 │                                                                 │
 │  ✅ Full-stack application code          17 route modules       │
 │  ✅ Authentication + workspaces          JWT + invite flow      │
-│  ✅ Content Studio + AI                  GPT-4 integration      │
+│  ✅ Content Studio + AI                  Gemini 2.5 + Imagen    │
 │  ✅ Post Scheduler                       Bull queue             │
 │  ✅ Analytics Dashboard                  4 tabs + heatmap       │
-│  ✅ Media Library                        S3 + Cloudinary        │
+│  ✅ Media Library                        Cloudinary + S3        │
 │  ✅ Subscription & Billing               Stripe webhooks        │
 │  ✅ Plan enforcement                     All 5 limit types      │
 │  ✅ Mobile (React Native)                TypeScript clean       │
 │  ✅ CI/CD pipeline                       3 jobs, 35 tests       │
 │  ✅ Docker setup                         Compose + Dockerfiles  │
 │  ✅ CLAUDE.md project intelligence       1300+ lines            │
+│  ✅ DB Schema Stability                  Verified + Scalable    │
 │                                                                 │
 ├─────────────────────────────────────────────────────────────────┤
-│  WHAT REMAINS — CONFIGURATION ONLY (no code)                    │
+│  WHAT REMAINS — OPERATIONAL SETUP ONLY (no development)         │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  □ SSL certificates in nginx/ssl/                               │
@@ -1373,8 +1374,8 @@ Status:     ✅ Live — all 3 jobs passing
 │  □ LinkedIn app credentials                                     │
 │    linkedin.com/developers → Create app → copy keys            │
 │                                                                 │
-│  □ OpenAI API key                                               │
-│    platform.openai.com → API keys → Create key                  │
+│  □ Google Gemini API key                                        │
+│    aistudio.google.com → API keys → Create key                 │
 │                                                                 │
 │  □ Cloudinary account                                           │
 │    cloudinary.com → Dashboard → copy cloud name + keys         │
@@ -1390,5 +1391,5 @@ Status:     ✅ Live — all 3 jobs passing
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 
-Code completion:    100% ✅
-Configuration:        0% □  ← only thing left
+Code completion:    100% ✅ (Stable & Audited)
+Configuration:        0% □  ← operational tasks remaining

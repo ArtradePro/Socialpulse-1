@@ -395,6 +395,12 @@ CREATE TABLE IF NOT EXISTS workspaces (
     slug        VARCHAR(100) UNIQUE,
     logo_url    TEXT,
     owner_id    UUID      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    brand_color    VARCHAR(20)  DEFAULT '#6366f1',
+    brand_name     VARCHAR(255),
+    brand_logo_url TEXT,
+    custom_domain  VARCHAR(255) UNIQUE,
+    ai_guidelines  TEXT,
+    purchase_url   TEXT,
     created_at  TIMESTAMP DEFAULT NOW(),
     updated_at  TIMESTAMP DEFAULT NOW()
 );
@@ -428,15 +434,46 @@ ALTER TABLE posts           ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCE
 ALTER TABLE social_accounts ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
 ALTER TABLE media_files     ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
 ALTER TABLE campaigns       ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
+ALTER TABLE rss_feeds       ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
+ALTER TABLE listening_rules ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_posts_workspace    ON posts(workspace_id)           WHERE workspace_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sa_workspace       ON social_accounts(workspace_id) WHERE workspace_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_media_workspace    ON media_files(workspace_id)     WHERE workspace_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_campaigns_workspace ON campaigns(workspace_id)      WHERE workspace_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_rss_workspace      ON rss_feeds(workspace_id)       WHERE workspace_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_listening_workspace ON listening_rules(workspace_id) WHERE workspace_id IS NOT NULL;
 
--- ─── White-label Branding ─────────────────────────────────────────────────────
-ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_color    VARCHAR(20)  DEFAULT '#6366f1';
-ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_name     VARCHAR(255);
-ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_logo_url TEXT;
-ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS custom_domain  VARCHAR(255) UNIQUE;
-ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS ai_guidelines  TEXT;
+-- ─── P3: URL Shortener ────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS short_links (
+    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID        REFERENCES workspaces(id) ON DELETE SET NULL,
+    long_url     TEXT        NOT NULL,
+    short_code   VARCHAR(12) NOT NULL UNIQUE,
+    clicks       INTEGER     DEFAULT 0,
+    created_at   TIMESTAMP   DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_short_links_workspace ON short_links(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_short_links_code      ON short_links(short_code);
+
+-- ─── P3: Granular Scheduling ──────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS schedules (
+    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id      UUID        NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    user_id      UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    platform     VARCHAR(50) NOT NULL,
+    scheduled_at TIMESTAMP   NOT NULL,
+    status       VARCHAR(50) DEFAULT 'pending', -- pending | processing | published | failed
+    error_message TEXT,
+    job_id       VARCHAR(255),
+    created_at   TIMESTAMP   DEFAULT NOW(),
+    updated_at   TIMESTAMP   DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_schedules_post    ON schedules(post_id);
+CREATE INDEX IF NOT EXISTS idx_schedules_user    ON schedules(user_id);
+CREATE INDEX IF NOT EXISTS idx_schedules_status  ON schedules(status);
+CREATE INDEX IF NOT EXISTS idx_schedules_time    ON schedules(scheduled_at);
+
+CREATE OR REPLACE TRIGGER trg_schedules_updated_at
+  BEFORE UPDATE ON schedules
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

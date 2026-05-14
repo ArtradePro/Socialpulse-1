@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    Grid3X3, List, Trash2, Search,
+    LayoutGrid, List, Trash2, Search,
     RefreshCw, HardDrive, Plus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -40,11 +40,13 @@ const MediaLibraryPage: React.FC = () => {
         setLoading(true);
         try {
             const res = await MediaService.list({ ...params, search: search || undefined });
-            setFiles(res.files);
-            setTotal(res.total);
-            setTotalPages(res.totalPages);
-        } catch {
+            setFiles(Array.isArray(res?.files) ? res.files : []);
+            setTotal(res?.total || 0);
+            setTotalPages(res?.totalPages || 1);
+        } catch (err: any) {
+            console.error('[MediaLibrary] fetchFiles error:', err);
             toast.error('Failed to load media');
+            setFiles([]);
         } finally {
             setLoading(false);
         }
@@ -130,8 +132,8 @@ const MediaLibraryPage: React.FC = () => {
                         <div className="w-48 hidden sm:block">
                             <UsageBar
                                 label="Storage"
-                                used={Math.round(storage.totalBytes / (1024 * 1024))}
-                                limit={storage.limitBytes ? Math.round(storage.limitBytes / (1024 * 1024)) : 'unlimited'}
+                                used={Math.round((storage.totalBytes || 0) / (1024 * 1024))}
+                                limit={storage.limitBytes ? Math.round((storage.limitBytes || 0) / (1024 * 1024)) : 'unlimited'}
                                 formatUsed={n => `${n} MB`}
                                 formatLimit={n => n === 'unlimited' ? '∞' : `${n} MB`}
                                 icon={<HardDrive className="w-4 h-4 text-purple-500" />}
@@ -192,7 +194,7 @@ const MediaLibraryPage: React.FC = () => {
 
                 <div className="flex items-center bg-gray-100 rounded-xl p-1">
                     <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-lg ${viewMode === 'grid' ? 'bg-white shadow-sm' : 'text-gray-500'}`}>
-                        <Grid3X3 className="w-4 h-4" />
+                        <LayoutGrid className="w-4 h-4" />
                     </button>
                     <button onClick={() => setViewMode('list')} className={`p-1.5 rounded-lg ${viewMode === 'list' ? 'bg-white shadow-sm' : 'text-gray-500'}`}>
                         <List className="w-4 h-4" />
@@ -230,7 +232,7 @@ const MediaLibraryPage: React.FC = () => {
                 </div>
             ) : (
                 <div className={`grid gap-4 ${viewMode === 'grid' ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
-                    {files.map(f => (
+                    {(files || []).filter(f => !!f).map(f => (
                         <MediaCard
                             key={f.id}
                             file={f}

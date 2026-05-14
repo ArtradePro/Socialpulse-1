@@ -36,8 +36,8 @@ export const MediaUploader: React.FC<MediaUploaderProps> = ({
         const next = allowed.map(f => ({
             file:     f,
             preview: URL.createObjectURL(f),
-            isImage: f.type.startsWith('image/'),
-            isVideo: f.type.startsWith('video/'),
+            isImage: MediaService.isImage(f),
+            isVideo: MediaService.isVideo(f),
         }));
         setPreviews(prev => [...prev, ...next]);
     }, [previews.length, maxFiles]);

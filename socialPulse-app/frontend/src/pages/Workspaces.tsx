@@ -105,7 +105,12 @@ export const Workspaces: React.FC = () => {
     useEffect(() => {
         if (!selected) return;
         setBrandName((selected as any).brand_name   ?? '');
-        setBrandColor((selected as any).brand_color ?? '#6366f1');
+        
+        // Sanitize color: take only the first hex code if multiple are present
+        const rawColor = (selected as any).brand_color ?? '#6366f1';
+        const firstColor = rawColor.split(',')[0].trim();
+        setBrandColor(firstColor.startsWith('#') ? firstColor : '#6366f1');
+
         setBrandLogoUrl((selected as any).brand_logo_url ?? '');
         setCustomDomain((selected as any).custom_domain  ?? '');
         setAiGuidelines((selected as any).ai_guidelines ?? '');

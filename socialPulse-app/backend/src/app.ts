@@ -29,13 +29,25 @@ import { errorHandler, notFound } from './middleware/errorHandler';
 export const app = express();
 
 app.use(helmet());
+
 const allowedOrigins = [
-    process.env.CLIENT_URL || 'http://localhost:3000',
+    'http://localhost:3000',
+    'https://usesocialpulse.com',
+    'https://silver-opossum-812035.hostingersite.com',
+    process.env.CLIENT_URL,
     process.env.CLIENT_URL_ALT,
 ].filter(Boolean) as string[];
+
 app.use(cors({
     origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        // Allow requests with no origin (like mobile apps or curl)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.some(o => origin === o || origin.startsWith(o))) {
+            return callback(null, true);
+        }
+        
+        console.warn(`CORS blocked for origin: ${origin}`);
         callback(new Error(`CORS: origin ${origin} not allowed`));
     },
     credentials: true,
