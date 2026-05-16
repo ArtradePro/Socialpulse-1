@@ -369,3 +369,9 @@ If you see "Failed to load..." on a specific page:
 
 ---
 
+# 13. Platform Cheat Sheets
+
+Unlock the full potential of each social network with these platform-specific strategies and SocialPulse shortcuts.
+
+---
+

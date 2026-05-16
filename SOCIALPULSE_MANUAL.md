@@ -20,6 +20,8 @@ This manual is your roadmap to mastering the **SocialPulse Revenue Engine**.
 | **[10. Media Library & Editor](./docs/10_Media_Library.md)** | Cloud-synced assets and the built-in professional Canvas editor. |
 | **[11. RSS Feeds](./docs/11_RSS.md)** | Ingesting and automating content from external news and blogs. |
 | **[12. Troubleshooting & Support](./docs/12_Troubleshooting.md)** | Resolving connection issues, post failures, and common errors. |
+| **[13. Platform Cheat Sheets](./docs/13_Platform_Cheat_Sheets.md)** | Rapid-fire strategies for Instagram, Facebook, X, and LinkedIn. |
+
 
 ---
 

@@ -23,5 +23,6 @@ If you see "Failed to load..." on a specific page:
 * **Support Ticket**: Reach out to our support team with a screenshot of the error and your Workspace ID.
 
 ---
-**← [11. RSS](./11_RSS.md)** | **[Index](../SOCIALPULSE_MANUAL.md)**
+**← [11. RSS](./11_RSS.md)** | **[Index](../SOCIALPULSE_MANUAL.md)** | **[Next: Cheat Sheets](./13_Platform_Cheat_Sheets.md) →**
+
 
