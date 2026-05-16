@@ -3,9 +3,10 @@ import { query } from '../config/database';
 export interface Post {
   id: string;
   user_id: string;
+  workspace_id?: string;
   content: string;
   media_urls: string[];  // stored as JSONB
-  hashtags?: string[];
+  hashtags: string[];
   platforms: string[];
   status: 'draft' | 'scheduled' | 'published' | 'failed';
   scheduled_at?: Date;
@@ -21,24 +22,31 @@ export const PostModel = {
     query('SELECT * FROM posts WHERE id = $1', [id])
       .then(r => r.rows[0] as Post | undefined),
 
-  findByUser: (userId: string, limit = 20, offset = 0) =>
+  findByUser: (userId: string, workspaceId?: string, limit = 20, offset = 0) =>
     query(
-      'SELECT * FROM posts WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
-      [userId, limit, offset]
+      'SELECT * FROM posts WHERE user_id = $1 AND (workspace_id = $2 OR $2 IS NULL) ORDER BY created_at DESC LIMIT $3 OFFSET $4',
+      [userId, workspaceId || null, limit, offset]
     ).then(r => r.rows as Post[]),
 
-  findByStatus: (userId: string, status: Post['status']) =>
+  findByWorkspace: (workspaceId: string, limit = 20, offset = 0) =>
     query(
-      'SELECT * FROM posts WHERE user_id = $1 AND status = $2 ORDER BY scheduled_at ASC',
-      [userId, status]
+      'SELECT * FROM posts WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
+      [workspaceId, limit, offset]
+    ).then(r => r.rows as Post[]),
+
+  findByStatus: (userId: string, status: Post['status'], workspaceId?: string) =>
+    query(
+      'SELECT * FROM posts WHERE user_id = $1 AND status = $2 AND (workspace_id = $3 OR $3 IS NULL) ORDER BY scheduled_at ASC',
+      [userId, status, workspaceId || null]
     ).then(r => r.rows as Post[]),
 
   create: (data: Omit<Post, 'id' | 'created_at' | 'updated_at'>) =>
     query(
-      `INSERT INTO posts (user_id, content, media_urls, hashtags, platforms, status, scheduled_at, ai_generated, campaign_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      `INSERT INTO posts (user_id, workspace_id, content, media_urls, hashtags, platforms, status, scheduled_at, ai_generated, campaign_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
       [
         data.user_id,
+        data.workspace_id || null,
         data.content,
         JSON.stringify(data.media_urls || []),
         data.hashtags || [],
@@ -50,7 +58,7 @@ export const PostModel = {
       ]
     ).then(r => r.rows[0] as Post),
 
-  update: (id: string, userId: string, data: Partial<Pick<Post, 'content' | 'media_urls' | 'hashtags' | 'platforms' | 'status' | 'scheduled_at' | 'published_at' | 'campaign_id'>>) =>
+  update: (id: string, userId: string, data: Partial<Pick<Post, 'content' | 'media_urls' | 'hashtags' | 'platforms' | 'status' | 'scheduled_at' | 'published_at' | 'campaign_id' | 'workspace_id'>>) =>
     query(
       `UPDATE posts SET
         content      = COALESCE($1, content),
@@ -61,8 +69,9 @@ export const PostModel = {
         scheduled_at = COALESCE($6, scheduled_at),
         published_at = COALESCE($7, published_at),
         campaign_id  = COALESCE($8, campaign_id),
+        workspace_id = COALESCE($9, workspace_id),
         updated_at   = NOW()
-       WHERE id = $9 AND user_id = $10 RETURNING *`,
+       WHERE id = $10 AND user_id = $11 RETURNING *`,
       [
         data.content,
         data.media_urls ? JSON.stringify(data.media_urls) : null,
@@ -72,6 +81,7 @@ export const PostModel = {
         data.scheduled_at,
         data.published_at,
         data.campaign_id,
+        data.workspace_id,
         id,
         userId,
       ]

@@ -5,10 +5,12 @@ import {
     listHashtagSets, createHashtagSet,
     updateHashtagSet, deleteHashtagSet,
 } from '../controllers/hashtagSetsController';
+import { resolveWorkspace } from '../middleware/workspace.middleware';
 
 const router = Router();
 
 router.use(authenticate);
+router.use(resolveWorkspace);
 router.get('/',    listHashtagSets);
 router.post('/',   createHashtagSet);
 router.patch('/:id', updateHashtagSet);

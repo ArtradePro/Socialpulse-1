@@ -1,12 +1,11 @@
-import { Response } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { Request, Response } from 'express';
 import { db } from '../config/database';
 import { schedulePost } from '../jobs/postPublisher';
 import { StorageService } from '../services/storage.service';
 import { NotificationService } from '../services/notification.service';
 import { getPlan, PlanId } from '../config/plans';
 
-export const createPost = async (req: AuthRequest, res: Response) => {
+export const createPost = async (req: Request, res: Response) => {
     try {
         const {
             content,
@@ -39,10 +38,10 @@ export const createPost = async (req: AuthRequest, res: Response) => {
 
         const result = await db.query(
             `INSERT INTO posts
-             (user_id, content, platforms, scheduled_at, hashtags, status, ai_generated, campaign_id, media_urls)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             (user_id, workspace_id, content, platforms, scheduled_at, hashtags, status, ai_generated, campaign_id, media_urls)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
              RETURNING *`,
-            [userId, content, platforms, scheduledAt, hashtags, status, aiGenerated, campaignId, JSON.stringify(mediaUrls)]
+            [userId, req.workspaceId || null, content, platforms, scheduledAt, hashtags, status, aiGenerated, campaignId, JSON.stringify(mediaUrls)]
         );
 
         const post = result.rows[0];
@@ -57,7 +56,7 @@ export const createPost = async (req: AuthRequest, res: Response) => {
     }
 };
 
-export const getPosts = async (req: AuthRequest, res: Response) => {
+export const getPosts = async (req: Request, res: Response) => {
     try {
         const { status, platform, page = 1, limit = 20 } = req.query;
         const userId = req.user!.userId;
@@ -68,10 +67,10 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
                    COALESCE(json_agg(pa.*) FILTER (WHERE pa.id IS NOT NULL), '[]') as analytics
             FROM posts p
             LEFT JOIN post_analytics pa ON p.id = pa.post_id
-            WHERE p.user_id = $1
+            WHERE p.user_id = $1 AND (p.workspace_id = $2 OR $2 IS NULL)
         `;
-        const params: any[] = [userId];
-        let paramIndex = 2;
+        const params: any[] = [userId, req.workspaceId || null];
+        let paramIndex = 3;
 
         if (status) {
             queryStr += ` AND p.status = $${paramIndex++}`;
@@ -89,8 +88,8 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
         const result = await db.query(queryStr, params);
 
         const countResult = await db.query(
-            'SELECT COUNT(*) FROM posts WHERE user_id = $1',
-            [userId]
+            'SELECT COUNT(*) FROM posts WHERE user_id = $1 AND (workspace_id = $2 OR $2 IS NULL)',
+            [userId, req.workspaceId || null]
         );
 
         res.json({
@@ -104,7 +103,7 @@ export const getPosts = async (req: AuthRequest, res: Response) => {
     }
 };
 
-export const getPost = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getPost = async (req: Request, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
         const userId = req.user!.userId;
@@ -128,7 +127,7 @@ export const getPost = async (req: AuthRequest, res: Response): Promise<void> =>
     }
 };
 
-export const updatePost = async (req: AuthRequest, res: Response) => {
+export const updatePost = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { content, platforms, scheduledAt, hashtags, mediaUrls } = req.body;
@@ -152,9 +151,9 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
             `UPDATE posts
              SET content = $1, platforms = $2, scheduled_at = $3,
                  hashtags = $4, media_urls = $5, updated_at = NOW()
-             WHERE id = $6 AND user_id = $7
+             WHERE id = $6 AND user_id = $7 AND (workspace_id = $8 OR $8 IS NULL)
              RETURNING *`,
-            [content, platforms, scheduledAt, hashtags, JSON.stringify(mediaUrls || []), id, req.user!.userId]
+            [content, platforms, scheduledAt, hashtags, JSON.stringify(mediaUrls || []), id, req.user!.userId, req.workspaceId || null]
         );
 
         res.json(result.rows[0]);
@@ -163,13 +162,13 @@ export const updatePost = async (req: AuthRequest, res: Response) => {
     }
 };
 
-export const deletePost = async (req: AuthRequest, res: Response) => {
+export const deletePost = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
 
         await db.query(
-            'DELETE FROM posts WHERE id = $1 AND user_id = $2',
-            [id, req.user!.userId]
+            'DELETE FROM posts WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)',
+            [id, req.user!.userId, req.workspaceId || null]
         );
 
         res.json({ message: 'Post deleted successfully' });
@@ -178,14 +177,21 @@ export const deletePost = async (req: AuthRequest, res: Response) => {
     }
 };
 
-export const publishNow = async (req: AuthRequest, res: Response) => {
+export const publishNow = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
 
-        await db.query(
-            `UPDATE posts SET status = 'scheduled', scheduled_at = NOW() WHERE id = $1`,
-            [id]
+        const result = await db.query(
+            `UPDATE posts SET status = 'scheduled', scheduled_at = NOW() 
+             WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)
+             RETURNING id`,
+            [id, req.user!.userId, req.workspaceId || null]
         );
+
+        if (result.rows.length === 0) {
+            res.status(404).json({ message: 'Post not found in this workspace' });
+            return;
+        }
 
         await schedulePost(id, new Date());
 
@@ -199,7 +205,7 @@ export const publishNow = async (req: AuthRequest, res: Response) => {
 // POST /posts/bulk
 // Body: { posts: Array<{ content, platforms, scheduledAt, hashtags?, campaignId?, mediaUrls? }> }
 
-export const bulkCreatePosts = async (req: AuthRequest, res: Response): Promise<void> => {
+export const bulkCreatePosts = async (req: Request, res: Response): Promise<void> => {
     const { posts } = req.body as {
         posts?: Array<{
             content:    string;
@@ -245,10 +251,10 @@ export const bulkCreatePosts = async (req: AuthRequest, res: Response): Promise<
         try {
             const { rows } = await db.query(
                 `INSERT INTO posts
-                 (user_id, content, platforms, scheduled_at, hashtags, status, campaign_id, media_urls)
-                 VALUES ($1, $2, $3, $4, $5, 'scheduled', $6, $7) RETURNING id, scheduled_at`,
+                 (user_id, workspace_id, content, platforms, scheduled_at, hashtags, status, campaign_id, media_urls)
+                 VALUES ($1, $2, $3, $4, $5, $6, 'scheduled', $7, $8) RETURNING id, scheduled_at`,
                 [
-                    userId, p.content, p.platforms, p.scheduledAt,
+                    userId, req.workspaceId || null, p.content, p.platforms, p.scheduledAt,
                     p.hashtags ?? [], p.campaignId ?? null,
                     JSON.stringify(p.mediaUrls ?? []),
                 ]

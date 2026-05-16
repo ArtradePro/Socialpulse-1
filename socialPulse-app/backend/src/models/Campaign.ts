@@ -8,36 +8,42 @@ export interface Campaign {
   start_date?: string;
   end_date?: string;
   status: 'active' | 'paused' | 'completed';
+  workspace_id?: string | null;
   created_at: Date;
 }
 
 export const CampaignModel = {
-  findByUser: (userId: string) =>
-    query('SELECT * FROM campaigns WHERE user_id = $1 ORDER BY created_at DESC', [userId])
-      .then(r => r.rows as Campaign[]),
+  findByUser: (userId: string, workspaceId?: string) =>
+    query(
+      'SELECT * FROM campaigns WHERE user_id = $1 AND (workspace_id = $2 OR $2 IS NULL) ORDER BY created_at DESC',
+      [userId, workspaceId || null]
+    ).then(r => r.rows as Campaign[]),
 
-  findById: (id: string, userId: string) =>
-    query('SELECT * FROM campaigns WHERE id = $1 AND user_id = $2', [id, userId])
-      .then(r => r.rows[0] as Campaign | undefined),
+  findById: (id: string, userId: string, workspaceId?: string) =>
+    query(
+      'SELECT * FROM campaigns WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)',
+      [id, userId, workspaceId || null]
+    ).then(r => r.rows[0] as Campaign | undefined),
 
   create: (data: Omit<Campaign, 'id' | 'created_at'>) =>
     query(
-      `INSERT INTO campaigns (user_id, name, description, start_date, end_date, status)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [data.user_id, data.name, data.description || null, data.start_date || null,
-       data.end_date || null, data.status || 'active']
+      `INSERT INTO campaigns (user_id, workspace_id, name, description, start_date, end_date, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [data.user_id, data.workspace_id || null, data.name, data.description || null, 
+       data.start_date || null, data.end_date || null, data.status || 'active']
     ).then(r => r.rows[0] as Campaign),
 
-  update: (id: string, userId: string, data: Partial<Pick<Campaign, 'name' | 'description' | 'start_date' | 'end_date' | 'status'>>) =>
+  update: (id: string, userId: string, data: Partial<Pick<Campaign, 'name' | 'description' | 'start_date' | 'end_date' | 'status' | 'workspace_id'>>) =>
     query(
       `UPDATE campaigns SET
-        name        = COALESCE($1, name),
-        description = COALESCE($2, description),
-        start_date  = COALESCE($3, start_date),
-        end_date    = COALESCE($4, end_date),
-        status      = COALESCE($5, status)
-       WHERE id = $6 AND user_id = $7 RETURNING *`,
-      [data.name, data.description, data.start_date, data.end_date, data.status, id, userId]
+        name         = COALESCE($1, name),
+        description  = COALESCE($2, description),
+        start_date   = COALESCE($3, start_date),
+        end_date     = COALESCE($4, end_date),
+        status       = COALESCE($5, status),
+        workspace_id = COALESCE($6, workspace_id)
+       WHERE id = $7 AND user_id = $8 RETURNING *`,
+      [data.name, data.description, data.start_date, data.end_date, data.status, data.workspace_id, id, userId]
     ).then(r => r.rows[0] as Campaign),
 
   delete: (id: string, userId: string) =>

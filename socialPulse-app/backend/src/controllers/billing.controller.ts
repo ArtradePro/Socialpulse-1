@@ -1,9 +1,7 @@
-// server/src/controllers/billing.controller.ts
 import { Request, Response } from 'express';
 import Stripe from 'stripe';
 import { db }             from '../config/database';
 import { PLANS, planByPriceId, getPlan, PlanId, PlanKey } from '../config/plans';
-import { AuthRequest } from '../middleware/auth.middleware';
 import { EmailService } from '../services/email.service';
 import { NotificationService } from '../services/notification.service';
 
@@ -327,7 +325,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
 
 // ── Get current plan + usage ──────────────────────────────────────────────────
 
-export const getBillingInfo = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getBillingInfo = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
 
@@ -382,7 +380,7 @@ export const getBillingInfo = async (req: AuthRequest, res: Response): Promise<v
 
 // ── Simulate plan upgrade (real Stripe integration wired in later) ─────────────
 
-export const upgradePlan = async (req: AuthRequest, res: Response): Promise<void> => {
+export const upgradePlan = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId  = req.user!.userId;
     const { plan } = req.body as { plan: string };

@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, PenSquare, Calendar, BarChart2, Hash, FileText, Settings, Zap, Megaphone, Image, Rss, Key, Sparkles, Radio, Inbox, Gift, Paintbrush } from 'lucide-react';
+import { LayoutDashboard, PenSquare, Calendar, BarChart2, Hash, FileText, Settings, Megaphone, Image, Rss, Key, Sparkles, Radio, Inbox, Gift, Paintbrush } from 'lucide-react';
+import logo from '../../assets/logo.png';
 
 const links = [
   { to: '/dashboard',      icon: LayoutDashboard, label: 'Dashboard' },
@@ -23,7 +24,7 @@ const links = [
 export const Sidebar = () => (
   <aside className="flex h-screen w-64 flex-col border-r border-gray-200 bg-white">
     <div className="flex items-center gap-2 px-6 py-5 border-b border-gray-200">
-      <Zap className="h-7 w-7 text-indigo-600" />
+      <img src={logo} alt="SocialPulse" className="h-8 w-8 rounded-lg" />
       <span className="text-xl font-bold text-gray-900">SocialPulse</span>
     </div>
     <nav className="flex-1 space-y-1 px-3 py-4">

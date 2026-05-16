@@ -1,4 +1,4 @@
-﻿import { TwitterApi } from 'twitter-api-v2';
+import { TwitterApi } from 'twitter-api-v2';
 
 export class TwitterService {
     static async publishPost(
@@ -43,39 +43,60 @@ export class TwitterService {
         accessToken: string,
         query: string,
         maxResults = 20
-    ): Promise<{
-        id: string;
-        text: string;
-        author_id: string;
-        public_metrics: { like_count: number; retweet_count: number };
-        created_at: string;
-    }[]> {
+    ): Promise<any> {
         const client = new TwitterApi(accessToken);
         const results = await client.v2.search(query, {
-            max_results:   Math.min(maxResults, 100) as any,
+            max_results:    Math.min(maxResults, 100) as any,
             'tweet.fields': ['created_at', 'public_metrics', 'author_id'] as any,
+            expansions:     ['author_id'] as any,
+            'user.fields':  ['name', 'username', 'profile_image_url'] as any,
         });
-        return (results.data.data ?? []) as any;
+
+        const tweets = results.data.data ?? [];
+        const users  = results.data.includes?.users ?? [];
+
+        // Map users for quick lookup
+        const userMap = new Map(users.map((u: any) => [u.id, u]));
+
+        return tweets.map((t: any) => {
+            const user = userMap.get(t.author_id);
+            return {
+                ...t,
+                author_name:   user?.name,
+                author_handle: user?.username,
+                author_avatar: user?.profile_image_url,
+            };
+        });
     }
 
     static async getMentions(
         accessToken: string,
         userId: string,
         sinceId?: string
-    ): Promise<{
-        id: string;
-        text: string;
-        author_id: string;
-        created_at: string;
-    }[]> {
+    ): Promise<any> {
         const client = new TwitterApi(accessToken);
-        const params: Record<string, unknown> = {
+        const params: any = {
             max_results:    20,
-            'tweet.fields': 'created_at,author_id',
+            'tweet.fields': ['created_at', 'author_id'] as any,
+            expansions:     ['author_id'] as any,
+            'user.fields':  ['name', 'username', 'profile_image_url'] as any,
         };
         if (sinceId) params.since_id = sinceId;
 
-        const results = await client.v2.userMentionTimeline(userId, params as any);
-        return (results.data.data ?? []) as any;
+        const results = await client.v2.userMentionTimeline(userId, params);
+        
+        const tweets = results.data.data ?? [];
+        const users  = results.data.includes?.users ?? [];
+        const userMap = new Map(users.map((u: any) => [u.id, u]));
+
+        return tweets.map((t: any) => {
+            const user = userMap.get(t.author_id);
+            return {
+                ...t,
+                author_name:   user?.name,
+                author_handle: user?.username,
+                author_avatar: user?.profile_image_url,
+            };
+        });
     }
 }

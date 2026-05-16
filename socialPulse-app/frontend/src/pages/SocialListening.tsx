@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Trash2, RefreshCw, X, Loader2, Radio, ToggleLeft, ToggleRight, Sparkles, Wand2 } from 'lucide-react';
+import { Search, Plus, Trash2, RefreshCw, X, Loader2, Radio, ToggleLeft, ToggleRight, Sparkles, Wand2, ExternalLink } from 'lucide-react';
+import { PlatformIcon } from '../components/common/BrandIcons';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 
@@ -33,11 +34,12 @@ interface Result {
     fetched_at:   string;
 }
 
-const PLATFORM_COLOR: Record<string, string> = {
-    twitter:   'bg-sky-100 text-sky-700',
-    instagram: 'bg-pink-100 text-pink-700',
-    linkedin:  'bg-blue-100 text-blue-700',
-    facebook:  'bg-indigo-100 text-indigo-700',
+const PLATFORM_STYLE: Record<string, { bg: string; text: string }> = {
+    twitter:   { bg: 'bg-gray-100', text: 'text-gray-800' },
+    instagram: { bg: 'bg-pink-100', text: 'text-pink-700' },
+    linkedin:  { bg: 'bg-blue-100', text: 'text-blue-700' },
+    facebook:  { bg: 'bg-indigo-100', text: 'text-indigo-700' },
+    tiktok:    { bg: 'bg-black/5',  text: 'text-black' },
 };
 
 export const SocialListening: React.FC = () => {
@@ -186,7 +188,7 @@ export const SocialListening: React.FC = () => {
                                             <p className={`text-sm font-medium truncate ${activeRule === rule.id ? 'text-indigo-800' : 'text-gray-900'}`}>
                                                 {rule.keyword}
                                             </p>
-                                            <p className="text-xs text-gray-400 mt-0.5">{rule.result_count} results · {rule.platforms.join(', ')}</p>
+                                             <p className="text-xs text-gray-400 mt-0.5">{rule.result_count} results · {rule.platforms.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(', ')}</p>
                                         </div>
                                         <div className="flex items-center gap-1 shrink-0">
                                             <button onClick={e => { e.stopPropagation(); handleToggle(rule.id); }}
@@ -225,32 +227,46 @@ export const SocialListening: React.FC = () => {
                         results.map(r => (
                             <div key={r.id} className="bg-white rounded-xl border border-gray-200 p-4">
                                 <div className="flex items-start gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500 shrink-0">
-                                        {r.author_name?.[0]?.toUpperCase() ?? '?'}
+                                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 shrink-0 overflow-hidden border border-gray-100">
+                                        {r.author_avatar ? (
+                                            <img src={r.author_avatar} alt={r.author_name || ''} className="w-full h-full object-cover" />
+                                        ) : (
+                                            r.author_name?.[0]?.toUpperCase() ?? '?'
+                                        )}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className="text-sm font-semibold text-gray-900">{r.author_name ?? r.author_handle ?? 'Unknown'}</span>
                                             {r.author_handle && <span className="text-xs text-gray-400">@{r.author_handle}</span>}
-                                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PLATFORM_COLOR[r.platform] ?? 'bg-gray-100 text-gray-600'}`}>{r.platform}</span>
+                                            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold ${PLATFORM_STYLE[r.platform]?.bg ?? 'bg-gray-100'} ${PLATFORM_STYLE[r.platform]?.text ?? 'text-gray-600'}`}>
+                                                <PlatformIcon platform={r.platform} size={12} />
+                                                <span className="capitalize">{r.platform}</span>
+                                            </div>
                                             <span className="ml-auto text-xs text-gray-400">{r.published_at ? new Date(r.published_at).toLocaleDateString() : ''}</span>
                                         </div>
                                         <p className="text-sm text-gray-700 mt-1 line-clamp-3">{r.content}</p>
                                         <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
                                             {r.likes > 0 && <span>♥ {r.likes}</span>}
                                             {r.reposts > 0 && <span>↩ {r.reposts}</span>}
-                                            <span className="text-indigo-600 font-medium px-2 py-0.5 bg-indigo-50 rounded-full">{r.keyword}</span>
+                                            <span className="text-indigo-600 font-semibold px-3 py-1 bg-indigo-50/50 rounded-lg border border-indigo-100/50">{r.keyword}</span>
                                             
                                             <button 
                                                 onClick={() => handleDraftWithAI(r)}
                                                 disabled={isDrafting === r.id}
-                                                className="flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors disabled:opacity-50"
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-linear-to-r from-purple-600 to-indigo-600 text-white text-[11px] font-bold rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 shadow-sm"
                                             >
-                                                {isDrafting === r.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                                                {isDrafting === r.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                                                 Draft with AI
                                             </button>
 
-                                            {r.url && <a href={r.url} target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 ml-auto">View →</a>}
+                                            {r.url && (
+                                                <a href={r.url} target="_blank" rel="noopener noreferrer" 
+                                                   className="flex items-center gap-1 p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all ml-auto"
+                                                   title="View original post"
+                                                >
+                                                    <ExternalLink className="w-4 h-4" />
+                                                </a>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -277,10 +293,11 @@ export const SocialListening: React.FC = () => {
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Platforms</label>
                                 <div className="flex gap-2">
-                                    {['twitter', 'instagram', 'linkedin', 'facebook'].map(p => (
+                                    {['twitter', 'instagram', 'linkedin', 'facebook', 'tiktok'].map(p => (
                                         <button key={p} type="button" onClick={() => togglePlatform(p)}
-                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${platforms.includes(p) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-400'}`}>
-                                            {p}
+                                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${platforms.includes(p) ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100' : 'bg-white text-gray-600 border-gray-100 hover:border-indigo-400'}`}>
+                                            <PlatformIcon platform={p} size={14} />
+                                            <span className="capitalize">{p}</span>
                                         </button>
                                     ))}
                                 </div>

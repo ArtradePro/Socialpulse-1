@@ -3,11 +3,8 @@ import { useAuth } from '../hooks/useAuth';
 import { socialService, SocialAccount } from '../services/socialService';
 import { 
     Trash2, Check, AlertCircle, User, Lock, Link, Bell, Users, UserPlus, Mail, LogOut,
-    Share2 as Twitter, 
-    Share2 as Linkedin, 
-    Share2 as Facebook, 
-    Share2 as Instagram 
 } from "lucide-react";
+import { PlatformIcon } from '../components/common/BrandIcons';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '../store/hooks';
@@ -16,10 +13,13 @@ import { logout } from '../store/authSlice';
 // ─── Platform config ──────────────────────────────────────────────────────────
 
 const PLATFORMS = [
-    { key: 'twitter',   label: 'Twitter / X',  icon: <Twitter   className="h-5 w-5 text-sky-500"  />, color: 'sky'   },
-    { key: 'instagram', label: 'Instagram',     icon: <Instagram className="h-5 w-5 text-pink-500" />, color: 'pink'  },
-    { key: 'linkedin',  label: 'LinkedIn',      icon: <Linkedin  className="h-5 w-5 text-blue-600" />, color: 'blue'  },
-    { key: 'facebook',  label: 'Facebook',      icon: <Facebook  className="h-5 w-5 text-blue-700" />, color: 'indigo'},
+    { key: 'twitter',   label: 'X (formerly Twitter)', icon: <PlatformIcon platform="twitter"   size={20} />, color: 'black' },
+    { key: 'instagram', label: 'Instagram',     icon: <PlatformIcon platform="instagram" size={20} />, color: 'pink'  },
+    { key: 'linkedin',  label: 'LinkedIn',      icon: <PlatformIcon platform="linkedin"  size={20} />, color: 'blue'  },
+    { key: 'facebook',  label: 'Facebook',      icon: <PlatformIcon platform="facebook"  size={20} />, color: 'indigo'},
+    { key: 'tiktok',    label: 'TikTok',        icon: <PlatformIcon platform="tiktok"    size={20} />, color: 'black' },
+    { key: 'youtube',   label: 'YouTube',       icon: <PlatformIcon platform="youtube"   size={20} />, color: 'red'   },
+    { key: 'pinterest', label: 'Pinterest',     icon: <PlatformIcon platform="pinterest" size={20} />, color: 'red'   },
 ] as const;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

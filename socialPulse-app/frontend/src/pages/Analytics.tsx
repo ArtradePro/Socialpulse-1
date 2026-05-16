@@ -14,6 +14,7 @@ import BestTimeHeatmap       from '../components/analytics/BestTimeHeatmap';
 import TopPostCard           from '../components/analytics/TopPostCard';
 import PostPerformanceTable  from '../components/analytics/PostPerformanceTable';
 import AnalyticsSkeleton     from '../components/analytics/AnalyticsSkeleton';
+import { PlatformIcon } from '../components/common/BrandIcons';
 
 // ─── Filter config ─────────────────────────────────────────────────────────────
 
@@ -24,12 +25,13 @@ const DATE_RANGES: { value: DateRange; label: string }[] = [
     { value: '90d', label: 'Last 90 days' },
 ];
 
-const PLATFORMS: { value: Platform; label: string; emoji: string }[] = [
-    { value: 'all',       label: 'All Platforms', emoji: '🌐' },
-    { value: 'twitter',   label: 'Twitter',        emoji: '🐦' },
-    { value: 'instagram', label: 'Instagram',      emoji: '📸' },
-    { value: 'linkedin',  label: 'LinkedIn',       emoji: '💼' },
-    { value: 'facebook',  label: 'Facebook',       emoji: '👤' },
+const PLATFORMS: { value: Platform | 'all'; label: string; icon?: string }[] = [
+    { value: 'all',       label: 'All Platforms' },
+    { value: 'twitter',   label: 'Twitter/X', icon: 'twitter' },
+    { value: 'instagram', label: 'Instagram', icon: 'instagram' },
+    { value: 'linkedin',  label: 'LinkedIn',  icon: 'linkedin' },
+    { value: 'facebook',  label: 'Facebook',  icon: 'facebook' },
+    { value: 'tiktok',    label: 'TikTok',    icon: 'tiktok' },
 ];
 
 // ─── Tabs ──────────────────────────────────────────────────────────────────────
@@ -52,6 +54,8 @@ const fmt = (n: number): string => {
 };
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
+
+import { AIInsightsCard } from '../components/analytics/AIInsightsCard';
 
 const Analytics: React.FC = () => {
     const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -116,7 +120,7 @@ const Analytics: React.FC = () => {
         );
     }
 
-    // ── Overview metric cards ────────────────────────────────────────────────────
+    // ── Metric Cards with Sparklines ─────────────────────────────────────────────
     const metricCards = data ? [
         {
             title:       'Total Impressions',
@@ -126,6 +130,7 @@ const Analytics: React.FC = () => {
             iconBg:      'bg-purple-50',
             iconColor:   'text-purple-600',
             description: 'Times your content was seen',
+            chartData:   data.dailyEngagement.map(d => ({ value: d.impressions })),
         },
         {
             title:       'Total Reach',
@@ -135,6 +140,7 @@ const Analytics: React.FC = () => {
             iconBg:      'bg-blue-50',
             iconColor:   'text-blue-600',
             description: 'Unique accounts reached',
+            chartData:   data.dailyEngagement.map(d => ({ value: d.reach })),
         },
         {
             title:       'Total Engagements',
@@ -144,6 +150,7 @@ const Analytics: React.FC = () => {
             iconBg:      'bg-pink-50',
             iconColor:   'text-pink-600',
             description: 'Likes, comments & shares',
+            chartData:   data.dailyEngagement.map(d => ({ value: d.likes + d.comments + d.shares })),
         },
         {
             title:       'Link Clicks',
@@ -153,6 +160,7 @@ const Analytics: React.FC = () => {
             iconBg:      'bg-orange-50',
             iconColor:   'text-orange-600',
             description: 'Clicks on your links',
+            chartData:   data.dailyEngagement.map(d => ({ value: d.clicks })),
         },
         {
             title:       'Avg Engagement Rate',
@@ -162,6 +170,7 @@ const Analytics: React.FC = () => {
             iconBg:      'bg-green-50',
             iconColor:   'text-green-600',
             description: 'Industry avg: 1–3%',
+            chartData:   data.dailyEngagement.map(d => ({ value: d.impressions > 0 ? ((d.likes + d.comments + d.shares) / d.impressions * 100) : 0 })),
         },
         {
             title:       'Follower Growth',
@@ -171,6 +180,7 @@ const Analytics: React.FC = () => {
             iconBg:      'bg-indigo-50',
             iconColor:   'text-indigo-600',
             description: `${fmt(data.overview.totalFollowers)} total followers`,
+            chartData:   data.audienceGrowth.map(d => ({ value: d.total })),
         },
     ] : [];
 
@@ -188,20 +198,22 @@ const Analytics: React.FC = () => {
 
                 {/* Controls */}
                 <div className="flex flex-wrap items-center gap-2">
-                    {/* Platform filter */}
-                    <select
-                        value={platform}
-                        onChange={e => setPlatform(e.target.value as Platform)}
-                        className="px-3 py-2 text-sm border border-gray-200 rounded-xl
-                                   focus:outline-none focus:ring-2 focus:ring-purple-500
-                                   bg-white text-gray-700"
-                    >
-                        {PLATFORMS.map(p => (
-                            <option key={p.value} value={p.value}>
-                                {p.emoji} {p.label}
-                            </option>
-                        ))}
-                    </select>
+                    <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-2">
+                        <span className="text-gray-400">
+                            {platform === 'all' ? '🌐' : <PlatformIcon platform={platform} size={16} />}
+                        </span>
+                        <select
+                            value={platform}
+                            onChange={e => setPlatform(e.target.value as Platform)}
+                            className="pr-2 py-2 text-sm focus:outline-none bg-transparent text-gray-700 font-medium"
+                        >
+                            {PLATFORMS.map(p => (
+                                <option key={p.value} value={p.value}>
+                                    {p.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
 
                     {/* Date range */}
                     <div className="flex items-center bg-white border border-gray-200
@@ -270,6 +282,8 @@ const Analytics: React.FC = () => {
                     ? <AnalyticsSkeleton />
                     : (
                         <div className="space-y-6">
+                            <AIInsightsCard />
+                            
                             {/* Metric grid — 2 rows × 3 cols on lg */}
                             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                                 {metricCards.map(card => (

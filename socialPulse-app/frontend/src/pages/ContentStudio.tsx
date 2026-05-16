@@ -3,22 +3,25 @@ import { useLocation } from 'react-router-dom';
 import { 
     Wand2, Image, Hash, Smile, Calendar, Send, Save, 
     Loader2, X, FolderOpen, FileText, Tag, Megaphone,
-    Search, CheckCircle2, AlertCircle, Sparkles,
-    Share2 as TwitterIcon, 
-    Share2 as InstagramIcon, 
-    Share2 as LinkedinIcon, 
-    Share2 as FacebookIcon 
+    Search, CheckCircle2, AlertCircle, Sparkles, ShoppingBag,
+    Video, Share2, Monitor, Square, Palette
 } from "lucide-react";
+import { PlatformIcon } from '../components/common/BrandIcons';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import MediaPicker from '../components/media/MediaPicker';
 import { MediaFile } from '../services/media.service';
+import { ProductPicker } from '../components/ecommerce/ProductPicker';
+import { useBrand } from '../contexts/BrandContext';
 
 const platforms = [
-    { id: 'twitter', label: 'Twitter/X', icon: TwitterIcon, color: 'text-sky-500', limit: 280 },
-    { id: 'instagram', label: 'Instagram', icon: InstagramIcon, color: 'text-pink-600', limit: 2200 },
-    { id: 'linkedin', label: 'LinkedIn', icon: LinkedinIcon, color: 'text-blue-700', limit: 3000 },
-    { id: 'facebook', label: 'Facebook', icon: FacebookIcon, color: 'text-blue-600', limit: 63206 },
+    { id: 'twitter',   label: 'X (Twitter)', icon: 'twitter',   gradient: 'bg-x-gradient',         limit: 280 },
+    { id: 'instagram', label: 'Instagram', icon: 'instagram', gradient: 'bg-instagram-gradient', limit: 2200 },
+    { id: 'linkedin',  label: 'LinkedIn',  icon: 'linkedin',  gradient: 'bg-linkedin-gradient',  limit: 3000 },
+    { id: 'facebook',  label: 'Facebook',  icon: 'facebook',  gradient: 'bg-facebook-gradient',  limit: 63206 },
+    { id: 'tiktok',    label: 'TikTok',    icon: 'tiktok',    gradient: 'bg-tiktok-gradient',    limit: 2200 },
+    { id: 'youtube',   label: 'YouTube',   icon: 'youtube',   gradient: 'bg-youtube-gradient',   limit: 5000 },
+    { id: 'pinterest', label: 'Pinterest', icon: 'pinterest', gradient: 'bg-pinterest-gradient', limit: 500 },
 ];
 const tones = ['Professional', 'Casual', 'Humorous', 'Inspirational', 'Educational', 'Promotional'];
 const contentLengths = ['Short', 'Medium', 'Long'];
@@ -28,6 +31,7 @@ interface HashtagSet { id: string; name: string; hashtags: string[]; }
 interface Campaign { id: string; name: string; }
 
 export const ContentStudio: React.FC = () => {
+    const brand = useBrand();
     const location = useLocation();
     const [content, setContent] = useState('');
     const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['twitter']);
@@ -62,6 +66,8 @@ export const ContentStudio: React.FC = () => {
     const [campaignId, setCampaignId] = useState('');
     const [showTemplates, setShowTemplates] = useState(false);
     const [showHashtagSets, setShowHashtagSets] = useState(false);
+    const [showProductPicker, setShowProductPicker] = useState(false);
+    const [videoFormat, setVideoFormat] = useState('social');
 
     useEffect(() => {
         api.get('/templates').then(r => setTemplates(r.data)).catch(() => {});
@@ -106,6 +112,33 @@ export const ContentStudio: React.FC = () => {
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Failed to generate content');
         } finally { setIsGenerating(false); }
+    };
+
+    const handleProductSelect = async (product: any) => {
+        setShowProductPicker(false);
+        setIsGenerating(true);
+        try {
+            const { data } = await api.post('/ai/product-post', {
+                productData: {
+                    title: product.title,
+                    description: product.description,
+                    price: product.price,
+                    currency: product.currency,
+                    productUrl: product.product_url
+                },
+                platform: selectedPlatforms[0] || 'twitter',
+                tone: aiTone.toLowerCase()
+            });
+            setContent(data.content);
+            setHashtags(data.hashtags || []);
+            if (product.image_url) setMediaUrls([product.image_url]);
+            setActiveTab('write');
+            toast.success(`Generated post for ${product.title}`);
+        } catch (error: any) {
+            toast.error('Failed to generate product post');
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
     const handleGenerateHashtags = async () => {
@@ -192,6 +225,37 @@ export const ContentStudio: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-4">
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                        {/* Video Formats Header */}
+                        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                                <Video className="w-4 h-4 text-brand" />
+                                Content Format
+                            </h3>
+                            <div className="grid grid-cols-3 gap-4 mt-4">
+                                {[
+                                    { id: 'social', label: 'Social media', res: '800 x 800 px', icon: Share2 },
+                                    { id: 'hd',     label: 'HD video',     res: '1920 x 1080 px', icon: Monitor },
+                                    { id: 'square', label: 'Square video', res: '1080 x 1080 px', icon: Square },
+                                ].map(format => (
+                                    <button 
+                                        key={format.id}
+                                        onClick={() => setVideoFormat(format.id)}
+                                        className={`flex flex-col items-center p-3 rounded-xl border transition-all ${
+                                            videoFormat === format.id 
+                                            ? 'border-brand bg-brand-light ring-2 ring-brand/20' 
+                                            : 'border-gray-100 bg-white hover:border-gray-200'
+                                        }`}
+                                    >
+                                        <div className={`p-2 rounded-lg mb-2 ${videoFormat === format.id ? 'bg-brand/10 text-brand' : 'bg-gray-100 text-gray-400'}`}>
+                                            <format.icon className="w-5 h-5" />
+                                        </div>
+                                        <span className="text-xs font-bold text-gray-900">{format.label}</span>
+                                        <span className="text-[10px] text-gray-500 mt-0.5">{format.res}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="flex border-b border-gray-100">
                             {(['write', 'ai'] as const).map(tab => (
                                 <button 
@@ -297,11 +361,29 @@ export const ContentStudio: React.FC = () => {
                                          <button 
                                             onClick={handleAIReview} 
                                             disabled={isReviewing || !content.trim()}
-                                            className="flex items-center gap-2 px-4 py-2 bg-linear-to-r from-purple-600 to-indigo-600 text-white rounded-xl text-sm font-bold hover:opacity-90 transition-all shadow-md shadow-purple-200 disabled:opacity-50 disabled:shadow-none"
+                                            className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl text-sm font-bold hover:opacity-90 transition-all shadow-md shadow-brand/20 disabled:opacity-50 disabled:shadow-none"
                                         >
                                             {isReviewing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                                             Review & Remix with AI
                                         </button>
+                                        <button 
+                                            onClick={() => setShowProductPicker(true)}
+                                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors" 
+                                            title="Promote Product"
+                                        >
+                                            <ShoppingBag className="w-5 h-5 text-gray-500" />
+                                        </button>
+                                        <div className="w-px h-6 bg-gray-200 mx-1" />
+                                        <a 
+                                            href="https://www.canva.com/templates/" 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-[#00C4CC] to-[#7D2AE8] text-white rounded-lg text-xs font-bold hover:opacity-90 transition-all shadow-sm"
+                                            title="Design with Canva"
+                                        >
+                                            <Palette className="w-4 h-4" />
+                                            Canva
+                                        </a>
                                         <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Add emoji">
                                             <Smile className="w-5 h-5 text-gray-500" />
                                         </button>
@@ -385,7 +467,7 @@ export const ContentStudio: React.FC = () => {
                                     </div>
                                 </div>
                                 <button onClick={handleAIGenerate} disabled={isGenerating}
-                                    className='w-full flex items-center justify-center gap-2 py-3 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-60'>
+                                    className='w-full flex items-center justify-center gap-2 py-3 bg-brand text-white rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-60'>
                                     {isGenerating ? <><Loader2 className='w-4 h-4 animate-spin' /> Generating...</> : <><Wand2 className='w-4 h-4' /> Generate with AI</>}
                                 </button>
                             </div>
@@ -422,46 +504,77 @@ export const ContentStudio: React.FC = () => {
                     <div className='bg-white rounded-2xl border border-gray-100 shadow-sm p-4'>
                         <h3 className='text-sm font-semibold text-gray-900 mb-3'>Publish To</h3>
                         <div className='space-y-2'>
-                            {platforms.map(({ id, label, icon: Icon }) => (
+                            {platforms.map(({ id, label, gradient }) => (
                                 <button 
                                     key={id} 
                                     onClick={() => togglePlatform(id)}
-                                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all"
+                                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all relative overflow-hidden group ${
+                                         selectedPlatforms.includes(id) 
+                                             ? `border-transparent shadow-lg scale-[1.02]` 
+                                             : 'border-gray-100 hover:border-gray-200'
+                                     }`}
                                 >
-                                    <Icon className="w-5 h-5" />
-                                    <span className='text-sm font-medium text-gray-700'>{label}</span>
-                                    {selectedPlatforms.includes(id) && (
-                                        <div className='ml-auto w-4 h-4 bg-purple-600 rounded-full flex items-center justify-center'>
-                                            <span className='text-white text-xs'>✓</span>
-                                        </div>
-                                    )}
+                                     {selectedPlatforms.includes(id) && (
+                                         <div className={`absolute inset-0 ${gradient} opacity-10`} />
+                                     )}
+                                     <div className={`p-2 rounded-lg transition-colors relative z-10 ${
+                                         selectedPlatforms.includes(id) ? `${gradient} text-white` : 'bg-gray-100 text-gray-400 group-hover:text-gray-600'
+                                     }`}>
+                                         <PlatformIcon platform={id} size={20} />
+                                     </div>
+                                     <span className={`text-sm font-bold relative z-10 ${selectedPlatforms.includes(id) ? 'text-gray-900' : 'text-gray-700'}`}>{label}</span>
+                                     {selectedPlatforms.includes(id) && (
+                                         <div className={`ml-auto w-5 h-5 ${gradient} rounded-full flex items-center justify-center shadow-md relative z-10`}>
+                                             <CheckCircle2 className='text-white w-3.5 h-3.5' />
+                                         </div>
+                                     )}
                                 </button>
                             ))}
                         </div>
                     </div>
 
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-                        <h3 className="text-sm font-semibold text-gray-900 mb-3">Preview</h3>
-                        <div className="bg-gray-50 rounded-xl p-4 min-h-32">
-                            {content ? (
+                        <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center justify-between">
+                            Preview
+                            {selectedPlatforms.length > 0 && (
+                                <div className="flex gap-1">
+                                    {selectedPlatforms.map(p => (
+                                        <PlatformIcon key={p} platform={p} size={14} className="text-gray-400" />
+                                    ))}
+                                </div>
+                            )}
+                        </h3>
+                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 min-h-32">
+                            {content || mediaUrls.length > 0 ? (
                                 <div>
                                     <div className='flex items-center gap-2 mb-3'>
-                                        <div className='w-8 h-8 bg-linear-to-br from-purple-600 to-blue-600 rounded-full' />
-                                        <div>
-                                            <p className='text-xs font-medium text-gray-900'>Your Name</p>
-                                            <p className='text-xs text-gray-500'>@username</p>
+                                        <img 
+                                            src={brand.brandLogoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(brand.brandName || 'S')}&background=7C3AED&color=fff`} 
+                                            alt="" 
+                                            className='w-8 h-8 rounded-full border border-gray-200 object-contain bg-white shrink-0' 
+                                        />
+                                        <div className="min-w-0">
+                                            <p className='text-xs font-bold text-gray-900 truncate'>{brand.brandName || 'SocialPulse Identity'}</p>
+                                            <p className='text-[10px] text-gray-500'>@{brand.brandName?.toLowerCase().replace(/\s/g, '') || 'username'}</p>
                                         </div>
                                     </div>
                                     <p className="text-sm text-gray-800 whitespace-pre-wrap">{content}</p>
                                     {hashtags.length > 0 && (
                                         <p className="text-sm text-blue-500 mt-2">{hashtags.map(h => `#${h}`).join(' ')}</p>
                                     )}
-                                    {mediaUrls[0] && (
-                                        <img src={mediaUrls[0]} alt="" className="mt-3 rounded-lg w-full object-cover max-h-40" />
+                                    {mediaUrls.length > 0 && (
+                                        <div className="mt-3 grid grid-cols-1 gap-2">
+                                            {mediaUrls.map((url, idx) => (
+                                                <img key={idx} src={url} alt="" className="rounded-lg w-full object-cover max-h-64 shadow-sm" />
+                                            ))}
+                                        </div>
                                     )}
                                 </div>
                             ) : (
-                                <p className="text-sm text-gray-400 text-center pt-8">Start writing to see preview...</p>
+                                <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+                                    <Sparkles className="w-8 h-8 mb-2 opacity-20" />
+                                    <p className="text-sm text-center">Start writing to see preview...</p>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -506,6 +619,11 @@ export const ContentStudio: React.FC = () => {
                 onClose={() => setShowMediaPicker(false)}
                 onSelect={handleMediaPickerSelect}
                 multiple
+            />
+            <ProductPicker 
+                open={showProductPicker}
+                onClose={() => setShowProductPicker(false)}
+                onSelect={handleProductSelect}
             />
         </div>
     );

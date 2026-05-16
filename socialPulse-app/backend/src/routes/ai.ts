@@ -1,15 +1,22 @@
 import { Router } from 'express';
-import { generateContent, generateHashtags, draftFromTrend, reviewContent, improveContent, generateImageCaption, generateImage } from '../controllers/aiController';
+import { generateContent, generateHashtags, generateMagicPlan, generateReply, draftFromTrend, reviewContent, improveContent, generateImageCaption, generateImage, generateProductPost } from '../controllers/aiController';
 import { authenticate } from '../middleware/auth.middleware';
+import { resolveWorkspace } from '../middleware/workspace.middleware';
 
 const router = Router();
 
-router.post('/generate', authenticate, generateContent);
-router.post('/hashtags', authenticate, generateHashtags);
-router.post('/draft-from-trend', authenticate, draftFromTrend);
-router.post('/review',   authenticate, reviewContent);
-router.post('/improve',  authenticate, improveContent);
-router.post('/caption',  authenticate, generateImageCaption);
-router.post('/image',    authenticate, generateImage);
+router.use(authenticate);
+router.use(resolveWorkspace);
+
+router.post('/generate', generateContent);
+router.post('/hashtags', generateHashtags);
+router.post('/reply',    generateReply);
+router.post('/magic-plan', generateMagicPlan);
+router.post('/draft-from-trend', draftFromTrend);
+router.post('/review',   reviewContent);
+router.post('/improve',  improveContent);
+router.post('/caption',  generateImageCaption);
+router.post('/image',    generateImage);
+router.post('/product-post', generateProductPost);
 
 export default router;

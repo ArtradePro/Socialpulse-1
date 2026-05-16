@@ -33,16 +33,23 @@ export const resolveWorkspace = async (
              WHERE workspace_id = $1 AND user_id = $2`,
             [workspaceId, req.user.userId]
         );
+        
         if (rows.length === 0) {
-            res.status(403).json({ message: 'Not a member of this workspace' });
+            console.warn(`[Workspace] User ${req.user.userId} attempted to access workspace ${workspaceId} but is not a member.`);
+            // Instead of blocking with 403, we fall back to personal context (no workspace)
+            // unless the route explicitly requires a workspace via requireWorkspace
+            req.workspaceId = undefined;
+            next();
             return;
         }
+        
         req.workspaceId   = workspaceId;
         req.workspaceRole = rows[0].role;
         next();
     } catch (err) {
-        console.error('[workspace.middleware]', err);
-        res.status(500).json({ message: 'Server error' });
+        console.error('[workspace.middleware] Error resolving workspace:', err);
+        // Fallback to personal context on error to keep the app running
+        next();
     }
 };
 

@@ -1,6 +1,7 @@
 // server/src/routes/media.ts
 import { Router } from 'express';
 import { authenticate }   from '../middleware/auth';
+import { resolveWorkspace } from '../middleware/workspace.middleware';
 import {
     uploadMultiple, uploadSingle,
     validateUpload, handleUploadError,
@@ -12,6 +13,7 @@ import {
 
 const router = Router();
 router.use(authenticate);
+router.use(resolveWorkspace);
 
 router.post  ('/',           uploadMultiple, handleUploadError, validateUpload, uploadMedia);
 router.post  ('/single',     uploadSingle,   handleUploadError, validateUpload, uploadMedia);

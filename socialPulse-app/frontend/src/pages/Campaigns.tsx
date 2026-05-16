@@ -42,14 +42,15 @@ export const Campaigns: React.FC = () => {
     const [isPlanning, setIsPlanning] = useState<string | null>(null);
 
     const handleMagicPlan = async (id: string) => {
+        const toastId = toast.loading('Strategizing your 7-day magic plan...');
         setIsPlanning(id);
         try {
             await api.post(`/campaigns/${id}/magic-plan`);
-            toast.success('Magic 7-day plan generated as drafts!');
+            toast.success('Magic 7-day plan generated as drafts!', { id: toastId });
             await fetchCampaigns();
             if (selected?.id === id) await openDetail(id);
         } catch {
-            toast.error('Failed to generate magic plan');
+            toast.error('Failed to generate magic plan', { id: toastId });
         } finally {
             setIsPlanning(null);
         }
@@ -189,20 +190,34 @@ export const Campaigns: React.FC = () => {
                                         <p className="text-sm text-gray-500 mt-1 line-clamp-1">{c.description}</p>
                                     )}
                                     <div className="flex items-center gap-4 mt-3 text-sm text-gray-500 flex-wrap">
-                                        <span className="flex items-center gap-1">
-                                            <FileText className="w-3.5 h-3.5" />
-                                            {c.post_count} post{c.post_count !== 1 ? 's' : ''}
-                                        </span>
-                                        <span className="flex items-center gap-1">
-                                            <BarChart2 className="w-3.5 h-3.5" />
-                                            {c.published_count} published
-                                        </span>
-                                        {c.start_date && (
+                                        <div className="flex-1 min-w-[200px]">
+                                            <div className="flex items-center justify-between text-[10px] uppercase font-bold text-gray-400 mb-1">
+                                                <span>Campaign Progress</span>
+                                                <span>{Math.round((c.published_count / (c.post_count || 1)) * 100)}%</span>
+                                            </div>
+                                            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                <div 
+                                                    className="h-full bg-linear-to-r from-indigo-500 to-purple-500 transition-all duration-500"
+                                                    style={{ width: `${(c.published_count / (c.post_count || 1)) * 100}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-4 ml-auto">
                                             <span className="flex items-center gap-1">
-                                                <Calendar className="w-3.5 h-3.5" />
-                                                {fmtDate(c.start_date)} – {fmtDate(c.end_date)}
+                                                <FileText className="w-3.5 h-3.5" />
+                                                {c.post_count}
                                             </span>
-                                        )}
+                                            <span className="flex items-center gap-1">
+                                                <BarChart2 className="w-3.5 h-3.5" />
+                                                {c.published_count}
+                                            </span>
+                                            {c.start_date && (
+                                                <span className="flex items-center gap-1">
+                                                    <Calendar className="w-3.5 h-3.5" />
+                                                    {fmtDate(c.start_date)}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
@@ -339,16 +354,16 @@ export const Campaigns: React.FC = () => {
                                         shares:      acc.shares      + Number(p.total_shares),
                                     }), { impressions: 0, likes: 0, comments: 0, shares: 0 });
                                     return (
-                                        <div className="grid grid-cols-4 gap-3 p-5 border-b border-gray-100">
+                                        <div className="grid grid-cols-4 gap-4 p-5 border-b border-gray-100 bg-linear-to-b from-gray-50/50 to-transparent">
                                             {[
-                                                { label: 'Impressions', value: totals.impressions },
-                                                { label: 'Likes',       value: totals.likes },
-                                                { label: 'Comments',    value: totals.comments },
-                                                { label: 'Shares',      value: totals.shares },
-                                            ].map(({ label, value }) => (
-                                                <div key={label} className="bg-gray-50 rounded-xl p-3 text-center">
-                                                    <p className="text-lg font-bold text-gray-900">{value.toLocaleString()}</p>
-                                                    <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+                                                { label: 'Impressions', value: totals.impressions, color: 'text-blue-600' },
+                                                { label: 'Likes',       value: totals.likes,       color: 'text-pink-600' },
+                                                { label: 'Comments',    value: totals.comments,    color: 'text-indigo-600' },
+                                                { label: 'Shares',      value: totals.shares,      color: 'text-purple-600' },
+                                            ].map(({ label, value, color }) => (
+                                                <div key={label} className="bg-white rounded-2xl p-4 text-center border border-gray-100 shadow-sm">
+                                                    <p className={`text-xl font-black ${color}`}>{value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value}</p>
+                                                    <p className="text-[10px] uppercase tracking-wider font-bold text-gray-400 mt-1">{label}</p>
                                                 </div>
                                             ))}
                                         </div>

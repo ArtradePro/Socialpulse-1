@@ -8,38 +8,45 @@ export interface Template {
   category?: string;
   platforms?: string[];
   is_public: boolean;
+  workspace_id?: string | null;
   created_at: Date;
 }
 
 export const TemplateModel = {
-  findByUser: (userId: string) =>
+  findByUser: (userId: string, workspaceId?: string) =>
     query(
-      'SELECT * FROM templates WHERE user_id = $1 OR is_public = true ORDER BY created_at DESC',
-      [userId]
+      `SELECT * FROM templates 
+       WHERE (user_id = $1 OR is_public = true) 
+         AND (workspace_id = $2 OR workspace_id IS NULL OR is_public = true)
+       ORDER BY created_at DESC`,
+      [userId, workspaceId || null]
     ).then(r => r.rows as Template[]),
 
-  findById: (id: string) =>
-    query('SELECT * FROM templates WHERE id = $1', [id])
-      .then(r => r.rows[0] as Template | undefined),
+  findById: (id: string, workspaceId?: string) =>
+    query(
+      'SELECT * FROM templates WHERE id = $1 AND (workspace_id = $2 OR workspace_id IS NULL OR is_public = true)',
+      [id, workspaceId || null]
+    ).then(r => r.rows[0] as Template | undefined),
 
   create: (data: Omit<Template, 'id' | 'created_at'>) =>
     query(
-      `INSERT INTO templates (user_id, name, content, category, platforms, is_public)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [data.user_id || null, data.name, data.content, data.category || null,
-       data.platforms || null, data.is_public || false]
+      `INSERT INTO templates (user_id, workspace_id, name, content, category, platforms, is_public)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [data.user_id || null, data.workspace_id || null, data.name, data.content, 
+       data.category || null, data.platforms || null, data.is_public || false]
     ).then(r => r.rows[0] as Template),
 
-  update: (id: string, userId: string, data: Partial<Pick<Template, 'name' | 'content' | 'category' | 'platforms' | 'is_public'>>) =>
+  update: (id: string, userId: string, data: Partial<Pick<Template, 'name' | 'content' | 'category' | 'platforms' | 'is_public' | 'workspace_id'>>) =>
     query(
       `UPDATE templates SET
-        name      = COALESCE($1, name),
-        content   = COALESCE($2, content),
-        category  = COALESCE($3, category),
-        platforms = COALESCE($4, platforms),
-        is_public = COALESCE($5, is_public)
-       WHERE id = $6 AND user_id = $7 RETURNING *`,
-      [data.name, data.content, data.category, data.platforms, data.is_public, id, userId]
+        name         = COALESCE($1, name),
+        content      = COALESCE($2, content),
+        category     = COALESCE($3, category),
+        platforms    = COALESCE($4, platforms),
+        is_public    = COALESCE($5, is_public),
+        workspace_id = COALESCE($6, workspace_id)
+       WHERE id = $7 AND user_id = $8 RETURNING *`,
+      [data.name, data.content, data.category, data.platforms, data.is_public, data.workspace_id, id, userId]
     ).then(r => r.rows[0] as Template),
 
   delete: (id: string, userId: string) =>

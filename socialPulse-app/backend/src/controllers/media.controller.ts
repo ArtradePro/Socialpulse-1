@@ -30,13 +30,14 @@ export const uploadMedia = async (req: Request, res: Response): Promise<void> =>
                 // Persist to DB
                 const { rows } = await db.query(
                     `INSERT INTO media_files
-                     (user_id, original_name, file_name, mime_type, size_bytes,
+                     (user_id, workspace_id, original_name, file_name, mime_type, size_bytes,
                       width, height, duration_secs, provider, provider_id,
                       url, thumbnail_url, folder)
-                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
                      RETURNING *`,
                     [
                         userId,
+                        (req as any).workspaceId || null,
                         file.originalname,
                         result.fileName,
                         result.mimeType,
@@ -75,8 +76,8 @@ export const listMedia = async (req: Request, res: Response): Promise<void> => {
             sort  = 'newest',
         } = req.query as Record<string, string>;
 
-        const conditions: string[] = ['user_id = $1', 'is_deleted = false'];
-        const params: any[]        = [userId];
+        const conditions: string[] = ['user_id = $1', 'is_deleted = false', '(workspace_id = $2 OR $2 IS NULL)'];
+        const params: any[]        = [userId, (req as any).workspaceId || null];
 
         if (folder) {
             params.push(folder);
@@ -133,8 +134,8 @@ export const deleteMedia = async (req: Request, res: Response): Promise<void> =>
         const userId = req.user!.userId;
 
         const { rows } = await db.query(
-            `SELECT * FROM media_files WHERE id = $1 AND user_id = $2`,
-            [id, userId]
+            `SELECT * FROM media_files WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)`,
+            [id, userId, (req as any).workspaceId || null]
         );
 
         if (!rows[0]) {
@@ -172,8 +173,8 @@ export const bulkDeleteMedia = async (req: Request, res: Response): Promise<void
         }
 
         const { rows } = await db.query(
-            `SELECT * FROM media_files WHERE id = ANY($1) AND user_id = $2 AND is_deleted = false`,
-            [ids, userId]
+            `SELECT * FROM media_files WHERE id = ANY($1) AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL) AND is_deleted = false`,
+            [ids, userId, (req as any).workspaceId || null]
         );
 
         await Promise.allSettled(
@@ -182,8 +183,8 @@ export const bulkDeleteMedia = async (req: Request, res: Response): Promise<void
 
         await db.query(
             `UPDATE media_files SET is_deleted = true, updated_at = NOW()
-             WHERE id = ANY($1) AND user_id = $2`,
-            [ids, userId]
+             WHERE id = ANY($1) AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)`,
+            [ids, userId, (req as any).workspaceId || null]
         );
 
         res.json({ deleted: rows.length });
@@ -206,8 +207,8 @@ export const getStorageUsage = async (req: Request, res: Response): Promise<void
                 COUNT(CASE WHEN mime_type LIKE 'image/%' THEN 1 END)               AS image_count,
                 COUNT(CASE WHEN mime_type LIKE 'video/%' THEN 1 END)               AS video_count
              FROM media_files
-             WHERE user_id = $1 AND is_deleted = false`,
-            [userId]
+             WHERE user_id = $1 AND (workspace_id = $2 OR $2 IS NULL) AND is_deleted = false`,
+            [userId, (req as any).workspaceId || null]
         );
 
         const r          = rows[0];
@@ -245,9 +246,9 @@ export const updateMedia = async (req: Request, res: Response): Promise<void> =>
              SET tags       = COALESCE($1, tags),
                  folder     = COALESCE($2, folder),
                  updated_at = NOW()
-             WHERE id = $3 AND user_id = $4 AND is_deleted = false
+             WHERE id = $3 AND user_id = $4 AND (workspace_id = $5 OR $5 IS NULL) AND is_deleted = false
              RETURNING *`,
-            [tags, folder, id, userId]
+            [tags, folder, id, userId, (req as any).workspaceId || null]
         );
 
         if (!rows[0]) { res.status(404).json({ message: 'File not found' }); return; }

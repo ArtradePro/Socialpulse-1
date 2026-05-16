@@ -5,10 +5,12 @@ import {
     listCampaigns, getCampaign,
     createCampaign, updateCampaign, deleteCampaign, generateMagicPlan
 } from '../controllers/campaignsController';
+import { resolveWorkspace } from '../middleware/workspace.middleware';
 
 const router = Router();
 
 router.use(authenticate);
+router.use(resolveWorkspace);
 router.get('/',      listCampaigns);
 router.post('/',     createCampaign);
 router.get('/:id',   getCampaign);

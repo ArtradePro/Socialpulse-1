@@ -1,10 +1,9 @@
-import { Response } from 'express';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { Request, Response } from 'express';
 import { SocialAccountModel } from '../models/SocialAccount';
 import { ScheduleModel } from '../models/Schedule';
 import { addAIJob } from '../services/queue.service';
 
-export const getConnectedAccounts = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getConnectedAccounts = async (req: Request, res: Response): Promise<void> => {
   try {
     const accounts = await SocialAccountModel.findByUser(req.user!.userId);
     res.json(accounts);
@@ -14,7 +13,7 @@ export const getConnectedAccounts = async (req: AuthRequest, res: Response): Pro
   }
 };
 
-export const disconnectAccount = async (req: AuthRequest, res: Response): Promise<void> => {
+export const disconnectAccount = async (req: Request, res: Response): Promise<void> => {
   const { platform } = req.params;
   try {
     await SocialAccountModel.disconnect(req.user!.userId, platform);
@@ -25,7 +24,7 @@ export const disconnectAccount = async (req: AuthRequest, res: Response): Promis
   }
 };
 
-export const getScheduledPosts = async (req: AuthRequest, res: Response): Promise<void> => {
+export const getScheduledPosts = async (req: Request, res: Response): Promise<void> => {
   try {
     const schedules = await ScheduleModel.findByUser(req.user!.userId);
     res.json(schedules);
@@ -35,7 +34,7 @@ export const getScheduledPosts = async (req: AuthRequest, res: Response): Promis
   }
 };
 
-export const schedulePost = async (req: AuthRequest, res: Response): Promise<void> => {
+export const schedulePost = async (req: Request, res: Response): Promise<void> => {
   const { postId, platform, scheduledAt } = req.body;
   const userId = req.user!.userId;
 
@@ -67,7 +66,7 @@ export const schedulePost = async (req: AuthRequest, res: Response): Promise<voi
   }
 };
 
-export const cancelSchedule = async (req: AuthRequest, res: Response): Promise<void> => {
+export const cancelSchedule = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
   try {
     await ScheduleModel.cancel(id, req.user!.userId);

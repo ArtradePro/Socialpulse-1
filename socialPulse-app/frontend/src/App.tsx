@@ -26,6 +26,8 @@ import { UnifiedInbox }   from './pages/UnifiedInbox';
 import { Referrals }      from './pages/Referrals';
 import { ImageEditor }   from './pages/ImageEditor';
 import { Workspaces }   from './pages/Workspaces';
+import { Ecommerce }    from './pages/Ecommerce';
+import { MagicPlan }    from './pages/MagicPlan';
 
 import { ApprovalPortal } from './pages/ApprovalPortal';
 import AppLayout from './components/layout/AppLayout';
@@ -56,6 +58,7 @@ const App: React.FC = () => {
                         <Route path="campaigns"      element={<Campaigns />} />
                         <Route path="hashtag-sets"   element={<HashtagSets />} />
                         <Route path="templates"      element={<Templates />} />
+                        <Route path="template"       element={<Navigate to="/templates" replace />} />
                         <Route path="settings"   element={<Settings />} />
                         <Route path="media"      element={<MediaLibraryPage />} />
                         <Route path="billing"    element={<Billing />} />
@@ -67,6 +70,8 @@ const App: React.FC = () => {
                         <Route path="referrals"    element={<Referrals />} />
                         <Route path="image-editor" element={<ImageEditor />} />
                         <Route path="workspaces"   element={<Workspaces />} />
+                        <Route path="ecommerce"    element={<Ecommerce />} />
+                        <Route path="magic-plan"   element={<MagicPlan />} />
                     </Route>
 
                     {/* NEW: Catch-all route. If path not found, go to login */}

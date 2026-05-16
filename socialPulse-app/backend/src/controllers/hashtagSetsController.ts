@@ -5,8 +5,10 @@ export const listHashtagSets = async (req: Request, res: Response): Promise<void
     try {
         const { rows } = await db.query(
             `SELECT id, name, hashtags, created_at
-             FROM hashtag_sets WHERE user_id = $1 ORDER BY name`,
-            [req.user!.userId]
+             FROM hashtag_sets 
+             WHERE user_id = $1 AND (workspace_id = $2 OR $2 IS NULL) 
+             ORDER BY name`,
+            [req.user!.userId, (req as any).workspaceId || null]
         );
         res.json(rows);
     } catch (err) {
@@ -23,9 +25,9 @@ export const createHashtagSet = async (req: Request, res: Response): Promise<voi
             return;
         }
         const { rows } = await db.query(
-            `INSERT INTO hashtag_sets (user_id, name, hashtags)
-             VALUES ($1, $2, $3) RETURNING id, name, hashtags, created_at`,
-            [req.user!.userId, name.trim(), hashtags]
+            `INSERT INTO hashtag_sets (user_id, workspace_id, name, hashtags)
+             VALUES ($1, $2, $3, $4) RETURNING id, name, hashtags, created_at`,
+            [req.user!.userId, (req as any).workspaceId || null, name.trim(), hashtags]
         );
         res.status(201).json(rows[0]);
     } catch (err) {
@@ -41,9 +43,9 @@ export const updateHashtagSet = async (req: Request, res: Response): Promise<voi
         const { rows } = await db.query(
             `UPDATE hashtag_sets
              SET name = COALESCE($1, name), hashtags = COALESCE($2, hashtags)
-             WHERE id = $3 AND user_id = $4
+             WHERE id = $3 AND user_id = $4 AND (workspace_id = $5 OR $5 IS NULL)
              RETURNING id, name, hashtags, created_at`,
-            [name ?? null, hashtags ?? null, id, req.user!.userId]
+            [name ?? null, hashtags ?? null, id, req.user!.userId, (req as any).workspaceId || null]
         );
         if (!rows[0]) { res.status(404).json({ message: 'Not found' }); return; }
         res.json(rows[0]);
@@ -57,8 +59,8 @@ export const deleteHashtagSet = async (req: Request, res: Response): Promise<voi
     try {
         const { id } = req.params;
         const { rowCount } = await db.query(
-            'DELETE FROM hashtag_sets WHERE id = $1 AND user_id = $2',
-            [id, req.user!.userId]
+            'DELETE FROM hashtag_sets WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)',
+            [id, req.user!.userId, (req as any).workspaceId || null]
         );
         if (!rowCount) { res.status(404).json({ message: 'Not found' }); return; }
         res.status(204).send();

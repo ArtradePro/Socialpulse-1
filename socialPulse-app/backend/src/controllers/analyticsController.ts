@@ -1,6 +1,8 @@
 // server/src/controllers/analyticsController.ts
 import { Request, Response } from 'express';
 import { db } from '../config/database';
+import { AIService } from '../services/ai.service';
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -40,7 +42,7 @@ export const getDashboard = async (req: Request, res: Response) => {
                 COALESCE(AVG(pa.engagement_rate), 0) AS avg_er,
                 COUNT(DISTINCT p.id) AS posts_count
             FROM posts p
-            JOIN post_analytics pa ON p.id = pa.post_id
+            LEFT JOIN post_analytics pa ON p.id = pa.post_id
             WHERE p.user_id = $1
               AND p.published_at >= NOW() - INTERVAL '${interval}'
               ${platformFilter}
@@ -54,7 +56,7 @@ export const getDashboard = async (req: Request, res: Response) => {
                 COALESCE(SUM(pa.likes + pa.comments + pa.shares), 0) AS engagements,
                 COALESCE(SUM(pa.clicks),      0) AS clicks
             FROM posts p
-            JOIN post_analytics pa ON p.id = pa.post_id
+            LEFT JOIN post_analytics pa ON p.id = pa.post_id
             WHERE p.user_id = $1
               AND p.published_at >= NOW() - INTERVAL '${interval}' * 2
               AND p.published_at <  NOW() - INTERVAL '${interval}'
@@ -69,8 +71,8 @@ export const getDashboard = async (req: Request, res: Response) => {
               ${platform !== 'all' ? `AND platform = '${platform}'` : ''}
         `, [userId]);
 
-        const now  = metricsNow.rows[0];
-        const prev = metricsPrev.rows[0];
+        const now  = metricsNow.rows[0] || { impressions: 0, reach: 0, engagements: 0, clicks: 0, avg_er: 0, posts_count: 0 };
+        const prev = metricsPrev.rows[0] || { impressions: 0, reach: 0, engagements: 0, clicks: 0 };
 
         // ── Daily engagement series ──────────────────────────────────────────
         const dailySeries = await db.query(`
@@ -266,5 +268,25 @@ export const getDashboard = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error('[Analytics] getDashboard error:', error);
         res.status(500).json({ message: 'Failed to load analytics' });
+    }
+};
+export const getAiInsights = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const userId = req.user!.userId;
+        const workspaceId = req.header('x-workspace-id') as string | undefined;
+        
+        // Fetch last 30 days of data for analysis
+        const { rows: metrics } = await db.query(`
+            SELECT pa.platform, SUM(pa.impressions) as impressions, SUM(pa.likes + pa.comments + pa.shares) as engagements, AVG(pa.engagement_rate) as er
+            FROM posts p JOIN post_analytics pa ON p.id = pa.post_id
+            WHERE p.user_id = $1 AND p.published_at >= NOW() - INTERVAL '30 days'
+            GROUP BY pa.platform
+        `, [userId]);
+
+        const insights = await AIService.generateAnalyticsInsights(metrics);
+        res.json({ insights });
+    } catch (err: any) {
+        console.error('[AI Insights Error]', err);
+        res.status(500).json({ message: 'Failed to generate AI insights' });
     }
 };

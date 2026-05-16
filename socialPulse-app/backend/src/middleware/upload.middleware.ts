@@ -1,8 +1,6 @@
-// server/src/middleware/upload.middleware.ts
 import multer, { FileFilterCallback } from 'multer';
 import { Request, Response, NextFunction } from 'express';
 import { PLANS, getPlan, PlanId } from '../config/plans';
-import { AuthRequest } from './auth.middleware';
 
 // ─── Allowed types ─────────────────────────────────────────────────────────────
 
@@ -165,7 +163,7 @@ export const upload = makeUpload(50);
 // Usage: router.post('/upload', planUpload('media'), ...)
 
 export const planUpload = (fieldName: string) =>
-  (req: AuthRequest, res: Response, next: NextFunction) => {
+  (req: Request, res: Response, next: NextFunction) => {
     const planKey  = (req as any).planKey ?? 'free';
     const plan     = getPlan(planKey);
     const maxMb    = plan.limits.mediaFileSizeMB;

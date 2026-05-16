@@ -11,10 +11,10 @@ export const listRules = async (req: Request, res: Response): Promise<void> => {
                     COUNT(lr.id) AS result_count
              FROM listening_rules r
              LEFT JOIN listening_results lr ON lr.rule_id = r.id
-             WHERE r.user_id = $1
+             WHERE r.user_id = $1 AND (r.workspace_id = $2 OR $2 IS NULL)
              GROUP BY r.id
              ORDER BY r.created_at DESC`,
-            [req.user!.userId]
+            [req.user!.userId, (req as any).workspaceId || null]
         );
         res.json(rows);
     } catch (err) {
@@ -28,9 +28,9 @@ export const createRule = async (req: Request, res: Response): Promise<void> => 
         const { keyword, platforms } = req.body;
         if (!keyword) { res.status(400).json({ message: 'keyword is required' }); return; }
         const { rows } = await db.query(
-            `INSERT INTO listening_rules (user_id, keyword, platforms)
-             VALUES ($1, $2, $3) RETURNING *`,
-            [req.user!.userId, keyword.trim(), platforms ?? ['twitter']]
+            `INSERT INTO listening_rules (user_id, workspace_id, keyword, platforms)
+             VALUES ($1, $2, $3, $4) RETURNING *`,
+            [req.user!.userId, (req as any).workspaceId || null, keyword.trim(), platforms ?? ['twitter']]
         );
         res.status(201).json({ ...rows[0], result_count: 0 });
     } catch (err) {
@@ -43,8 +43,8 @@ export const deleteRule = async (req: Request, res: Response): Promise<void> => 
     try {
         const { id } = req.params;
         const { rowCount } = await db.query(
-            'DELETE FROM listening_rules WHERE id = $1 AND user_id = $2',
-            [id, req.user!.userId]
+            'DELETE FROM listening_rules WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)',
+            [id, req.user!.userId, (req as any).workspaceId || null]
         );
         if (!rowCount) { res.status(404).json({ message: 'Rule not found' }); return; }
         res.status(204).send();
@@ -78,9 +78,9 @@ export const getResults = async (req: Request, res: Response): Promise<void> => 
         const offset = parseInt(req.query.offset as string) || 0;
         const ruleId = req.query.rule_id as string | undefined;
 
-        let where = 'WHERE r.user_id = $1';
-        const params: unknown[] = [req.user!.userId];
-        if (ruleId) { where += ' AND lr.rule_id = $2'; params.push(ruleId); }
+        let where = 'WHERE ru.user_id = $1 AND (ru.workspace_id = $2 OR $2 IS NULL)';
+        const params: unknown[] = [req.user!.userId, (req as any).workspaceId || null];
+        if (ruleId) { where += ' AND lr.rule_id = $3'; params.push(ruleId); }
 
         const { rows } = await db.query(
             `SELECT lr.*, ru.keyword
@@ -104,8 +104,8 @@ export const fetchRuleNow = async (req: Request, res: Response): Promise<void> =
     try {
         const { id } = req.params;
         const { rows: ruleRows } = await db.query(
-            'SELECT * FROM listening_rules WHERE id = $1 AND user_id = $2',
-            [id, req.user!.userId]
+            'SELECT * FROM listening_rules WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)',
+            [id, req.user!.userId, (req as any).workspaceId || null]
         );
         if (!ruleRows[0]) { res.status(404).json({ message: 'Rule not found' }); return; }
 
@@ -147,10 +147,22 @@ export async function fetchRuleResults(rule: ListeningRuleRow, userId: string): 
         for (const t of tweets) {
             const { rowCount } = await db.query(
                 `INSERT INTO listening_results
-                    (rule_id, platform, external_id, content, published_at)
-                 VALUES ($1, 'twitter', $2, $3, $4)
+                    (rule_id, platform, external_id, content, published_at, 
+                     author_name, author_handle, author_avatar, likes, reposts, url)
+                 VALUES ($1, 'twitter', $2, $3, $4, $5, $6, $7, $8, $9, $10)
                  ON CONFLICT (rule_id, external_id) DO NOTHING`,
-                [rule.id, t.id, t.text, t.created_at ? new Date(t.created_at) : new Date()]
+                [
+                    rule.id, 
+                    t.id, 
+                    t.text, 
+                    t.created_at ? new Date(t.created_at) : new Date(),
+                    t.author_name || null,
+                    t.author_handle || null,
+                    t.author_avatar || null,
+                    t.public_metrics?.like_count || 0,
+                    t.public_metrics?.retweet_count || 0,
+                    `https://twitter.com/any/status/${t.id}`
+                ]
             );
             if ((rowCount ?? 0) > 0) count++;
         }

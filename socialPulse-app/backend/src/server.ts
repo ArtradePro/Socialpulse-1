@@ -1,3 +1,4 @@
+// import geminiTestRoute from "./routes/geminiTest";
 import 'dotenv/config';
 import { app } from './app';
 import { connectDB } from './config/database';
@@ -31,6 +32,10 @@ const start = async (): Promise<void> => {
     } catch (err) {
         console.warn('Redis unavailable or Migration failed — continuing startup:', err);
     }
+
+    // Register Gemini test route
+    // app.use("/api", geminiTestRoute);
+
     app.listen(PORT, () => console.log(`SocialPulse API running on http://localhost:${PORT}`));
 };
 

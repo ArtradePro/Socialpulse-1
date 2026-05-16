@@ -238,7 +238,7 @@ export const Workspaces: React.FC = () => {
                     <p className="text-sm text-gray-500 mt-1">Manage team collaboration and organization settings</p>
                 </div>
                 <button onClick={() => setShowCreate(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity text-sm">
+                    className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl font-medium hover:opacity-90 transition-opacity text-sm">
                     <Plus className="w-4 h-4" /> New workspace
                 </button>
             </div>
@@ -271,7 +271,7 @@ export const Workspaces: React.FC = () => {
                                 <p className="text-xs text-gray-500">{ws.memberCount} members • {ws.role}</p>
                             </div>
                             {ws.id === (activeId ?? workspaces[0]?.id) && (
-                                <span className="ml-auto text-[10px] font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full shrink-0">
+                                <span className="ml-auto text-[10px] font-semibold bg-brand-light text-brand px-2 py-0.5 rounded-full shrink-0">
                                     Active
                                 </span>
                             )}
@@ -392,7 +392,7 @@ export const Workspaces: React.FC = () => {
                                         </div>
 
                                         <button type="submit" disabled={savingBrand}
-                                            className="w-full py-2.5 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
+                                            className="w-full py-2.5 bg-brand text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
                                             {savingBrand ? 'Saving…' : 'Save branding'}
                                         </button>
                                     </form>
@@ -498,7 +498,7 @@ export const Workspaces: React.FC = () => {
                                     Cancel
                                 </button>
                                 <button type="submit" disabled={!newName.trim() || creating}
-                                    className="flex-1 py-2.5 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
+                                    className="flex-1 py-2.5 bg-brand text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
                                     {creating ? 'Creating…' : 'Create workspace'}
                                 </button>
                             </div>

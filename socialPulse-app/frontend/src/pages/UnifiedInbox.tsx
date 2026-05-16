@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Inbox, RefreshCw, Loader2, MessageSquare, AtSign, Mail } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Inbox, RefreshCw, Loader2, MessageSquare, AtSign, Mail, CheckCircle2, Sparkles, ExternalLink } from 'lucide-react';
+import { PlatformIcon } from '../components/common/BrandIcons';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 
@@ -18,11 +20,12 @@ interface Message {
     created_at:    string;
 }
 
-const PLATFORM_COLORS: Record<string, string> = {
-    twitter:   'bg-sky-100 text-sky-700',
-    instagram: 'bg-pink-100 text-pink-700',
-    linkedin:  'bg-blue-100 text-blue-700',
-    facebook:  'bg-indigo-100 text-indigo-700',
+const PLATFORM_STYLE: Record<string, { bg: string; text: string }> = {
+    twitter:   { bg: 'bg-gray-100', text: 'text-gray-800' },
+    instagram: { bg: 'bg-pink-100', text: 'text-pink-700' },
+    linkedin:  { bg: 'bg-blue-100', text: 'text-blue-700' },
+    facebook:  { bg: 'bg-indigo-100', text: 'text-indigo-700' },
+    tiktok:    { bg: 'bg-black/5',  text: 'text-black' },
 };
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
@@ -32,6 +35,7 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
 };
 
 export const UnifiedInbox: React.FC = () => {
+    const navigate = useNavigate();
     const [messages,    setMessages]    = useState<Message[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [loading,     setLoading]     = useState(true);
@@ -116,11 +120,12 @@ export const UnifiedInbox: React.FC = () => {
                         </button>
                     ))}
                 </div>
-                <div className="flex rounded-xl border border-gray-200 bg-white overflow-hidden">
-                    {['all', 'twitter', 'instagram', 'linkedin', 'facebook'].map(p => (
+                <div className="flex rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+                    {['all', 'twitter', 'instagram', 'linkedin', 'facebook', 'tiktok'].map(p => (
                         <button key={p} onClick={() => setPlatform(p)}
-                            className={`px-3 py-2 text-sm font-medium transition-colors capitalize ${platform === p ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-                            {p === 'all' ? 'All' : p}
+                            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-bold transition-all capitalize ${platform === p ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                            {p !== 'all' && <PlatformIcon platform={p} size={14} />}
+                            {p === 'all' ? 'All Platforms' : p}
                         </button>
                     ))}
                 </div>
@@ -143,8 +148,12 @@ export const UnifiedInbox: React.FC = () => {
                         <div key={msg.id}
                             className={`bg-white rounded-xl border p-4 transition-colors ${msg.is_read ? 'border-gray-200' : 'border-indigo-200 bg-indigo-50/30'}`}>
                             <div className="flex items-start gap-3">
-                                <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-500 shrink-0">
-                                    {msg.author_name?.[0]?.toUpperCase() ?? msg.author_handle?.[0]?.toUpperCase() ?? '?'}
+                                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-500 shrink-0 overflow-hidden border border-gray-100">
+                                    {msg.author_avatar ? (
+                                        <img src={msg.author_avatar} alt={msg.author_name || ''} className="w-full h-full object-cover" />
+                                    ) : (
+                                        msg.author_name?.[0]?.toUpperCase() ?? msg.author_handle?.[0]?.toUpperCase() ?? '?'
+                                    )}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
@@ -154,26 +163,56 @@ export const UnifiedInbox: React.FC = () => {
                                         {msg.author_handle && (
                                             <span className="text-xs text-gray-400">@{msg.author_handle}</span>
                                         )}
-                                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 ${PLATFORM_COLORS[msg.platform] ?? 'bg-gray-100 text-gray-600'}`}>
-                                            {TYPE_ICON[msg.type]} {msg.type}
+                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1.5 uppercase ${PLATFORM_STYLE[msg.platform]?.bg ?? 'bg-gray-100'} ${PLATFORM_STYLE[msg.platform]?.text ?? 'text-gray-600'}`}>
+                                            <PlatformIcon platform={msg.platform} size={12} />
+                                            {msg.platform} · {msg.type}
                                         </span>
                                         {!msg.is_read && (
-                                            <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                                            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
                                         )}
                                         <span className="ml-auto text-xs text-gray-400">
                                             {msg.published_at ? new Date(msg.published_at).toLocaleDateString() : ''}
                                         </span>
                                     </div>
-                                    <p className="text-sm text-gray-700 mt-1.5 line-clamp-3">{msg.content}</p>
-                                    <div className="flex items-center gap-3 mt-2">
+                                    <p className="text-sm text-gray-700 mt-2 leading-relaxed">{msg.content}</p>
+                                    
+                                    <div className="flex items-center gap-3 mt-4">
                                         {msg.url && (
                                             <a href={msg.url} target="_blank" rel="noopener noreferrer"
-                                                className="text-xs text-indigo-600 hover:underline">View original →</a>
+                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200">
+                                                <ExternalLink className="w-3.5 h-3.5" /> View original
+                                            </a>
                                         )}
+                                        
+                                        <button 
+                                            onClick={async () => {
+                                                const id = toast.loading('Generating magic reply...');
+                                                try {
+                                                    const { data } = await api.post('/ai/reply', {
+                                                        messageContent: msg.content,
+                                                        platform: msg.platform
+                                                    });
+                                                    // Navigate to studio with the draft
+                                                    navigate('/studio', { 
+                                                        state: { 
+                                                            initialContent: data.content,
+                                                            initialPlatform: msg.platform
+                                                        } 
+                                                    });
+                                                    toast.success('Reply draft ready!', { id });
+                                                } catch {
+                                                    toast.error('Failed to generate reply', { id });
+                                                }
+                                            }}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-linear-to-r from-indigo-600 to-purple-600 text-white text-xs font-bold rounded-lg hover:opacity-90 transition-opacity shadow-sm"
+                                        >
+                                            <Sparkles className="w-3.5 h-3.5" /> Magic Reply
+                                        </button>
+
                                         {!msg.is_read && (
                                             <button onClick={() => handleMarkRead(msg.id)}
-                                                className="text-xs text-gray-400 hover:text-gray-600 ml-auto">
-                                                Mark read
+                                                className="text-xs font-medium text-gray-400 hover:text-indigo-600 transition-colors ml-auto">
+                                                Mark as read
                                             </button>
                                         )}
                                     </div>

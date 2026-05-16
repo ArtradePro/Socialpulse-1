@@ -5,7 +5,7 @@ import api from '../services/api';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type DateRange = '7d' | '14d' | '30d' | '90d';
-export type Platform  = 'all' | 'twitter' | 'instagram' | 'linkedin' | 'facebook';
+export type Platform  = 'all' | 'twitter' | 'instagram' | 'linkedin' | 'facebook' | 'tiktok';
 
 export interface OverviewMetrics {
     totalImpressions:   number;
@@ -67,6 +67,7 @@ export interface AudienceGrowth {
     instagram: number;
     linkedin:  number;
     facebook:  number;
+    tiktok:    number;
     total:     number;
 }
 

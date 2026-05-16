@@ -4,7 +4,7 @@ export interface Schedule {
   id: string;
   post_id: string;
   user_id: string;
-  platform: 'twitter' | 'instagram' | 'linkedin' | 'facebook';
+  platform: 'twitter' | 'instagram' | 'linkedin' | 'facebook' | 'tiktok';
   scheduled_at: Date;
   status: 'pending' | 'processing' | 'published' | 'failed';
   error_message?: string;

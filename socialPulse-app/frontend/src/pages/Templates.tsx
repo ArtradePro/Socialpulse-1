@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, FileText, Trash2, Pencil, X, Loader2, Copy, Check,
-         Globe, Lock, Search } from 'lucide-react';
+         Globe, Lock, Search, Palette, Layout, Video, Sparkles, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import ResourceCard from '../components/content/ResourceCard';
 
 interface Template {
     id:         string;
@@ -25,6 +27,57 @@ const PLATFORM_LABELS: Record<string, string> = {
     facebook:  'Facebook',
 };
 
+const EXTERNAL_RESOURCES = [
+    {
+        name: 'Canva',
+        description: 'The world\'s most popular design tool for social media. Thousands of ready-to-use templates.',
+        bestFor: ['Posts', 'Stories', 'Ads', 'Carousels'],
+        rating: 5,
+        url: 'https://www.canva.com/templates/',
+        icon: <Palette className="w-6 h-6" />,
+        color: 'canva',
+        isPremium: true
+    },
+    {
+        name: 'Figma Community',
+        description: 'Professional design files, brand kits, and high-fidelity social media packs from top designers.',
+        bestFor: ['Brand Kits', 'UI Design', 'Vector Assets'],
+        rating: 5,
+        url: 'https://www.figma.com/community/search?model_type=hub&q=social+media',
+        icon: <Layout className="w-6 h-6" />,
+        color: 'bg-purple-500',
+        isPremium: true
+    },
+    {
+        name: 'CapCut',
+        description: 'Powerful video editor with trending templates for TikTok, Reels, and YouTube Shorts.',
+        bestFor: ['Reels', 'TikToks', 'Video Ads'],
+        rating: 5,
+        url: 'https://www.capcut.com/templates',
+        icon: <Video className="w-6 h-6" />,
+        color: 'bg-black',
+        isPremium: true
+    },
+    {
+        name: 'VistaCreate',
+        description: 'Easy-to-use graphic design tool with a massive library of animated and static templates.',
+        bestFor: ['Animations', 'Static Posts', 'Covers'],
+        rating: 4,
+        url: 'https://vistacreate.com/templates/',
+        icon: <Sparkles className="w-6 h-6" />,
+        color: 'bg-indigo-500'
+    },
+    {
+        name: 'Adobe Express',
+        description: 'Quickly and easily create standout social graphics, videos, and more from Adobe.',
+        bestFor: ['Modern Layouts', 'Quick Edits', 'PDFs'],
+        rating: 3,
+        url: 'https://www.adobe.com/express/create/social-media',
+        icon: <Palette className="w-6 h-6" />,
+        color: 'bg-red-500'
+    }
+];
+
 // ─── Create / Edit modal ──────────────────────────────────────────────────────
 
 interface TemplateModalProps {
@@ -40,6 +93,7 @@ const TemplateModal: React.FC<TemplateModalProps> = ({ initial, onClose, onSaved
     const [platforms, setPlatforms] = useState<string[]>(initial?.platforms ?? []);
     const [isPublic,  setIsPublic]  = useState(initial?.is_public ?? false);
     const [saving,    setSaving]    = useState(false);
+    const [improving, setImproving] = useState(false);
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -49,6 +103,23 @@ const TemplateModal: React.FC<TemplateModalProps> = ({ initial, onClose, onSaved
 
     const togglePlatform = (p: string) =>
         setPlatforms(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]);
+
+    const handleAIImprove = async () => {
+        if (!content.trim()) return;
+        setImproving(true);
+        try {
+            const { data } = await api.post('/ai/improve', { 
+                content,
+                platform: platforms[0] || 'twitter' 
+            });
+            setContent(data.improvedContent);
+            toast.success('AI has optimized your content!');
+        } catch {
+            toast.error('AI optimization failed');
+        } finally {
+            setImproving(false);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -103,7 +174,18 @@ const TemplateModal: React.FC<TemplateModalProps> = ({ initial, onClose, onSaved
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Content *</label>
+                        <div className="flex items-center justify-between mb-1">
+                            <label className="block text-sm font-medium text-gray-700">Content *</label>
+                            <button 
+                                type="button"
+                                onClick={handleAIImprove}
+                                disabled={improving || !content.trim()}
+                                className="text-xs font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1 disabled:opacity-50"
+                            >
+                                {improving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                                AI Optimize
+                            </button>
+                        </div>
                         <textarea
                             required
                             value={content}
@@ -195,10 +277,13 @@ interface TemplateCardProps {
     template: Template;
     onEdit:   (t: Template) => void;
     onDelete: (id: string) => void;
+    onUse:    (content: string) => void;
+    onClone:  (t: Template) => void;
 }
 
-const TemplateCard: React.FC<TemplateCardProps> = ({ template: t, onEdit, onDelete }) => {
+const TemplateCard: React.FC<TemplateCardProps> = ({ template: t, onEdit, onDelete, onUse, onClone }) => {
     const [copied, setCopied] = useState(false);
+    const [expanded, setExpanded] = useState(false);
 
     const copyContent = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -206,6 +291,8 @@ const TemplateCard: React.FC<TemplateCardProps> = ({ template: t, onEdit, onDele
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
+
+    const isLong = t.content.length > 200;
 
     return (
         <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:border-indigo-300 hover:shadow-sm transition-all flex flex-col gap-3">
@@ -254,14 +341,31 @@ const TemplateCard: React.FC<TemplateCardProps> = ({ template: t, onEdit, onDele
                     {t.is_mine && (
                         <>
                             <button
+                                onClick={() => onUse(t.content)}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors"
+                                title="Use in Content Studio"
+                            >
+                                <Send className="w-3 h-3" />
+                                Use
+                            </button>
+                            <button
+                                onClick={() => onClone(t)}
+                                className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                title="Duplicate Template"
+                            >
+                                <Copy className="w-4 h-4" />
+                            </button>
+                            <button
                                 onClick={() => onEdit(t)}
                                 className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                title="Edit Template"
                             >
                                 <Pencil className="w-4 h-4" />
                             </button>
                             <button
                                 onClick={() => onDelete(t.id)}
                                 className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete Template"
                             >
                                 <Trash2 className="w-4 h-4" />
                             </button>
@@ -269,7 +373,19 @@ const TemplateCard: React.FC<TemplateCardProps> = ({ template: t, onEdit, onDele
                     )}
                 </div>
             </div>
-            <p className="text-sm text-gray-600 line-clamp-3 leading-relaxed">{t.content}</p>
+            <div className="relative">
+                <p className={`text-sm text-gray-600 leading-relaxed ${expanded ? '' : 'line-clamp-3'}`}>
+                    {t.content}
+                </p>
+                {isLong && (
+                    <button 
+                        onClick={() => setExpanded(!expanded)}
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-700 mt-1"
+                    >
+                        {expanded ? 'Show Less' : 'Read More...'}
+                    </button>
+                )}
+            </div>
         </div>
     );
 };
@@ -277,10 +393,11 @@ const TemplateCard: React.FC<TemplateCardProps> = ({ template: t, onEdit, onDele
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export const Templates: React.FC = () => {
+    const navigate = useNavigate();
     const [templates, setTemplates] = useState<Template[]>([]);
     const [loading,   setLoading]   = useState(true);
     const [search,    setSearch]    = useState('');
-    const [tab,       setTab]       = useState<'mine' | 'all'>('mine');
+    const [tab,       setTab]       = useState<'mine' | 'all' | 'resources'>('mine');
     const [modal,     setModal]     = useState<{ open: boolean; editing: Template | null }>({
         open: false, editing: null,
     });
@@ -291,7 +408,7 @@ export const Templates: React.FC = () => {
             const { data } = await api.get<Template[]>('/templates', {
                 params: { search: search || undefined },
             });
-            setTemplates(data);
+            setTemplates(Array.isArray(data) ? data : []);
         } catch {
             toast.error('Failed to load templates');
         } finally {
@@ -325,12 +442,20 @@ export const Templates: React.FC = () => {
         }
     };
 
-    const visible = tab === 'mine'
-        ? templates.filter(t => t.is_mine)
-        : templates;
+    const templateList = Array.isArray(templates) ? templates : [];
 
-    const myCount        = templates.filter(t => t.is_mine).length;
-    const communityCount = templates.filter(t => !t.is_mine).length;
+    const visible = tab === 'mine'
+        ? templateList.filter(t => t?.is_mine)
+        : templateList;
+
+    const myCount        = templateList.filter(t => t?.is_mine).length;
+    const communityCount = templateList.filter(t => !t?.is_mine).length;
+
+    const filteredResources = EXTERNAL_RESOURCES.filter(r => 
+        r.name.toLowerCase().includes(search.toLowerCase()) || 
+        r.description.toLowerCase().includes(search.toLowerCase()) ||
+        r.bestFor.some(tag => tag.toLowerCase().includes(search.toLowerCase()))
+    );
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
@@ -343,7 +468,7 @@ export const Templates: React.FC = () => {
                 </div>
                 <button
                     onClick={openCreate}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity"
+                    className="flex items-center gap-2 px-4 py-2 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity"
                 >
                     <Plus className="w-4 h-4" /> New Template
                 </button>
@@ -362,7 +487,7 @@ export const Templates: React.FC = () => {
                 </div>
 
                 <div className="flex rounded-xl border border-gray-200 overflow-hidden bg-white">
-                    {(['mine', 'all'] as const).map((key) => (
+                    {(['mine', 'all', 'resources'] as const).map((key) => (
                         <button
                             key={key}
                             onClick={() => setTab(key)}
@@ -372,7 +497,9 @@ export const Templates: React.FC = () => {
                                     : 'text-gray-600 hover:bg-gray-50'
                             }`}
                         >
-                            {key === 'mine' ? `My Templates (${myCount})` : `All (${templates.length})`}
+                            {key === 'mine' ? `My Templates (${myCount})` : 
+                             key === 'all' ? `All (${templates.length})` : 
+                             'Design Resources'}
                         </button>
                     ))}
                 </div>
@@ -382,24 +509,16 @@ export const Templates: React.FC = () => {
                 <div className="flex justify-center py-20">
                     <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
                 </div>
-            ) : visible.length === 0 ? (
-                <div className="text-center py-20 bg-white rounded-2xl border border-gray-200">
-                    <FileText className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                    <p className="text-gray-500 font-medium">
-                        {tab === 'mine' ? 'No templates yet' : 'No templates found'}
-                    </p>
-                    {tab === 'mine' && (
-                        <>
-                            <p className="text-gray-400 text-sm mt-1">
-                                Create a template to quickly reuse content when writing posts
-                            </p>
-                            <button
-                                onClick={openCreate}
-                                className="mt-4 px-5 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors"
-                            >
-                                Create your first template
-                            </button>
-                        </>
+            ) : tab === 'resources' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {filteredResources.map(res => (
+                        <ResourceCard key={res.name} {...res} />
+                    ))}
+                    {filteredResources.length === 0 && (
+                        <div className="col-span-full text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200">
+                            <Search className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                            <p className="text-gray-500 font-medium">No resources found for "{search}"</p>
+                        </div>
                     )}
                 </div>
             ) : (
@@ -410,6 +529,8 @@ export const Templates: React.FC = () => {
                             template={t}
                             onEdit={openEdit}
                             onDelete={handleDelete}
+                            onUse={(content) => navigate('/studio', { state: { initialContent: content } })}
+                            onClone={(t) => setModal({ open: true, editing: { ...t, id: '', name: `${t.name} (Copy)` } as any })}
                         />
                     ))}
                 </div>

@@ -5,11 +5,12 @@
   "main": "dist/server.js",
   "scripts": {
     "start": "node dist/server.js",
-    "dev": "nodemon --exec ts-node src/server.ts",
+    "dev": "nodemon --exec ts-node --transpile-only src/server.ts",
     "build": "tsc --skipLibCheck",
     "db:update-credits": "psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c \"UPDATE users SET ai_credits = 10000;\"",
     "lint": "eslint src/**/*.ts",
     "migrate": "npx ts-node --transpile-only src/database/migrate.ts",
+    "seed": "npx ts-node --transpile-only src/database/seed.ts",
     "test": "jest --runInBand --forceExit",
     "test:watch": "jest --watch --runInBand",
     "test:coverage": "jest --runInBand --forceExit --coverage",

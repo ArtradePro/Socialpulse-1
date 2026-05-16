@@ -1,20 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-// Extend Express Request globally so all downstream code sees req.user
-declare global {
-    namespace Express {
-        interface Request {
-            user?:     { userId: string; email: string; plan: string };
-            teamRole?: string;  // set by requireTeamRole middleware
-        }
-    }
-}
-
-export interface AuthRequest extends Request {
-    user?: { userId: string; email: string; plan: string };
-}
-
 export const authenticate = (
     req: Request,
     res: Response,

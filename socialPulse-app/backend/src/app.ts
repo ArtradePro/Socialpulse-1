@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import passport from 'passport';
+import { configurePassport } from './config/passport';
 
 import authRoutes         from './routes/auth.routes';
 import postRoutes         from './routes/post.routes';
@@ -23,15 +25,21 @@ import listeningRoutes    from './routes/listening';
 import inboxRoutes        from './routes/inbox';
 import referralsRoutes    from './routes/referrals';
 import approvalRoutes     from './routes/approval';
+import ecommerceRoutes    from './routes/ecommerce.routes';
 import { LinkService } from './services/link.service';
 import { errorHandler, notFound } from './middleware/errorHandler';
 
 export const app = express();
 
+configurePassport();
+app.use(passport.initialize());
+
 app.use(helmet());
+app.set('trust proxy', true);
 
 const allowedOrigins = [
     'http://localhost:3000',
+    'http://localhost:3001',
     'https://usesocialpulse.com',
     'https://silver-opossum-812035.hostingersite.com',
     process.env.CLIENT_URL,
@@ -53,8 +61,8 @@ app.use(cors({
     credentials: true,
 }));
 
-// Relaxed rate limit in test environment
-if (process.env.NODE_ENV !== 'test') {
+// Relaxed rate limit in test/dev environment
+if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'development') {
     app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 }
 
@@ -81,6 +89,7 @@ app.use('/api/listening',     listeningRoutes);
 app.use('/api/inbox',         inboxRoutes);
 app.use('/api/referrals',     referralsRoutes);
 app.use('/api/approvals',     approvalRoutes);
+app.use('/api/ecommerce',     ecommerceRoutes);
 
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

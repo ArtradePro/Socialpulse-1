@@ -13,10 +13,10 @@ export const listFeeds = async (req: Request, res: Response): Promise<void> => {
                     COUNT(e.id) AS total_entries
              FROM rss_feeds f
              LEFT JOIN rss_entries e ON e.feed_id = f.id
-             WHERE f.user_id = $1
+             WHERE f.user_id = $1 AND (f.workspace_id = $2 OR $2 IS NULL)
              GROUP BY f.id
              ORDER BY f.created_at DESC`,
-            [req.user!.userId]
+            [req.user!.userId, req.workspaceId || null]
         );
         res.json(rows);
     } catch (err) {

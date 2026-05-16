@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Users, Heart, Eye, PenSquare, Calendar, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../services/api';
+import { PlatformIcon } from '../components/common/BrandIcons';
 
 // Daily engagement data is now fetched from the API and stored in dailyData state
 
@@ -50,7 +51,7 @@ export const Dashboard: React.FC = () => {
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
-            const { data } = await api.get('/api/analytics/dashboard?range=30d');
+            const { data } = await api.get('/analytics/dashboard?range=30d');
             
             // Stats from overview
             setStats({
@@ -100,9 +101,11 @@ export const Dashboard: React.FC = () => {
     const getPlatformColor = (platform: string) => {
         const colors: Record<string, string> = {
             instagram: 'bg-pink-500',
-            twitter: 'bg-sky-500',
+            twitter: 'bg-black',
+            x: 'bg-black',
             linkedin: 'bg-blue-600',
-            facebook: 'bg-indigo-600'
+            facebook: 'bg-indigo-600',
+            tiktok: 'bg-black'
         };
         return colors[platform.toLowerCase()] || 'bg-gray-500';
     };
@@ -124,14 +127,17 @@ export const Dashboard: React.FC = () => {
 
     return (
         <div className='space-y-6'>
-            <div className='bg-linear-to-r from-purple-600 to-blue-600 rounded-2xl p-6 text-white'>
-                <div className='flex items-center justify-between'>
+            <div className='relative overflow-hidden bg-linear-to-br from-indigo-600 via-purple-600 to-pink-500 rounded-3xl p-8 text-white shadow-xl shadow-purple-200'>
+                <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
+                <div className="absolute bottom-0 left-0 -mb-10 -ml-10 w-48 h-48 bg-indigo-400/20 rounded-full blur-2xl" />
+                
+                <div className='relative flex items-center justify-between'>
                     <div>
-                        <h2 className="text-2xl font-bold">Good morning! 👋</h2>
-                        <p className="text-purple-100 mt-1">You have 3 posts scheduled for today. Make it count!</p>
+                        <h2 className="text-3xl font-extrabold tracking-tight">Good morning! 👋</h2>
+                        <p className="text-purple-100 mt-2 text-lg font-medium">You have 3 posts scheduled for today. Let's make them viral!</p>
                     </div>
-                    <button onClick={() => navigate('/studio')} className="flex items-center gap-2 px-5 py-2.5 bg-white text-purple-600 rounded-xl font-semibold hover:bg-purple-50 transition-colors">
-                        <PenSquare className="w-4 h-4" /> Create Post
+                    <button onClick={() => navigate('/studio')} className="flex items-center gap-2 px-6 py-3 bg-white text-purple-600 rounded-2xl font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all">
+                        <PenSquare className="w-5 h-5" /> Create Post
                     </button>
                 </div>
             </div>
@@ -169,16 +175,18 @@ export const Dashboard: React.FC = () => {
                         {platformData.length === 0 ? (
                             <p className="text-sm text-gray-400 text-center py-10">No accounts connected</p>
                         ) : platformData.map(item => (
-                            <div key={item.platform} className='flex items-center gap-3'>
-                                <div className={`w-2 h-10 rounded-full ${item.color}`} />
-                                <div className='flex-1'>
-                                    <div className='flex justify-between'>
-                                        <span className='text-sm font-medium text-gray-900'>{item.platform}</span>
-                                        <span className={`text-xs font-medium ${parseFloat(item.growth) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                            {item.growth}
+                            <div key={item.platform} className='flex items-center gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors'>
+                                <div className={`p-2 rounded-lg ${item.color} bg-opacity-10`}>
+                                    <PlatformIcon platform={item.platform} size={20} />
+                                </div>
+                                <div className='flex-1 min-w-0'>
+                                    <div className='flex justify-between items-center'>
+                                        <span className='text-sm font-bold text-gray-900 capitalize'>{item.platform}</span>
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${parseFloat(item.growth) >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                            {item.growth}%
                                         </span>
                                     </div>
-                                    <span className="text-xs text-gray-500">{item.followers} followers</span>
+                                    <span className="text-xs text-gray-500 font-medium">{item.followers} followers</span>
                                 </div>
                             </div>
                         ))}
@@ -205,9 +213,12 @@ export const Dashboard: React.FC = () => {
                                     <p className="text-sm text-gray-800 line-clamp-2">{post.content}</p>
                                     <div className="flex items-center gap-3 mt-2">
                                         {(post.platforms || []).map((p: string) => (
-                                            <span key={p} className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">{p}</span>
+                                            <div key={p} className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
+                                                <PlatformIcon platform={p} size={14} />
+                                                <span className="text-[10px] font-bold text-gray-600 uppercase">{p}</span>
+                                            </div>
                                         ))}
-                                        <span className="text-xs px-2 py-0.5 rounded-full font-medium">{post.status}</span>
+                                        <span className="text-[10px] px-2 py-1 rounded-lg font-bold uppercase border border-indigo-100 bg-indigo-50 text-indigo-700">{post.status}</span>
                                     </div>
                                 </div>
                             </div>

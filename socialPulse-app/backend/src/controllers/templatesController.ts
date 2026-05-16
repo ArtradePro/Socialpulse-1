@@ -8,9 +8,10 @@ export const listTemplates = async (req: Request, res: Response): Promise<void> 
         let sql = `
             SELECT id, user_id, name, content, category, platforms, is_public, created_at,
                    (user_id = $1) AS is_mine
-            FROM templates
-            WHERE (user_id = $1 OR is_public = true)`;
-        const params: unknown[] = [req.user!.userId];
+             FROM templates
+             WHERE (user_id = $1 OR is_public = true)
+               AND (workspace_id = $2 OR workspace_id IS NULL OR is_public = true)`;
+        const params: unknown[] = [req.user!.userId, (req as any).workspaceId || null];
 
         if (category) {
             params.push(category);
@@ -38,10 +39,10 @@ export const createTemplate = async (req: Request, res: Response): Promise<void>
             return;
         }
         const { rows } = await db.query(
-            `INSERT INTO templates (user_id, name, content, category, platforms, is_public)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             RETURNING id, user_id, name, content, category, platforms, is_public, created_at`,
-            [req.user!.userId, name, content, category ?? null,
+            `INSERT INTO templates (user_id, workspace_id, name, content, category, platforms, is_public)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             RETURNING id, user_id, workspace_id, name, content, category, platforms, is_public, created_at`,
+            [req.user!.userId, (req as any).workspaceId || null, name, content, category ?? null,
              platforms ?? null, isPublic ?? false]
         );
         res.status(201).json({ ...rows[0], is_mine: true });
@@ -62,10 +63,10 @@ export const updateTemplate = async (req: Request, res: Response): Promise<void>
                  category  = COALESCE($3, category),
                  platforms = COALESCE($4, platforms),
                  is_public = COALESCE($5, is_public)
-             WHERE id = $6 AND user_id = $7
-             RETURNING id, user_id, name, content, category, platforms, is_public, created_at`,
+             WHERE id = $6 AND user_id = $7 AND (workspace_id = $8 OR $8 IS NULL)
+             RETURNING id, user_id, workspace_id, name, content, category, platforms, is_public, created_at`,
             [name ?? null, content ?? null, category ?? null,
-             platforms ?? null, isPublic ?? null, id, req.user!.userId]
+             platforms ?? null, isPublic ?? null, id, req.user!.userId, (req as any).workspaceId || null]
         );
         if (!rows[0]) { res.status(404).json({ message: 'Not found' }); return; }
         res.json({ ...rows[0], is_mine: true });
@@ -79,8 +80,8 @@ export const deleteTemplate = async (req: Request, res: Response): Promise<void>
     try {
         const { id } = req.params;
         const { rowCount } = await db.query(
-            'DELETE FROM templates WHERE id = $1 AND user_id = $2',
-            [id, req.user!.userId]
+            'DELETE FROM templates WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)',
+            [id, req.user!.userId, (req as any).workspaceId || null]
         );
         if (!rowCount) { res.status(404).json({ message: 'Not found' }); return; }
         res.status(204).send();

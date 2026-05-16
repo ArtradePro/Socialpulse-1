@@ -1,8 +1,6 @@
-// server/src/middleware/planEnforcement.middleware.ts
 import { Request, Response, NextFunction } from 'express';
 import { db } from '../config/database';
 import { getPlan, withinLimit, PlanId, PLANS } from '../config/plans';
-import { AuthRequest } from './auth.middleware';
 
 // Alias for legacy code in this file
 type PlanKey = PlanId;
@@ -203,7 +201,7 @@ export const attachUsage = async (
 // ── Attach plan key to request ────────────────────────────────────────────────
 
 export const attachPlan = async (
-  req: AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
@@ -220,7 +218,7 @@ export const attachPlan = async (
 // ── Enforce media storage quota ───────────────────────────────────────────────
 
 export const enforceMediaQuota = async (
-  req: AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
@@ -256,7 +254,7 @@ export const enforceMediaQuota = async (
 
 export const requireFeature = (
   feature: 'customBranding' | 'apiAccess' | 'whiteLabel' | 'prioritySupport',
-) => async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+) => async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const planKey = (req as any).planKey ?? 'free';
   const plan    = getPlan(planKey);
   if (!(plan.limits as any)[feature]) {
@@ -273,7 +271,7 @@ export const requireFeature = (
  * Checks that the user has not exceeded their plan's monthly post limit.
  */
 export const checkPostLimit = async (
-    req: AuthRequest,
+    req: Request,
     res: Response,
     next: NextFunction
 ): Promise<void> => {
@@ -311,7 +309,7 @@ export const checkPostLimit = async (
  * Checks that the user has not exceeded their plan's connected social accounts limit.
  */
 export const checkSocialAccountLimit = async (
-    req: AuthRequest,
+    req: Request,
     res: Response,
     next: NextFunction
 ): Promise<void> => {

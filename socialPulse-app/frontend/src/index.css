@@ -1,1 +1,27 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
+
+@theme {
+  --color-brand: var(--brand-color);
+  --color-brand-light: var(--brand-color-light);
+  --color-canva-cyan: #00C4CC;
+  --color-canva-purple: #7D2AE8;
+  --background-image-canva-gradient: linear-gradient(to right, #00C4CC, #7D2AE8);
+
+  /* Social Brand Gradients */
+  --background-image-facebook-gradient: linear-gradient(135deg, #1877F2 0%, #00C6FF 100%);
+  --background-image-instagram-gradient: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  --background-image-linkedin-gradient: linear-gradient(135deg, #0077B5 0%, #00A0DC 100%);
+  --background-image-youtube-gradient: linear-gradient(135deg, #FF0000 0%, #CC0000 100%);
+  --background-image-tiktok-gradient: linear-gradient(135deg, #000000 0%, #25F4EE 50%, #FE2C55 100%);
+  --background-image-pinterest-gradient: linear-gradient(135deg, #E60023 0%, #AD001D 100%);
+  --background-image-x-gradient: linear-gradient(135deg, #000000 0%, #222222 100%);
+}
+
+@utility bg-facebook-gradient { background-image: var(--background-image-facebook-gradient); }
+@utility bg-instagram-gradient { background-image: var(--background-image-instagram-gradient); }
+@utility bg-linkedin-gradient { background-image: var(--background-image-linkedin-gradient); }
+@utility bg-youtube-gradient { background-image: var(--background-image-youtube-gradient); }
+@utility bg-tiktok-gradient { background-image: var(--background-image-tiktok-gradient); }
+@utility bg-pinterest-gradient { background-image: var(--background-image-pinterest-gradient); }
+@utility bg-x-gradient { background-image: var(--background-image-x-gradient); }
+@utility bg-canva-gradient { background-image: var(--background-image-canva-gradient); }

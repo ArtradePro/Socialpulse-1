@@ -101,14 +101,69 @@ export class AIService {
         userId: string,
         workspaceId: string | undefined,
         campaignName: string,
-        campaignDescription: string
-    ): Promise<{ posts: { content: string; scheduled_offset_days: number; platform: string }[] }> {
+        campaignDescription: string,
+        days: number = 7
+    ): Promise<{ posts: { content: string; scheduled_offset_days: number; platform: string; type: string }[] }> {
         
         const { guidelines, purchaseUrl } = await this.getWorkspaceContext(workspaceId);
 
-        const prompt = `Create a 7-day conversion plan for: "${campaignName}" (${campaignDescription}). 
-        Include purchase link: ${purchaseUrl || '[Link]'}. 
-        Return JSON: {"posts": [{"content": "...", "scheduled_offset_days": 1, "platform": "twitter"}]}`;
+        const prompt = `
+            Create a strategic ${days}-day social media "Magic Plan" for the following:
+            Topic/Campaign: "${campaignName}"
+            Description: "${campaignDescription}"
+            
+            Strategy Guidelines:
+            - Create exactly ${days} posts.
+            - Sequence them logically to build momentum.
+            - Include Educational, Engagement, Promotional, and Behind-the-scenes content.
+            - If promotional, naturally mention this link: ${purchaseUrl || '[Link]'}.
+            
+            Platform Mix: Use a variety of platforms (twitter, linkedin, instagram, facebook).
+            Brand Guidelines: ${guidelines || 'Professional and engaging'}
+            
+            Return JSON: 
+            {
+                "posts": [
+                    {
+                        "content": "...", 
+                        "scheduled_offset_days": 1, 
+                        "platform": "twitter",
+                        "type": "Educational"
+                    }
+                ]
+            }
+        `;
+
+        const result = await getAI().models.generateContent({
+            model: 'gemini-1.5-flash',
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: { systemInstruction: 'You are a master digital marketer and social media strategist.', responseMimeType: 'application/json' }
+        });
+
+        await db.query('UPDATE users SET ai_credits = ai_credits - 7 WHERE id = $1', [userId]);
+        const resultText = result.text || '{}';
+        return JSON.parse(resultText.replace(/```json\n?|\n?```/g, '').trim());
+    }
+
+    static async generateReply(
+        userId: string,
+        workspaceId: string | undefined,
+        messageContent: string,
+        platform: string
+    ): Promise<{ content: string }> {
+        const { guidelines, purchaseUrl } = await this.getWorkspaceContext(workspaceId);
+
+        const prompt = `
+            Draft a helpful and engaging reply to this ${platform} message:
+            Message: "${messageContent}"
+            
+            Guidelines:
+            - Professional yet friendly tone.
+            - If relevant, naturally mention this link: ${purchaseUrl || '[Link]'}.
+            - Keep it concise (under 280 chars if Twitter).
+            
+            Return JSON: {"content": "..."}
+        `;
 
         const result = await getAI().models.generateContent({
             model: 'gemini-1.5-flash',
@@ -116,7 +171,7 @@ export class AIService {
             config: { systemInstruction: guidelines, responseMimeType: 'application/json' }
         });
 
-        await db.query('UPDATE users SET ai_credits = ai_credits - 7 WHERE id = $1', [userId]);
+        await db.query('UPDATE users SET ai_credits = ai_credits - 1 WHERE id = $1', [userId]);
         const resultText = result.text || '{}';
         return JSON.parse(resultText.replace(/```json\n?|\n?```/g, '').trim());
     }
@@ -200,32 +255,130 @@ export class AIService {
 
     static async generateImage(userId: string, prompt: string, size: string = '1024x1024'): Promise<string> {
         const user = await db.query('SELECT ai_credits FROM users WHERE id = $1', [userId]);
-        if (user.rows[0].ai_credits <= 0) throw new Error('Insufficient AI credits.');
+        if (!user.rows[0] || user.rows[0].ai_credits <= 0) {
+            throw new Error('Insufficient AI credits. Please upgrade your plan.');
+        }
 
         const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) throw new Error('GEMINI_API_KEY missing');
+        if (!apiKey) throw new Error('GEMINI_API_KEY missing in environment variables');
 
-        // Imagen 4.0 via Direct REST API
+        // Imagen 3.0 via Direct REST API
         try {
+            console.log(`[AIService] Attempting image generation for user ${userId}. Prompt: "${prompt}"`);
+            
+            // Note: imagen-3.0-generate-001 is the standard, but some projects use imagen-3.0-alpha-generate-001
+            const modelId = 'imagen-3.0-generate-001';
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict?key=${apiKey}`;
+
             const response = await axios.post(
-                `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`,
+                url,
                 {
                     instances: [{ prompt }],
-                    parameters: { sampleCount: 1 }
+                    parameters: { 
+                        sampleCount: 1,
+                        // aspect_ratio: size === '1024x1024' ? '1:1' : '3:4' // Imagen supports ratios now
+                    }
                 },
-                { headers: { 'Content-Type': 'application/json' } }
+                { 
+                    headers: { 'Content-Type': 'application/json' },
+                    timeout: 30000 // 30s timeout for image generation
+                }
             );
 
             const base64Image = response.data.predictions?.[0]?.bytesBase64Encoded;
-            if (!base64Image) throw new Error('Generation failed.');
+            
+            if (!base64Image) {
+                console.error('[AIService] Imagen API success but no image data. Response:', JSON.stringify(response.data));
+                throw new Error('The AI service returned a success response but no image was generated. This can happen if the prompt violates safety guidelines.');
+            }
 
+            // Successfully generated - deduct 2 credits for image generation
             await db.query('UPDATE users SET ai_credits = ai_credits - 2 WHERE id = $1', [userId]);
+            console.log(`[AIService] Image generated successfully for user ${userId}`);
+            
             return `data:image/png;base64,${base64Image}`;
 
         } catch (err: any) {
-            console.error('[AIService] Imagen error:', err.response?.data || err.message);
-            if (err.response?.status === 403) throw new Error('Imagen 4.0 access denied. Check Google AI Studio.');
-            throw new Error('Image generation failed.');
+            const status = err.response?.status;
+            const errorBody = err.response?.data;
+            
+            console.error(`[AIService] Imagen API Error [${status || 'No Status'}]:`, JSON.stringify(errorBody || err.message));
+            
+            if (status === 403) {
+                throw new Error('Access Denied: Please ensure the "Generative Language API" and "Imagen API" are enabled in your Google AI Studio project and that your API key has the correct permissions.');
+            }
+            
+            if (status === 404) {
+                throw new Error('Model Not Found: The specified Imagen model is not available for this API key. Try checking your Google AI Studio settings.');
+            }
+
+            if (status === 429) {
+                throw new Error('Quota Exceeded: You have reached the rate limit for image generation. Please try again in a few minutes.');
+            }
+            
+            if (errorBody?.error?.message) {
+                throw new Error(`AI Service Error: ${errorBody.error.message}`);
+            }
+
+            throw new Error(`Image generation failed: ${err.message || 'Unknown error'}`);
         }
+    }
+
+    static async generateProductPost(
+        userId: string,
+        workspaceId: string | undefined,
+        productData: { title: string; description: string; price: number; currency: string; productUrl: string },
+        platform: string,
+        tone: string = 'promotional'
+    ): Promise<{ content: string; hashtags: string[] }> {
+        const { guidelines, purchaseUrl } = await this.getWorkspaceContext(workspaceId);
+
+        const prompt = `
+            Create a highly converting ${tone} social media post for ${platform} promoting this product:
+            Title: ${productData.title}
+            Description: ${productData.description}
+            Price: ${productData.currency} ${productData.price}
+            Product Link: ${productData.productUrl}
+            
+            Strategy: Use the PAIN-AGITATE-SOLVE framework. Mention the benefits, the price, and include a clear call to action using the product link.
+            
+            Return a JSON object: {"content": "...", "hashtags": ["...", "..."]}
+        `;
+
+        const systemInstruction = `You are an expert e-commerce copywriter. 
+        MANDATORY: Use this direct product link: ${productData.productUrl}.
+        ${guidelines ? `BRAND GUIDELINES: ${guidelines}` : ''}
+        Return only JSON.`;
+
+        const result = await getAI().models.generateContent({
+            model: 'gemini-1.5-flash',
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: { systemInstruction, responseMimeType: 'application/json' }
+        });
+
+        await db.query('UPDATE users SET ai_credits = ai_credits - 1 WHERE id = $1', [userId]);
+        const resultText = result.text || '{}';
+        return JSON.parse(resultText.replace(/```json\n?|\n?```/g, '').trim());
+    }
+
+    static async generateAnalyticsInsights(metrics: any[]): Promise<string> {
+        const statsStr = metrics.map(m => `${m.platform}: ${m.impressions} impr, ${m.engagements} eng, ${m.er.toFixed(2)}% ER`).join('\n');
+        
+        const prompt = `
+            Analyze these social media performance metrics for the last 30 days:
+            ${statsStr}
+            
+            Provide 3 brief, actionable strategic insights to improve performance. 
+            Keep them professional, high-converting, and specific to the data.
+            Return as a concise markdown list.
+        `;
+
+        const result = await getAI().models.generateContent({
+            model: 'gemini-1.5-flash',
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: { systemInstruction: 'You are a master social media growth analyst.' }
+        });
+
+        return result.text || 'Keep posting high-quality content to grow your audience!';
     }
 }

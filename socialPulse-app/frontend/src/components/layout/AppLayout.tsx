@@ -7,6 +7,7 @@ import {
     LayoutDashboard, PenSquare, Calendar, BarChart3, Settings,
     LogOut, Menu, X, HardDrive, CreditCard, Megaphone, Hash, FileText,
     Sparkles, Paintbrush, Rss, Radio, Inbox, Gift, Key, Building2,
+    ShoppingBag,
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { WorkspaceSwitcher } from '../common/WorkspaceSwitcher';
@@ -21,6 +22,7 @@ const navSections = [
             { path: '/scheduler',  icon: Calendar,        label: 'Scheduler' },
             { path: '/analytics',  icon: BarChart3,       label: 'Analytics' },
             { path: '/campaigns',  icon: Megaphone,       label: 'Campaigns' },
+            { path: '/magic-plan', icon: Sparkles,        label: 'Magic Plan' },
         ],
     },
     {
@@ -31,6 +33,7 @@ const navSections = [
             { path: '/templates',     icon: FileText,    label: 'Templates' },
             { path: '/image-gen',     icon: Sparkles,    label: 'Image Generator' },
             { path: '/image-editor',  icon: Paintbrush,  label: 'Image Editor' },
+            { path: '/ecommerce',     icon: ShoppingBag, label: 'E-commerce' },
         ],
     },
     {
@@ -90,23 +93,23 @@ const AppLayout: React.FC = () => {
             >
                 {/* Logo */}
                 <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                    {sidebarOpen && (
-                        <div className="flex items-center gap-2">
-                            <img
-                                src={brand.brandLogoUrl ?? '/logo.png'}
-                                alt="SocialPulse"
-                                className="h-8 w-auto object-contain"
-                            />
-                            <span className="text-xl font-bold bg-linear-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                        <img
+                            src={brand.brandLogoUrl ?? '/logo.png'}
+                            alt="SocialPulse"
+                            className="h-8 w-8 object-contain shrink-0 rounded-lg"
+                        />
+                        {sidebarOpen && (
+                            <span className="text-xl font-bold bg-brand bg-clip-text text-transparent truncate">
                                 {brand.brandName ?? 'Social Pulse'}
                             </span>
-                        </div>
-                    )}
+                        )}
+                    </div>
                     <button
                         onClick={() => setSidebarOpen(!sidebarOpen)}
-                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors shrink-0"
                     >
-                        {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                        {sidebarOpen ? <X className="w-4 h-4 text-gray-400" /> : <Menu className="w-5 h-5 text-gray-500" />}
                     </button>
                 </div>
 
@@ -115,17 +118,17 @@ const AppLayout: React.FC = () => {
                     <div className="mx-4 mt-4 p-3 bg-linear-to-r from-purple-50 to-blue-50 rounded-xl border border-purple-100">
                         <div className="flex items-center justify-between">
                             <span className="text-sm font-medium text-gray-700">AI Credits</span>
-                            <span className="text-sm font-bold text-purple-600">
+                            <span className="text-sm font-bold text-brand">
                                 {user?.aiCredits || 0}
                             </span>
                         </div>
                         <div className="mt-2 bg-white rounded-full h-2">
                             <div
-                                className="bg-linear-to-r from-purple-600 to-blue-600 h-2 rounded-full"
+                                className="bg-brand h-2 rounded-full"
                                 style={{ width: `${Math.min((user?.aiCredits || 0) / 100 * 100, 100)}%` }}
                             />
                         </div>
-                        <button className="mt-2 text-xs text-purple-600 font-medium hover:underline">
+                        <button className="mt-2 text-xs text-brand font-medium hover:underline">
                             Get more credits →
                         </button>
                     </div>
@@ -148,7 +151,7 @@ const AppLayout: React.FC = () => {
                                         className={({ isActive }) =>
                                             `flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 group ${
                                                 isActive
-                                                    ? 'bg-linear-to-r from-purple-600 to-blue-600 text-white shadow-sm shadow-purple-200'
+                                                    ? 'bg-brand text-white shadow-sm'
                                                     : 'text-gray-600 hover:bg-gray-100'
                                             }`
                                         }
@@ -203,7 +206,7 @@ const AppLayout: React.FC = () => {
                         <NotificationBell />
                         <button
                             onClick={() => navigate('/studio')}
-                            className="flex items-center gap-2 px-4 py-2 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity"
+                            className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl font-medium hover:opacity-90 transition-opacity"
                         >
                             <PenSquare className="w-4 h-4" />
                             Create Post

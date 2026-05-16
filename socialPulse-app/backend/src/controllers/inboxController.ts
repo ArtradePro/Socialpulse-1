@@ -9,8 +9,8 @@ export const listMessages = async (req: Request, res: Response): Promise<void> =
         const unreadOnly = req.query.unread === 'true';
         const platform   = req.query.platform as string | undefined;
 
-        let where = 'WHERE user_id = $1';
-        const params: unknown[] = [req.user!.userId];
+        let where = 'WHERE user_id = $1 AND (workspace_id = $2 OR $2 IS NULL)';
+        const params: unknown[] = [req.user!.userId, (req as any).workspaceId || null];
         if (unreadOnly) where += ' AND is_read = false';
         if (platform)   { where += ` AND platform = $${params.length + 1}`; params.push(platform); }
 
@@ -22,8 +22,8 @@ export const listMessages = async (req: Request, res: Response): Promise<void> =
         );
 
         const { rows: counts } = await db.query(
-            'SELECT COUNT(*) FROM inbox_messages WHERE user_id = $1 AND is_read = false',
-            [req.user!.userId]
+            'SELECT COUNT(*) FROM inbox_messages WHERE user_id = $1 AND (workspace_id = $2 OR $2 IS NULL) AND is_read = false',
+            [req.user!.userId, (req as any).workspaceId || null]
         );
 
         res.json({ messages: rows, unreadCount: parseInt(counts[0].count) });
@@ -37,8 +37,8 @@ export const markRead = async (req: Request, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
         await db.query(
-            'UPDATE inbox_messages SET is_read = true WHERE id = $1 AND user_id = $2',
-            [id, req.user!.userId]
+            'UPDATE inbox_messages SET is_read = true WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)',
+            [id, req.user!.userId, (req as any).workspaceId || null]
         );
         res.status(204).send();
     } catch (err) {
@@ -50,8 +50,8 @@ export const markRead = async (req: Request, res: Response): Promise<void> => {
 export const markAllRead = async (req: Request, res: Response): Promise<void> => {
     try {
         await db.query(
-            'UPDATE inbox_messages SET is_read = true WHERE user_id = $1',
-            [req.user!.userId]
+            'UPDATE inbox_messages SET is_read = true WHERE user_id = $1 AND (workspace_id = $2 OR $2 IS NULL)',
+            [req.user!.userId, (req as any).workspaceId || null]
         );
         res.status(204).send();
     } catch (err) {
@@ -62,7 +62,7 @@ export const markAllRead = async (req: Request, res: Response): Promise<void> =>
 
 export const syncInbox = async (req: Request, res: Response): Promise<void> => {
     try {
-        const count = await fetchMentionsForUser(req.user!.userId);
+        const count = await fetchMentionsForUser(req.user!.userId, (req as any).workspaceId);
         res.json({ message: `Synced ${count} new messages`, newMessages: count });
     } catch (err) {
         console.error('[Inbox] syncInbox error:', err);
@@ -72,12 +72,13 @@ export const syncInbox = async (req: Request, res: Response): Promise<void> => {
 
 // ─── Shared fetch logic ──────────────────────────────────────────────────────
 
-export async function fetchMentionsForUser(userId: string): Promise<number> {
+export async function fetchMentionsForUser(userId: string, workspaceId?: string): Promise<number> {
     let count = 0;
-
+ 
     const { rows: accounts } = await db.query(
-        `SELECT * FROM social_accounts WHERE user_id = $1 AND is_active = true`,
-        [userId]
+        `SELECT * FROM social_accounts 
+         WHERE user_id = $1 AND (workspace_id = $2 OR $2 IS NULL) AND is_active = true`,
+        [userId, workspaceId || null]
     );
 
     for (const account of accounts) {
@@ -92,10 +93,22 @@ export async function fetchMentionsForUser(userId: string): Promise<number> {
                     const url = `https://twitter.com/i/web/status/${m.id}`;
                     const { rowCount } = await db.query(
                         `INSERT INTO inbox_messages
-                            (user_id, platform, type, external_id, content, url, published_at)
-                         VALUES ($1, 'twitter', 'mention', $2, $3, $4, $5)
+                            (user_id, workspace_id, platform, type, external_id, content, url, published_at,
+                             author_name, author_handle, author_avatar)
+                         VALUES ($1, $2, $3, 'mention', $4, $5, $6, $7, $8, $9, $10)
                          ON CONFLICT (user_id, platform, external_id) DO NOTHING`,
-                        [userId, m.id, m.text, url, m.created_at ? new Date(m.created_at) : new Date()]
+                        [
+                            userId, 
+                            workspaceId || null, 
+                            account.platform, 
+                            m.id, 
+                            m.text, 
+                            url, 
+                            m.created_at ? new Date(m.created_at) : new Date(),
+                            m.author_name || null,
+                            m.author_handle || null,
+                            m.author_avatar || null
+                        ]
                     );
                     if ((rowCount ?? 0) > 0) count++;
                 }

@@ -4,6 +4,7 @@ import { Button } from '../common/Button';
 import { Trash2, Link as LinkIcon, CheckCircle2 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import { PlatformIcon } from '../common/BrandIcons';
 
 export const QueueManager = () => {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -39,10 +40,15 @@ export const QueueManager = () => {
             <ul className="divide-y divide-gray-100">
                 {schedules.map(s => (
                     <li key={s.id} className="flex items-center justify-between px-6 py-4">
-                        <div className="flex-1">
-                            <p className="text-sm font-medium capitalize text-gray-800">{s.platform}</p>
-                            <p className="text-xs text-gray-400">{new Date(s.scheduled_at).toLocaleString()}</p>
-                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium mt-1 ${
+                        <div className="flex-1 flex items-center gap-3">
+                            <PlatformIcon platform={s.platform} size={20} className="text-gray-500" />
+                            <div>
+                                <p className="text-sm font-medium capitalize text-gray-800">{s.platform}</p>
+                                <p className="text-xs text-gray-400">{new Date(s.scheduled_at).toLocaleString()}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${
                                 s.status === 'published' ? 'bg-green-100 text-green-700' :
                                 s.status === 'failed' ? 'bg-red-100 text-red-700' :
                                 s.status === 'processing' ? 'bg-yellow-100 text-yellow-700' :

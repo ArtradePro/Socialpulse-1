@@ -10,7 +10,7 @@ function generateCode(): string {
 
 export const getMyReferral = async (req: Request, res: Response): Promise<void> => {
     try {
-        const userId = req.user!.userId;
+        const userId = (req.user as any)!.userId;
 
         // Ensure user has a referral code
         let { rows } = await db.query(

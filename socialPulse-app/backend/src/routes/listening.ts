@@ -4,10 +4,12 @@ import {
     listRules, createRule, deleteRule, toggleRule,
     getResults, fetchRuleNow,
 } from '../controllers/listeningController';
+import { resolveWorkspace } from '../middleware/workspace.middleware';
 
 const router = Router();
 
 router.use(authenticate);
+router.use(resolveWorkspace);
 router.get('/rules',           listRules);
 router.post('/rules',          createRule);
 router.delete('/rules/:id',    deleteRule);
