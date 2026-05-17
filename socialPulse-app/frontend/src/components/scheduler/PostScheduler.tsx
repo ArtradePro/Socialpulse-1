@@ -3,7 +3,7 @@ import { usePosts } from '../../hooks/usePosts';
 import { socialService } from '../../services/socialService';
 import { Button } from '../common/Button';
 import { PlatformIcon } from '../common/BrandIcons';
-import { Clock, Calendar, Send, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Clock, Calendar, Send, Sparkles, CheckCircle2, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const PLATFORMS = ['twitter', 'instagram', 'linkedin', 'facebook'];

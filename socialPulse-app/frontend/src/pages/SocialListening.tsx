@@ -26,6 +26,7 @@ interface Result {
     external_id:  string;
     author_name:  string | null;
     author_handle:string | null;
+    author_avatar:string | null;
     content:      string | null;
     url:          string | null;
     likes:        number;

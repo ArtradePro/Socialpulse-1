@@ -60,7 +60,7 @@ export const AIInsightsCard: React.FC = () => {
                                     <div key={idx} className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 hover:bg-white/20 transition-all cursor-default group">
                                         <div className="flex items-start gap-3">
                                             <div className="mt-0.5 text-amber-300 group-hover:scale-110 transition-transform">
-                                                {React.cloneElement(icons[idx % icons.length] as React.ReactElement, { size: 16 })}
+                                                {React.cloneElement(icons[idx % icons.length] as React.ReactElement<any>, { size: 16 })}
                                             </div>
                                             <p className="text-xs font-medium leading-relaxed text-indigo-50">
                                                 {insight.replace(/^- /, '')}
