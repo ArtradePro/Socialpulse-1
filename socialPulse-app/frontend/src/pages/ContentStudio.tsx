@@ -13,6 +13,7 @@ import MediaPicker from '../components/media/MediaPicker';
 import { MediaFile } from '../services/media.service';
 import { ProductPicker } from '../components/ecommerce/ProductPicker';
 import { useBrand } from '../contexts/BrandContext';
+import { PostPreview } from '../components/studio/PostPreview';
 
 const platforms = [
     { id: 'twitter',   label: 'X (Twitter)', icon: 'twitter',   gradient: 'bg-x-gradient',         limit: 280 },
@@ -544,32 +545,30 @@ export const ContentStudio: React.FC = () => {
                                 </div>
                             )}
                         </h3>
-                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 min-h-32">
+                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 min-h-32 flex flex-col gap-6 max-h-[800px] overflow-y-auto">
                             {content || mediaUrls.length > 0 ? (
-                                <div>
-                                    <div className='flex items-center gap-2 mb-3'>
-                                        <img 
-                                            src={brand.brandLogoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(brand.brandName || 'S')}&background=7C3AED&color=fff`} 
-                                            alt="" 
-                                            className='w-8 h-8 rounded-full border border-gray-200 object-contain bg-white shrink-0' 
+                                selectedPlatforms.length > 0 ? (
+                                    selectedPlatforms.map(platform => (
+                                        <PostPreview 
+                                            key={platform}
+                                            platform={platform}
+                                            content={content}
+                                            hashtags={hashtags}
+                                            mediaUrls={mediaUrls}
+                                            brandName={brand.brandName || 'SocialPulse Identity'}
+                                            brandLogoUrl={brand.brandLogoUrl || ''}
                                         />
-                                        <div className="min-w-0">
-                                            <p className='text-xs font-bold text-gray-900 truncate'>{brand.brandName || 'SocialPulse Identity'}</p>
-                                            <p className='text-[10px] text-gray-500'>@{brand.brandName?.toLowerCase().replace(/\s/g, '') || 'username'}</p>
-                                        </div>
-                                    </div>
-                                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{content}</p>
-                                    {hashtags.length > 0 && (
-                                        <p className="text-sm text-blue-500 mt-2">{hashtags.map(h => `#${h}`).join(' ')}</p>
-                                    )}
-                                    {mediaUrls.length > 0 && (
-                                        <div className="mt-3 grid grid-cols-1 gap-2">
-                                            {mediaUrls.map((url, idx) => (
-                                                <img key={idx} src={url} alt="" className="rounded-lg w-full object-cover max-h-64 shadow-sm" />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
+                                    ))
+                                ) : (
+                                    <PostPreview 
+                                        platform="twitter"
+                                        content={content}
+                                        hashtags={hashtags}
+                                        mediaUrls={mediaUrls}
+                                        brandName={brand.brandName || 'SocialPulse Identity'}
+                                        brandLogoUrl={brand.brandLogoUrl || ''}
+                                    />
+                                )
                             ) : (
                                 <div className="flex flex-col items-center justify-center py-8 text-gray-400">
                                     <Sparkles className="w-8 h-8 mb-2 opacity-20" />

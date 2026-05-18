@@ -362,7 +362,7 @@ export const Workspaces: React.FC = () => {
                                                 onChange={e => setBrandLogoUrl(e.target.value)}
                                                 placeholder="https://cdn.example.com/logo.png"
                                                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                                            {brandLogoUrl && <img src={brandLogoUrl} alt="Preview" className="mt-2 h-10 object-contain rounded" />}
+                                            {brandLogoUrl && <img src={brandLogoUrl} alt="Preview" className="mt-2 h-10 w-10 object-cover aspect-square rounded" />}
                                         </div>
 
                                         <div>

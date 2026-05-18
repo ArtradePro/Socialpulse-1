@@ -97,7 +97,7 @@ const AppLayout: React.FC = () => {
                         <img
                             src={brand.brandLogoUrl ?? '/logo.png'}
                             alt="SocialPulse"
-                            className="h-8 w-8 object-contain shrink-0 rounded-lg"
+                            className="h-8 w-8 object-cover aspect-square shrink-0 rounded-lg"
                         />
                         {sidebarOpen && (
                             <span className="text-xl font-bold bg-brand bg-clip-text text-transparent truncate">
