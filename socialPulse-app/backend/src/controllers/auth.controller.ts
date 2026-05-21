@@ -16,7 +16,11 @@ export const register = async (req: Request, res: Response) => {
         );
 
         if (existingUser.rows.length > 0) {
-            return res.status(400).json({ message: 'Email already registered' });
+            return res.status(409).json({ message: 'Email already registered' });
+        }
+
+        if (!password) {
+            return res.status(400).json({ message: 'Password is required' });
         }
 
         const passwordHash = await bcrypt.hash(password, 12);

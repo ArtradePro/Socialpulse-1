@@ -135,13 +135,22 @@ export const updateWorkspace = async (req: Request, res: Response): Promise<void
 // ─── Delete workspace ─────────────────────────────────────────────────────────
 
 export const deleteWorkspace = async (req: Request, res: Response): Promise<void> => {
-    const wid  = assertMembership(req, res); if (!wid) return;
-    const role = (req as any).workspaceRole as string;
-    if (role !== 'owner') { res.status(403).json({ message: 'Owner only' }); return; }
+    const { id } = req.params;
+    const userId = req.user!.userId;
 
     try {
-        await db.query('DELETE FROM workspaces WHERE id = $1', [wid]);
-        res.status(204).send();
+        const { rows: wsRows } = await db.query('SELECT id FROM workspaces WHERE id = $1', [id]);
+        if (wsRows.length === 0) { res.status(404).json({ message: 'Workspace not found' }); return; }
+
+        const { rows: memberRows } = await db.query(
+            'SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2',
+            [id, userId]
+        );
+        if (memberRows.length === 0) { res.status(403).json({ message: 'Forbidden' }); return; }
+        if (memberRows[0].role !== 'owner') { res.status(403).json({ message: 'Owner only' }); return; }
+
+        await db.query('DELETE FROM workspaces WHERE id = $1', [id]);
+        res.status(200).json({ message: 'Workspace deleted' });
     } catch (err) {
         console.error('[Workspaces] deleteWorkspace:', err);
         res.status(500).json({ message: 'Server error' });

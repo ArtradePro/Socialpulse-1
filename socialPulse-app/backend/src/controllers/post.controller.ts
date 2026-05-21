@@ -19,6 +19,11 @@ export const createPost = async (req: Request, res: Response) => {
         const userId = req.user!.userId;
         const status = scheduledAt ? 'scheduled' : 'draft';
 
+        if (!content || !String(content).trim()) {
+            res.status(400).json({ message: 'Content is required' });
+            return;
+        }
+
         // Upload any attached files to cloud storage; fall back to URLs sent in body
         let mediaUrls: string[] = req.body.mediaUrls ? JSON.parse(req.body.mediaUrls) : [];
         if (req.files && Array.isArray(req.files) && req.files.length > 0) {
@@ -147,14 +152,26 @@ export const updatePost = async (req: Request, res: Response) => {
             return;
         }
 
+        const mediaUrlsJson = mediaUrls !== undefined ? JSON.stringify(mediaUrls) : undefined;
+
         const result = await db.query(
             `UPDATE posts
-             SET content = $1, platforms = $2, scheduled_at = $3,
-                 hashtags = $4, media_urls = $5, updated_at = NOW()
+             SET content = COALESCE($1, content),
+                 platforms = COALESCE($2, platforms),
+                 scheduled_at = COALESCE($3, scheduled_at),
+                 hashtags = COALESCE($4, hashtags),
+                 media_urls = COALESCE($5, media_urls),
+                 updated_at = NOW()
              WHERE id = $6 AND user_id = $7 AND (workspace_id = $8 OR $8 IS NULL)
              RETURNING *`,
-            [content, platforms, scheduledAt, hashtags, JSON.stringify(mediaUrls || []), id, req.user!.userId, req.workspaceId || null]
+            [content ?? null, platforms ?? null, scheduledAt ?? null, hashtags ?? null,
+             mediaUrlsJson ?? null, id, req.user!.userId, req.workspaceId || null]
         );
+
+        if (!result.rows[0]) {
+            res.status(404).json({ message: 'Post not found' });
+            return;
+        }
 
         res.json(result.rows[0]);
     } catch (error) {
@@ -166,10 +183,17 @@ export const deletePost = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
 
-        await db.query(
-            'DELETE FROM posts WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)',
-            [id, req.user!.userId, req.workspaceId || null]
-        );
+        const check = await db.query('SELECT user_id FROM posts WHERE id = $1', [id]);
+        if (!check.rows[0]) {
+            res.status(404).json({ message: 'Post not found' });
+            return;
+        }
+        if (check.rows[0].user_id !== req.user!.userId) {
+            res.status(403).json({ message: 'Forbidden' });
+            return;
+        }
+
+        await db.query('DELETE FROM posts WHERE id = $1', [id]);
 
         res.json({ message: 'Post deleted successfully' });
     } catch (error) {

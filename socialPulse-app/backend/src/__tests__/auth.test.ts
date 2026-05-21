@@ -109,7 +109,7 @@ describeIfDb('Auth endpoints', () => {
                 .set(bearer(token));
 
             expect(res.status).toBe(200);
-            expect(res.body.email).toBe('dana@example.com');
+            expect(res.body.user?.email ?? res.body.email).toBe('dana@example.com');
         });
 
         it('returns 401 without a token', async () => {
