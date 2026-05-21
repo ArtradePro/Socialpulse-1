@@ -4,9 +4,14 @@ import { pool } from './database';
 import { v4 as uuidv4 } from 'uuid';
 
 export const configurePassport = () => {
+    // Skip Google strategy if credentials are not configured (e.g. CI environment)
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+        return;
+    }
+
     passport.use(new GoogleStrategy({
-        clientID: process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        clientID: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
         callbackURL: process.env.GOOGLE_CALLBACK_URL!,
         passReqToCallback: true
     }, async (req, accessToken, refreshToken, profile, done) => {
