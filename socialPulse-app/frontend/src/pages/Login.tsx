@@ -64,7 +64,7 @@ export const Login = () => {
 
             <div className="mt-6">
               <a
-                href="http://localhost:5000/api/auth/google"
+                href={`${(import.meta.env.VITE_API_URL as string | undefined) ?? '/api'}/auth/google`}
                 className="w-full flex justify-center items-center gap-3 px-4 py-2 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
               >
                 <svg className="h-5 w-5" viewBox="0 0 24 24">

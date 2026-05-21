@@ -26,10 +26,11 @@ export const useBrand = (): Brand => useContext(BrandContext);
  */
 export const BrandProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { activeId } = useAppSelector(s => s.workspace);
+    const { accessToken } = useAppSelector(s => s.auth);
     const [brand, setBrand] = useState<Brand>(DEFAULT_BRAND);
 
     useEffect(() => {
-        if (!activeId) { setBrand(DEFAULT_BRAND); return; }
+        if (!activeId || !accessToken) { setBrand(DEFAULT_BRAND); return; }
         let cancelled = false;
 
         api.get(`/workspaces/${activeId}`, {

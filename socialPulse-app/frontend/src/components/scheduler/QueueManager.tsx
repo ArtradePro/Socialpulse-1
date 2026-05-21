@@ -41,7 +41,7 @@ export const QueueManager = () => {
                 {schedules.map(s => (
                     <li key={s.id} className="flex items-center justify-between px-6 py-4">
                         <div className="flex-1 flex items-center gap-3">
-                            <PlatformIcon platform={s.platform} size={20} className="text-gray-500" />
+                            <PlatformIcon platform={s.platform} size={24} />
                             <div>
                                 <p className="text-sm font-medium capitalize text-gray-800">{s.platform}</p>
                                 <p className="text-xs text-gray-400">{new Date(s.scheduled_at).toLocaleString()}</p>

@@ -505,27 +505,22 @@ export const ContentStudio: React.FC = () => {
                     <div className='bg-white rounded-2xl border border-gray-100 shadow-sm p-4'>
                         <h3 className='text-sm font-semibold text-gray-900 mb-3'>Publish To</h3>
                         <div className='space-y-2'>
-                            {platforms.map(({ id, label, gradient }) => (
+                            {platforms.map(({ id, label }) => (
                                 <button 
                                     key={id} 
                                     onClick={() => togglePlatform(id)}
                                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition-all relative overflow-hidden group ${
                                          selectedPlatforms.includes(id) 
-                                             ? `border-transparent shadow-lg scale-[1.02]` 
+                                             ? 'border-indigo-200 bg-indigo-50 shadow-md scale-[1.02]' 
                                              : 'border-gray-100 hover:border-gray-200'
                                      }`}
                                 >
-                                     {selectedPlatforms.includes(id) && (
-                                         <div className={`absolute inset-0 ${gradient} opacity-10`} />
-                                     )}
-                                     <div className={`p-2 rounded-lg transition-colors relative z-10 ${
-                                         selectedPlatforms.includes(id) ? `${gradient} text-white` : 'bg-gray-100 text-gray-400 group-hover:text-gray-600'
-                                     }`}>
-                                         <PlatformIcon platform={id} size={20} />
+                                     <div className="relative z-10 flex-shrink-0">
+                                         <PlatformIcon platform={id} size={28} />
                                      </div>
                                      <span className={`text-sm font-bold relative z-10 ${selectedPlatforms.includes(id) ? 'text-gray-900' : 'text-gray-700'}`}>{label}</span>
                                      {selectedPlatforms.includes(id) && (
-                                         <div className={`ml-auto w-5 h-5 ${gradient} rounded-full flex items-center justify-center shadow-md relative z-10`}>
+                                         <div className="ml-auto w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center shadow-md relative z-10">
                                              <CheckCircle2 className='text-white w-3.5 h-3.5' />
                                          </div>
                                      )}

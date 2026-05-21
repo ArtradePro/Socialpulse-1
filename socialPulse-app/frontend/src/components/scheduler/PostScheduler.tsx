@@ -69,12 +69,12 @@ export const PostScheduler = () => {
                 onClick={() => setPlatform(p)}
                 className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all group ${
                   platform === p 
-                    ? `border-transparent bg-${p === 'twitter' ? 'x' : p}-gradient shadow-lg scale-[1.02]` 
+                    ? 'border-indigo-200 bg-indigo-50 shadow-lg scale-[1.02]' 
                     : 'border-gray-50 bg-gray-50 hover:border-gray-200'
                 }`}
               >
-                <PlatformIcon platform={p} size={20} className={platform === p ? 'text-white' : ''} />
-                <span className={`text-[10px] font-black uppercase transition-colors ${platform === p ? 'text-white' : 'text-gray-400'}`}>{p}</span>
+                <PlatformIcon platform={p} size={24} />
+                <span className={`text-[10px] font-black uppercase transition-colors ${platform === p ? 'text-indigo-600' : 'text-gray-400'}`}>{p}</span>
               </button>
             ))}
           </div>
