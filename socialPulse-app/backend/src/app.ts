@@ -61,9 +61,13 @@ app.use(cors({
     credentials: true,
 }));
 
-// Relaxed rate limit in test/dev environment
+// Relaxed rate limit in test/dev environment (1000 requests per 15 mins for SPAs)
 if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'development') {
-    app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+    app.use(rateLimit({ 
+        windowMs: 15 * 60 * 1000, 
+        max: 1000,
+        message: { error: 'Too many requests, please try again later.' }
+    }));
 }
 
 app.use(express.json({ limit: '10mb' }));
