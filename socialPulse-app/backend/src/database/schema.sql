@@ -436,6 +436,9 @@ ALTER TABLE media_files     ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCE
 ALTER TABLE campaigns       ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
 ALTER TABLE rss_feeds       ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
 ALTER TABLE listening_rules ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
+ALTER TABLE templates       ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
+ALTER TABLE hashtag_sets    ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
+ALTER TABLE inbox_messages  ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_posts_workspace    ON posts(workspace_id)           WHERE workspace_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sa_workspace       ON social_accounts(workspace_id) WHERE workspace_id IS NOT NULL;
@@ -443,6 +446,9 @@ CREATE INDEX IF NOT EXISTS idx_media_workspace    ON media_files(workspace_id)  
 CREATE INDEX IF NOT EXISTS idx_campaigns_workspace ON campaigns(workspace_id)      WHERE workspace_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_rss_workspace      ON rss_feeds(workspace_id)       WHERE workspace_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_listening_workspace ON listening_rules(workspace_id) WHERE workspace_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_templates_workspace ON templates(workspace_id)       WHERE workspace_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_hs_workspace        ON hashtag_sets(workspace_id)    WHERE workspace_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_im_workspace        ON inbox_messages(workspace_id)    WHERE workspace_id IS NOT NULL;
 
 -- ─── P3: URL Shortener ────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS short_links (
