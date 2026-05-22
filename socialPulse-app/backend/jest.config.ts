@@ -7,6 +7,7 @@ const config: Config = {
     testMatch: ['**/__tests__/**/*.test.ts'],
     globalSetup: './__tests__/globalSetup.ts',
     globalTeardown: './__tests__/globalTeardown.ts',
+    setupFiles: ['<rootDir>/__tests__/setup.ts'],
     testTimeout: 30000,
     collectCoverageFrom: [
         '**/*.ts',

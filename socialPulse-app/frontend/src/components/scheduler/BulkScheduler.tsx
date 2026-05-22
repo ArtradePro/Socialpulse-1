@@ -1,20 +1,17 @@
 // src/components/scheduler/BulkScheduler.tsx
 import React, { useState } from 'react';
 import { 
-    Plus, Trash2, Send, Loader2, AlertCircle, CheckCircle, 
-    Share2 as Twitter, 
-    Share2 as Instagram, 
-    Share2 as Linkedin, 
-    Share2 as Facebook 
+    Plus, Trash2, Send, Loader2, AlertCircle, CheckCircle
 } from "lucide-react";
+import { PlatformIcon } from '../common/BrandIcons';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 
 const PLATFORMS = [
-    { id: 'twitter',   Icon: Twitter,   color: 'text-sky-500' },
-    { id: 'instagram', Icon: Instagram, color: 'text-pink-600' },
-    { id: 'linkedin',  Icon: Linkedin,  color: 'text-blue-700' },
-    { id: 'facebook',  Icon: Facebook,  color: 'text-blue-600' },
+    { id: 'twitter',   label: 'X (Twitter)' },
+    { id: 'instagram', label: 'Instagram' },
+    { id: 'linkedin',  label: 'LinkedIn' },
+    { id: 'facebook',  label: 'Facebook' },
 ];
 
 interface BulkRow {
@@ -137,19 +134,19 @@ export const BulkScheduler: React.FC = () => {
                                 className="flex-1 min-w-0 resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                             />
 
-                            <div className="flex gap-1 flex-wrap shrink-0">
-                                {PLATFORMS.map(({ id, Icon, color }) => (
+                            <div className="flex gap-1.5 flex-wrap shrink-0">
+                                {PLATFORMS.map(({ id, label }) => (
                                     <button
                                         key={id}
                                         onClick={() => togglePlatform(row.id, id)}
-                                        title={id}
-                                        className={`p-2 rounded-lg border-2 transition-colors ${
+                                        title={label}
+                                        className={`p-1.5 rounded-xl border-2 transition-all hover:scale-[1.05] ${
                                             row.platforms.includes(id)
-                                                ? 'border-indigo-500 bg-indigo-50'
-                                                : 'border-gray-200 hover:border-gray-300'
+                                                ? 'border-indigo-500 bg-indigo-50 shadow-xs'
+                                                : 'border-gray-200 hover:border-gray-300 opacity-60 grayscale'
                                         }`}
                                     >
-                                        <Icon className={`w-4 h-4 ${row.platforms.includes(id) ? color : 'text-gray-400'}`} />
+                                        <PlatformIcon platform={id} size={20} />
                                     </button>
                                 ))}
                             </div>
