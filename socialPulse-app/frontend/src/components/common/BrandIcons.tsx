@@ -11,22 +11,22 @@ const imgIcon = (src: string, alt: string, size: number, className?: string) => 
 );
 
 export const TwitterXIcon: React.FC<IconProps> = ({ size = 24, className }) =>
-  imgIcon('/icons/platforms/twitter.jpeg?v=3', 'X (Twitter)', size, className);
+  imgIcon('/icons/platforms/twitter.jpeg?v=4', 'X (Twitter)', size, className);
 
 export const InstagramIcon: React.FC<IconProps> = ({ size = 24, className }) =>
-  imgIcon('/icons/platforms/instagram.jpeg?v=3', 'Instagram', size, className);
+  imgIcon('/icons/platforms/instagram.jpeg?v=4', 'Instagram', size, className);
 
 export const FacebookIcon: React.FC<IconProps> = ({ size = 24, className }) =>
-  imgIcon('/icons/platforms/facebook.jpeg?v=3', 'Facebook', size, className);
+  imgIcon('/icons/platforms/facebook.jpeg?v=4', 'Facebook', size, className);
 
 export const LinkedinIcon: React.FC<IconProps> = ({ size = 24, className }) =>
-  imgIcon('/icons/platforms/linkedin.jpeg?v=3', 'LinkedIn', size, className);
+  imgIcon('/icons/platforms/linkedin.jpeg?v=4', 'LinkedIn', size, className);
 
 export const TiktokIcon: React.FC<IconProps> = ({ size = 24, className }) =>
-  imgIcon('/icons/platforms/tiktok.jpeg?v=3', 'TikTok', size, className);
+  imgIcon('/icons/platforms/tiktok.jpeg?v=4', 'TikTok', size, className);
 
 export const YoutubeIcon: React.FC<IconProps> = ({ size = 24, className }) =>
-  imgIcon('/icons/platforms/youtube.jpeg?v=2', 'YouTube', size, className);
+  imgIcon('/icons/platforms/youtube.jpeg?v=4', 'YouTube', size, className);
 
 /** Pinterest — no image file provided, keep SVG badge */
 export const PinterestIcon: React.FC<IconProps> = ({ size = 24, className }) => (
