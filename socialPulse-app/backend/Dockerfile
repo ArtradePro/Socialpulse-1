@@ -1,5 +1,5 @@
 # Build stage
-# Trigger fresh deployment with validated SSH key
+# Trigger fresh deployment with decrypted SSH key - v2
 FROM node:22-slim AS builder
 
 WORKDIR /app
