@@ -1,4 +1,5 @@
 # Build stage
+# Trigger fresh deployment to pick up new secrets
 FROM node:22-slim AS builder
 
 WORKDIR /app
