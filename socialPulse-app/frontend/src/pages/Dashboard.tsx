@@ -19,32 +19,37 @@ interface StatsCardProps {
 }
 
 const StatsCard: React.FC<StatsCardProps> = ({ title, value, change, icon, color, chartData, strokeColor }) => (
-    <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col justify-between h-[180px]">
-        <div>
-            <div className='flex items-center justify-between mb-2'>
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color} bg-opacity-15`}>{icon}</div>
-                <div className={`flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-full ${change >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                    {change >= 0 ? <ArrowUpRight className='w-3.5 h-3.5' /> : <ArrowDownRight className='w-3.5 h-3.5' />}
+    <div className="relative pt-5 group select-none">
+        {/* Figma Frame Label */}
+        <div className="absolute top-0 left-0 text-[9px] font-extrabold text-white bg-gray-400 group-hover:bg-[#0C8CE9] px-1.5 py-0.5 rounded-t select-none z-10 transition-colors uppercase tracking-wider">
+            {title.replace(/\s+/g, '')}
+        </div>
+        <div className="bg-white rounded-r rounded-b p-5 border border-gray-200 group-hover:border-[#0C8CE9] transition-all flex flex-col justify-between h-[150px] shadow-xs">
+            <div className="flex items-start justify-between">
+                <div>
+                    <p className="text-2.5xl font-black text-gray-950 tracking-tight leading-none">{value}</p>
+                    <p className="text-[10px] font-bold text-gray-400 mt-1.5 uppercase tracking-wider">{title}</p>
+                </div>
+                <div className={`flex items-center gap-0.5 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${change >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                    {change >= 0 ? <ArrowUpRight className='w-3 h-3' /> : <ArrowDownRight className='w-3 h-3' />}
                     {Math.abs(change)}%
                 </div>
             </div>
-            <p className="text-2xl font-black text-gray-950 tracking-tight">{value}</p>
-            <p className="text-xs font-medium text-gray-400 mt-0.5">{title}</p>
-        </div>
-        
-        {/* Sparkline */}
-        <div className="h-10 w-full mt-2">
-            <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData && chartData.length > 0 ? chartData : [{ value: 0 }, { value: 0 }]}>
-                    <Line 
-                        type="monotone" 
-                        dataKey="value" 
-                        stroke={strokeColor} 
-                        strokeWidth={2} 
-                        dot={false} 
-                    />
-                </LineChart>
-            </ResponsiveContainer>
+            
+            {/* Sparkline */}
+            <div className="h-12 w-full mt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData && chartData.length > 0 ? chartData : [{ value: 0 }, { value: 0 }]}>
+                        <Line 
+                            type="monotone" 
+                            dataKey="value" 
+                            stroke={strokeColor} 
+                            strokeWidth={2} 
+                            dot={false} 
+                        />
+                    </LineChart>
+                </ResponsiveContainer>
+            </div>
         </div>
     </div>
 );
@@ -209,83 +214,104 @@ export const Dashboard: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Engagement This Week</h3>
-                    <ResponsiveContainer width="100%" height={220}>
-                        <LineChart data={dailyData.length > 0 ? dailyData : [{ day: '', likes: 0, comments: 0, shares: 0 }]}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                            <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-                            <YAxis tick={{ fontSize: 12 }} />
-                            <Tooltip />
-                            <Line type="monotone" dataKey="likes" stroke="#7C3AED" strokeWidth={2} dot={false} />
-                            <Line type="monotone" dataKey="comments" stroke="#2563EB" strokeWidth={2} dot={false} />
-                            <Line type="monotone" dataKey="shares" stroke="#EC4899" strokeWidth={2} dot={false} />
-                        </LineChart>
-                    </ResponsiveContainer>
-                    <div className="flex gap-4 mt-2">
-                        {[{ label: 'Likes', color: 'bg-purple-600' }, { label: 'Comments', color: 'bg-blue-600' }, { label: 'Shares', color: 'bg-pink-500' }].map(l => (
-                            <div key={l.label} className='flex items-center gap-2'>
-                                <div className={`w-3 h-3 rounded-full ${l.color}`} />
-                                <span className='text-xs text-gray-500'>{l.label}</span>
-                            </div>
-                        ))}
+                {/* Engagement Chart Frame */}
+                <div className="lg:col-span-2 relative pt-5 group">
+                    <div className="absolute top-0 left-0 text-[9px] font-extrabold text-white bg-gray-400 group-hover:bg-[#0C8CE9] px-1.5 py-0.5 rounded-t select-none z-10 transition-colors uppercase tracking-wider">
+                        Frame/EngagementChart
+                    </div>
+                    <div className="bg-white rounded-r rounded-b p-6 border border-gray-200 group-hover:border-[#0C8CE9] transition-all shadow-xs h-[320px] flex flex-col justify-between">
+                        <div>
+                            <h3 className="text-sm font-bold text-gray-900 mb-4 leading-none">Weekly Engagement Trend</h3>
+                            <ResponsiveContainer width="100%" height={200}>
+                                <LineChart data={dailyData.length > 0 ? dailyData : [{ day: '', likes: 0, comments: 0, shares: 0 }]}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                                    <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                                    <YAxis tick={{ fontSize: 11 }} />
+                                    <Tooltip />
+                                    <Line type="monotone" dataKey="likes" stroke="#7C3AED" strokeWidth={2.25} dot={false} />
+                                    <Line type="monotone" dataKey="comments" stroke="#2563EB" strokeWidth={2.25} dot={false} />
+                                    <Line type="monotone" dataKey="shares" stroke="#EC4899" strokeWidth={2.25} dot={false} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                        <div className="flex gap-4 mt-2">
+                            {[{ label: 'Likes', color: 'bg-purple-600' }, { label: 'Comments', color: 'bg-blue-600' }, { label: 'Shares', color: 'bg-pink-500' }].map(l => (
+                                <div key={l.label} className='flex items-center gap-2'>
+                                    <div className={`w-2.5 h-2.5 rounded-full ${l.color}`} />
+                                    <span className='text-[10px] font-bold text-gray-400 uppercase tracking-wide'>{l.label}</span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
-                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Platform Breakdown</h3>
-                    <div className="space-y-4">
-                        {platformData.length === 0 ? (
-                            <p className="text-sm text-gray-400 text-center py-10">No accounts connected</p>
-                        ) : platformData.map(item => (
-                            <div key={item.platform} className='flex items-center gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors'>
-                                <div className={`p-2 rounded-lg ${item.color} bg-opacity-10`}>
-                                    <PlatformIcon platform={item.platform} size={20} />
-                                </div>
-                                <div className='flex-1 min-w-0'>
-                                    <div className='flex justify-between items-center'>
-                                        <span className='text-sm font-bold text-gray-900 capitalize'>{item.platform}</span>
-                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${parseFloat(item.growth) >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                            {item.growth}%
-                                        </span>
+
+                {/* Platform Breakdown Frame */}
+                <div className="relative pt-5 group">
+                    <div className="absolute top-0 left-0 text-[9px] font-extrabold text-white bg-gray-400 group-hover:bg-[#0C8CE9] px-1.5 py-0.5 rounded-t select-none z-10 transition-colors uppercase tracking-wider">
+                        Frame/PlatformBreakdown
+                    </div>
+                    <div className="bg-white rounded-r rounded-b p-6 border border-gray-200 group-hover:border-[#0C8CE9] transition-all shadow-xs h-[320px] overflow-y-auto figma-scrollbar">
+                        <h3 className="text-sm font-bold text-gray-900 mb-4 leading-none">Platform Accounts</h3>
+                        <div className="space-y-3">
+                            {platformData.length === 0 ? (
+                                <p className="text-xs text-gray-400 text-center py-10">No accounts connected</p>
+                            ) : platformData.map(item => (
+                                <div key={item.platform} className='flex items-center gap-3.5 p-2.5 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors bg-gray-50/50'>
+                                    <div className={`p-2 rounded-lg ${item.color} bg-opacity-10 shrink-0`}>
+                                        <PlatformIcon platform={item.platform} size={16} />
                                     </div>
-                                    <span className="text-xs text-gray-500 font-medium">{item.followers} followers</span>
+                                    <div className='flex-1 min-w-0'>
+                                        <div className='flex justify-between items-center'>
+                                            <span className='text-xs font-black text-gray-900 capitalize'>{item.platform}</span>
+                                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${parseFloat(item.growth) >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                                {item.growth}%
+                                            </span>
+                                        </div>
+                                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{item.followers} followers</span>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-                <div className="flex items-center justify-between p-6 border-b border-gray-100">
-                    <h3 className="text-lg font-semibold text-gray-900">Recent Posts</h3>
-                    <button onClick={() => navigate('/scheduler')} className="text-sm text-purple-600 font-medium hover:underline">View all →</button>
+            {/* Recent Posts Frame */}
+            <div className="relative pt-5 group">
+                <div className="absolute top-0 left-0 text-[9px] font-extrabold text-white bg-gray-400 group-hover:bg-[#0C8CE9] px-1.5 py-0.5 rounded-t select-none z-10 transition-colors uppercase tracking-wider">
+                    Frame/RecentPosts
                 </div>
-                <div className="divide-y divide-gray-50">
-                    {recentPosts.length === 0 ? (
-                        <div className="p-12 text-center">
-                            <PenSquare className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-                            <p className="text-gray-500">No posts yet. Create your first post!</p>
-                            <button onClick={() => navigate('/studio')} className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700">Create Post</button>
-                        </div>
-                    ) : (
-                        recentPosts.map(post => (
-                            <div key={post.id} className="flex items-start gap-4 p-4 hover:bg-gray-50">
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm text-gray-800 line-clamp-2">{post.content}</p>
-                                    <div className="flex items-center gap-3 mt-2">
-                                        {(post.platforms || []).map((p: string) => (
-                                            <div key={p} className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg border border-gray-100">
-                                                <PlatformIcon platform={p} size={14} />
-                                                <span className="text-[10px] font-bold text-gray-600 uppercase">{p}</span>
-                                            </div>
-                                        ))}
-                                        <span className="text-[10px] px-2 py-1 rounded-lg font-bold uppercase border border-indigo-100 bg-indigo-50 text-indigo-700">{post.status}</span>
+                <div className="bg-white rounded-r rounded-b border border-gray-200 group-hover:border-[#0C8CE9] transition-all shadow-xs overflow-hidden">
+                    <div className="flex items-center justify-between p-6 border-b border-gray-100">
+                        <h3 className="text-sm font-bold text-gray-900 leading-none">Recent Content Drafts</h3>
+                        <button onClick={() => navigate('/scheduler')} className="text-xs text-purple-600 font-extrabold uppercase hover:underline">View all →</button>
+                    </div>
+                    <div className="divide-y divide-gray-50">
+                        {recentPosts.length === 0 ? (
+                            <div className="p-12 text-center">
+                                <PenSquare className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+                                <p className="text-gray-500">No posts yet. Create your first post!</p>
+                                <button onClick={() => navigate('/studio')} className="mt-3 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700">Create Post</button>
+                            </div>
+                        ) : (
+                            recentPosts.map(post => (
+                                <div key={post.id} className="flex items-start gap-4 p-4 hover:bg-gray-50 transition-colors">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm text-gray-800 line-clamp-2 leading-relaxed">{post.content}</p>
+                                        <div className="flex items-center gap-3 mt-2.5">
+                                            {(post.platforms || []).map((p: string) => (
+                                                <div key={p} className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-lg border border-gray-150">
+                                                    <PlatformIcon platform={p} size={12} />
+                                                    <span className="text-[9px] font-black text-gray-500 uppercase">{p}</span>
+                                                </div>
+                                            ))}
+                                            <span className="text-[9px] px-2 py-1 rounded-lg font-black uppercase border border-indigo-100 bg-indigo-50 text-indigo-700">{post.status}</span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))
-                    )}
+                            ))
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

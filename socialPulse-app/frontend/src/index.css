@@ -25,3 +25,51 @@
 @utility bg-pinterest-gradient { background-image: var(--background-image-pinterest-gradient); }
 @utility bg-x-gradient { background-image: var(--background-image-x-gradient); }
 @utility bg-canva-gradient { background-image: var(--background-image-canva-gradient); }
+
+/* Figma Visual Theme Styles */
+@theme {
+  --color-figma-bg: #1E1E1E;
+  --color-figma-bar: #2C2C2C;
+  --color-figma-blue: #0C8CE9;
+  --color-figma-orange: #F24E1E;
+  --color-figma-canvas: #F3F3F3;
+  --color-figma-border: #E6E6E6;
+}
+
+@utility figma-scrollbar {
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 3px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+}
+
+/* Floating Cursors styling */
+.figma-cursor {
+  position: absolute;
+  pointer-events: none;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.figma-cursor-badge {
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 0px 8px 8px 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+}

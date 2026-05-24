@@ -326,66 +326,94 @@ const Analytics: React.FC = () => {
                                 ))}
                             </div>
 
-                            {/* ROI & Conversion Rate Calculator */}
-                            <div className="bg-linear-to-br from-purple-50/50 via-white to-indigo-50/50 rounded-3xl p-6 border border-purple-100 shadow-sm">
-                                <div className="flex items-center gap-2 mb-4">
-                                    <div className="p-2 bg-purple-100 rounded-xl text-purple-600">
-                                        <TrendingUp className="w-5 h-5 animate-pulse" />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-bold text-gray-950 text-base">Client Social ROI Calculator</h3>
-                                        <p className="text-xs text-gray-400">Estimate how much revenue your link clicks generate based on industry average conversions</p>
-                                    </div>
+                            {/* ROI & Conversion Rate Calculator (Figma Properties Inspector style) */}
+                            <div className="relative pt-5 group">
+                                <div className="absolute top-0 left-0 text-[9px] font-extrabold text-white bg-gray-400 group-hover:bg-[#0C8CE9] px-1.5 py-0.5 rounded-t select-none z-10 transition-colors uppercase tracking-wider">
+                                    Inspector / SocialROI
                                 </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-                                    {/* Clicks */}
-                                    <div className="bg-white p-4 rounded-2xl border border-gray-100">
-                                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total Clicks</label>
-                                        <input 
-                                            type="number"
-                                            value={calcClicks}
-                                            onChange={(e) => setCalcClicks(parseInt(e.target.value) || 0)}
-                                            className="w-full text-xl font-extrabold text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white"
-                                        />
-                                        <p className="text-[10px] text-gray-400 mt-1">Pulled from analytics clicks</p>
-                                    </div>
-
-                                    {/* Conversion Rate */}
-                                    <div className="bg-white p-4 rounded-2xl border border-gray-100">
-                                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Conversion Rate (%)</label>
-                                        <input 
-                                            type="number"
-                                            step="0.1"
-                                            value={calcConvRate}
-                                            onChange={(e) => setCalcConvRate(parseFloat(e.target.value) || 0)}
-                                            className="w-full text-xl font-extrabold text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white"
-                                        />
-                                        <p className="text-[10px] text-gray-400 mt-1">Average e-commerce is 2% - 3%</p>
-                                    </div>
-
-                                    {/* Customer Value */}
-                                    <div className="bg-white p-4 rounded-2xl border border-gray-100">
-                                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Avg Customer Value ($)</label>
-                                        <input 
-                                            type="number"
-                                            value={calcCustValue}
-                                            onChange={(e) => setCalcCustValue(parseInt(e.target.value) || 0)}
-                                            className="w-full text-xl font-extrabold text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white"
-                                        />
-                                        <p className="text-[10px] text-gray-400 mt-1">Average revenue per sale</p>
-                                    </div>
-
-                                    {/* Results Card */}
-                                    <div className="bg-linear-to-r from-purple-600 to-indigo-600 p-5 rounded-2xl text-white flex flex-col justify-between shadow-lg shadow-purple-100">
-                                        <div>
-                                            <span className="text-[10px] font-bold tracking-wider uppercase opacity-85">Estimated Value Created</span>
-                                            <p className="text-2xl font-black mt-1">
-                                                ${( (calcClicks * calcConvRate / 100) * calcCustValue ).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                                            </p>
+                                <div className="bg-[#1E1E1E] text-gray-300 rounded-r rounded-b border border-[#2C2C2C] group-hover:border-[#0C8CE9] transition-all overflow-hidden shadow-xl">
+                                    {/* Inspector Header */}
+                                    <div className="flex items-center justify-between px-4 py-3 border-b border-[#2C2C2C] bg-[#2C2C2C]/50">
+                                        <div className="flex items-center gap-2">
+                                            <TrendingUp className="w-4 h-4 text-[#0C8CE9]" />
+                                            <span className="text-[11px] font-bold uppercase tracking-wider text-gray-200">Properties Inspector</span>
                                         </div>
-                                        <div className="text-[10px] opacity-75 mt-2">
-                                            Based on {Math.round(calcClicks * calcConvRate / 100)} conversion sales from links
+                                        <div className="text-[9px] font-mono text-gray-500">v1.0.0</div>
+                                    </div>
+
+                                    <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                                        {/* Left Side: Description / Explainer */}
+                                        <div className="lg:col-span-4 space-y-2">
+                                            <h4 className="text-sm font-black text-white leading-tight">Client Social ROI Calculator</h4>
+                                            <p className="text-[11px] text-gray-400 leading-relaxed">
+                                                Simulate estimated revenue performance based on active link-click rates. Tweak values to preview performance values inside Figma styled frames.
+                                            </p>
+                                            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-[#2C2C2C] text-[10px] text-gray-300 font-mono">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-[#0C8CE9] animate-ping" />
+                                                Live Node Connection Active
+                                            </div>
+                                        </div>
+
+                                        {/* Middle Side: Inspector Parameters (Figma style input grid) */}
+                                        <div className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                            {/* Parameter: Clicks */}
+                                            <div className="bg-[#2C2C2C] p-2.5 rounded border border-[#3E3E3E] focus-within:border-[#0C8CE9] transition-colors">
+                                                <span className="block text-[8px] font-bold text-[#888888] uppercase tracking-wider mb-1">X-Clicks</span>
+                                                <div className="flex items-center gap-1">
+                                                    <span className="text-[10px] text-[#555555] font-mono select-none">W</span>
+                                                    <input 
+                                                        type="number"
+                                                        value={calcClicks}
+                                                        onChange={(e) => setCalcClicks(parseInt(e.target.value) || 0)}
+                                                        className="w-full bg-transparent text-[13px] font-bold text-white focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Parameter: Conv Rate */}
+                                            <div className="bg-[#2C2C2C] p-2.5 rounded border border-[#3E3E3E] focus-within:border-[#0C8CE9] transition-colors">
+                                                <span className="block text-[8px] font-bold text-[#888888] uppercase tracking-wider mb-1">Conversion %</span>
+                                                <div className="flex items-center gap-1">
+                                                    <span className="text-[10px] text-[#555555] font-mono select-none">H</span>
+                                                    <input 
+                                                        type="number"
+                                                        step="0.1"
+                                                        value={calcConvRate}
+                                                        onChange={(e) => setCalcConvRate(parseFloat(e.target.value) || 0)}
+                                                        className="w-full bg-transparent text-[13px] font-bold text-white focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Parameter: Customer Value */}
+                                            <div className="bg-[#2C2C2C] p-2.5 rounded border border-[#3E3E3E] focus-within:border-[#0C8CE9] transition-colors">
+                                                <span className="block text-[8px] font-bold text-[#888888] uppercase tracking-wider mb-1">Value ($)</span>
+                                                <div className="flex items-center gap-1">
+                                                    <span className="text-[10px] text-[#555555] font-mono select-none">V</span>
+                                                    <input 
+                                                        type="number"
+                                                        value={calcCustValue}
+                                                        onChange={(e) => setCalcCustValue(parseInt(e.target.value) || 0)}
+                                                        className="w-full bg-transparent text-[13px] font-bold text-white focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Right Side: Estimated Value Results Layer */}
+                                        <div className="lg:col-span-3 bg-gradient-to-br from-[#0C8CE9] to-[#8B5CF6] p-4.5 rounded-lg text-white flex flex-col justify-between h-[100px] shadow-lg select-none relative overflow-hidden group/layer">
+                                            {/* Background Figma vector dot grid */}
+                                            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:8px_8px] pointer-events-none" />
+                                            <div>
+                                                <span className="text-[8px] font-extrabold tracking-widest uppercase opacity-85">EST. VALUE CREATED</span>
+                                                <p className="text-2xl font-black tracking-tight leading-none mt-1.5">
+                                                    ${( (calcClicks * calcConvRate / 100) * calcCustValue ).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                                                </p>
+                                            </div>
+                                            <div className="text-[9px] opacity-75 font-semibold flex items-center justify-between">
+                                                <span>{Math.round(calcClicks * calcConvRate / 100)} conversion sales</span>
+                                                <span className="font-mono text-[8px] bg-white/20 px-1 py-0.5 rounded">AUTO</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
