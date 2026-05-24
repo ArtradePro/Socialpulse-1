@@ -67,6 +67,17 @@ const Analytics: React.FC = () => {
         refetch,
     } = useAnalytics();
 
+    const [calcClicks, setCalcClicks] = useState(0);
+    const [calcConvRate, setCalcConvRate] = useState(2.5);
+    const [calcCustValue, setCalcCustValue] = useState(150);
+
+    // Sync clicks when data is loaded
+    React.useEffect(() => {
+        if (data?.overview?.totalClicks) {
+            setCalcClicks(data.overview.totalClicks);
+        }
+    }, [data]);
+
     // ── Export CSV ──────────────────────────────────────────────────────────────
     const handleExport = () => {
         if (!data?.allPosts.length) return;
@@ -93,6 +104,18 @@ const Analytics: React.FC = () => {
         a.download = `social-pulse-analytics-${dateRange}.csv`;
         a.click();
         URL.revokeObjectURL(url);
+    };
+
+    const handleExportPDF = () => {
+        const token = localStorage.getItem('accessToken');
+        const workspaceId = localStorage.getItem('activeWorkspaceId');
+        const apiBaseUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api';
+        const resolvedBase = apiBaseUrl.startsWith('http') 
+            ? apiBaseUrl 
+            : `${window.location.origin}${apiBaseUrl}`;
+            
+        const url = `${resolvedBase}/analytics/export?token=${token}&workspace_id=${workspaceId}`;
+        window.open(url, '_blank');
     };
 
     // ── Error state ─────────────────────────────────────────────────────────────
@@ -254,6 +277,18 @@ const Analytics: React.FC = () => {
                         <Download className="w-4 h-4" />
                         Export CSV
                     </button>
+
+                    {/* Export PDF */}
+                    <button
+                        onClick={handleExportPDF}
+                        disabled={!data}
+                        className="flex items-center gap-2 px-3 py-2 bg-linear-to-r from-purple-600 to-blue-600 text-white
+                                   rounded-xl text-sm font-semibold hover:opacity-95
+                                   transition-opacity disabled:opacity-40"
+                    >
+                        <Download className="w-4 h-4" />
+                        Export PDF Report
+                    </button>
                 </div>
             </div>
 
@@ -289,6 +324,71 @@ const Analytics: React.FC = () => {
                                 {metricCards.map(card => (
                                     <MetricCard key={card.title} {...card} loading={loading} />
                                 ))}
+                            </div>
+
+                            {/* ROI & Conversion Rate Calculator */}
+                            <div className="bg-linear-to-br from-purple-50/50 via-white to-indigo-50/50 rounded-3xl p-6 border border-purple-100 shadow-sm">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <div className="p-2 bg-purple-100 rounded-xl text-purple-600">
+                                        <TrendingUp className="w-5 h-5 animate-pulse" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-gray-950 text-base">Client Social ROI Calculator</h3>
+                                        <p className="text-xs text-gray-400">Estimate how much revenue your link clicks generate based on industry average conversions</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
+                                    {/* Clicks */}
+                                    <div className="bg-white p-4 rounded-2xl border border-gray-100">
+                                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total Clicks</label>
+                                        <input 
+                                            type="number"
+                                            value={calcClicks}
+                                            onChange={(e) => setCalcClicks(parseInt(e.target.value) || 0)}
+                                            className="w-full text-xl font-extrabold text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white"
+                                        />
+                                        <p className="text-[10px] text-gray-400 mt-1">Pulled from analytics clicks</p>
+                                    </div>
+
+                                    {/* Conversion Rate */}
+                                    <div className="bg-white p-4 rounded-2xl border border-gray-100">
+                                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Conversion Rate (%)</label>
+                                        <input 
+                                            type="number"
+                                            step="0.1"
+                                            value={calcConvRate}
+                                            onChange={(e) => setCalcConvRate(parseFloat(e.target.value) || 0)}
+                                            className="w-full text-xl font-extrabold text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white"
+                                        />
+                                        <p className="text-[10px] text-gray-400 mt-1">Average e-commerce is 2% - 3%</p>
+                                    </div>
+
+                                    {/* Customer Value */}
+                                    <div className="bg-white p-4 rounded-2xl border border-gray-100">
+                                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Avg Customer Value ($)</label>
+                                        <input 
+                                            type="number"
+                                            value={calcCustValue}
+                                            onChange={(e) => setCalcCustValue(parseInt(e.target.value) || 0)}
+                                            className="w-full text-xl font-extrabold text-gray-900 border border-gray-200 rounded-xl px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white"
+                                        />
+                                        <p className="text-[10px] text-gray-400 mt-1">Average revenue per sale</p>
+                                    </div>
+
+                                    {/* Results Card */}
+                                    <div className="bg-linear-to-r from-purple-600 to-indigo-600 p-5 rounded-2xl text-white flex flex-col justify-between shadow-lg shadow-purple-100">
+                                        <div>
+                                            <span className="text-[10px] font-bold tracking-wider uppercase opacity-85">Estimated Value Created</span>
+                                            <p className="text-2xl font-black mt-1">
+                                                ${( (calcClicks * calcConvRate / 100) * calcCustValue ).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                                            </p>
+                                        </div>
+                                        <div className="text-[10px] opacity-75 mt-2">
+                                            Based on {Math.round(calcClicks * calcConvRate / 100)} conversion sales from links
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Engagement chart + best time */}

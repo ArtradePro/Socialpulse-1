@@ -290,3 +290,334 @@ export const getAiInsights = async (req: Request, res: Response): Promise<void> 
         res.status(500).json({ message: 'Failed to generate AI insights' });
     }
 };
+
+export const exportReport = async (req: Request, res: Response) => {
+    try {
+        const userId = req.user!.userId;
+        const interval = '30 days';
+
+        // 1. Fetch current-period metrics
+        const metricsNow = await db.query(`
+            SELECT
+                COALESCE(SUM(pa.impressions), 0) AS impressions,
+                COALESCE(SUM(pa.reach),       0) AS reach,
+                COALESCE(SUM(pa.likes + pa.comments + pa.shares), 0) AS engagements,
+                COALESCE(SUM(pa.clicks),      0) AS clicks,
+                COALESCE(AVG(pa.engagement_rate), 0) AS avg_er,
+                COUNT(DISTINCT p.id) AS posts_count
+            FROM posts p
+            LEFT JOIN post_analytics pa ON p.id = pa.post_id
+            WHERE p.user_id = $1
+              AND p.published_at >= NOW() - INTERVAL '${interval}'
+        `, [userId]);
+
+        // 2. Fetch follower totals
+        const followersNow = await db.query(`
+            SELECT COALESCE(SUM(followers_count), 0) AS total
+            FROM social_accounts
+            WHERE user_id = $1 AND is_active = true
+        `, [userId]);
+
+        // 3. Fetch top posts
+        const topPosts = await db.query(`
+            SELECT
+                p.id, p.content, p.platforms, p.published_at,
+                COALESCE(SUM(pa.likes),          0) AS likes,
+                COALESCE(SUM(pa.comments),        0) AS comments,
+                COALESCE(SUM(pa.shares),          0) AS shares,
+                COALESCE(SUM(pa.impressions),     0) AS impressions,
+                COALESCE(AVG(pa.engagement_rate), 0) AS engagement_rate
+            FROM posts p
+            JOIN post_analytics pa ON p.id = pa.post_id
+            WHERE p.user_id = $1
+              AND p.status = 'published'
+              AND p.published_at >= NOW() - INTERVAL '${interval}'
+            GROUP BY p.id, p.content, p.platforms, p.published_at
+            ORDER BY engagement_rate DESC
+            LIMIT 5
+        `, [userId]);
+
+        const stats = metricsNow.rows[0] || { impressions: 0, reach: 0, engagements: 0, clicks: 0, avg_er: 0, posts_count: 0 };
+        const totalFollowers = followersNow.rows[0]?.total || 0;
+
+        // 4. Generate beautiful printable HTML
+        const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SocialPulse Executive Analytics Report</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+            color: #1e293b;
+            background-color: #f8fafc;
+            margin: 0;
+            padding: 40px;
+            -webkit-print-color-adjust: exact;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 50px;
+            border-radius: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #f1f5f9;
+            padding-bottom: 25px;
+            margin-bottom: 35px;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #7c3aed, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .report-title {
+            text-align: right;
+        }
+
+        .report-title h1 {
+            margin: 0;
+            font-size: 20px;
+            color: #0f172a;
+        }
+
+        .report-title p {
+            margin: 5px 0 0 0;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 35px;
+        }
+
+        .card {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid #f1f5f9;
+        }
+
+        .card-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #64748b;
+            letter-spacing: 0.05em;
+        }
+
+        .card-value {
+            font-size: 28px;
+            font-weight: 800;
+            color: #0f172a;
+            margin: 10px 0 5px 0;
+        }
+
+        .card-desc {
+            font-size: 11px;
+            color: #94a3b8;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #64748b;
+            padding: 12px 15px;
+            border-bottom: 2px solid #e2e8f0;
+            background: #f8fafc;
+        }
+
+        td {
+            font-size: 13px;
+            padding: 15px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #334155;
+        }
+
+        .platform-tag {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            background: #ede9fe;
+            color: #6d28d9;
+            padding: 3px 8px;
+            border-radius: 6px;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        .action-bar {
+            max-width: 900px;
+            margin: 20px auto;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .btn {
+            background: #7c3aed;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 13px;
+            font-weight: 700;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .container {
+                box-shadow: none;
+                border: none;
+                padding: 0;
+            }
+            .action-bar {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="action-bar">
+        <button class="btn btn-secondary" onclick="window.close()">Close</button>
+        <button class="btn" onclick="window.print()">Print to PDF</button>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <div class="logo">SocialPulse</div>
+            <div class="report-title">
+                <h1>Executive Analytics Report</h1>
+                <p>30-Day Channel Overview &bull; Generated on ${new Date().toLocaleDateString()}</p>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-label">Total Impressions</div>
+                <div class="card-value">${parseInt(stats.impressions).toLocaleString()}</div>
+                <div class="card-desc">Times your content was seen</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Total Reach</div>
+                <div class="card-value">${parseInt(stats.reach).toLocaleString()}</div>
+                <div class="card-desc">Unique user accounts reached</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Avg Engagement Rate</div>
+                <div class="card-value">${parseFloat(stats.avg_er).toFixed(2)}%</div>
+                <div class="card-desc">Overall interaction quality</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Total Follower Base</div>
+                <div class="card-value">${parseInt(totalFollowers).toLocaleString()}</div>
+                <div class="card-desc">Synced community audience</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Engagements</div>
+                <div class="card-value">${parseInt(stats.engagements).toLocaleString()}</div>
+                <div class="card-desc">Likes, comments & shares</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Link Clicks</div>
+                <div class="card-value">${parseInt(stats.clicks).toLocaleString()}</div>
+                <div class="card-desc">Total referral site traffic</div>
+            </div>
+        </div>
+
+        <div class="section-title">🏆 Top Performing Content</div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 55%;">Post Draft</th>
+                    <th>Platforms</th>
+                    <th>Impressions</th>
+                    <th>Eng Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${topPosts.rows.map((p: any) => `
+                    <tr>
+                        <td>
+                            <div style="font-weight: 600; line-clamp: 2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+                                ${p.content}
+                            </div>
+                            <span style="font-size: 10px; color: #94a3b8; display: block; margin-top: 5px;">
+                                Published on ${new Date(p.published_at).toLocaleDateString()}
+                            </span>
+                        </td>
+                        <td>
+                            ${p.platforms.map((plat: string) => `<span class="platform-tag">${plat}</span>`).join('')}
+                        </td>
+                        <td style="font-weight: 700;">${parseInt(p.impressions).toLocaleString()}</td>
+                        <td style="font-weight: 700; color: #10b981;">${parseFloat(p.engagement_rate).toFixed(2)}%</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+
+        <div style="margin-top: 60px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 20px;">
+            This executive report was automatically generated by SocialPulse. All calculations are real-time synced.
+        </div>
+    </div>
+</body>
+</html>
+        `;
+
+        res.setHeader('Content-Type', 'text/html');
+        res.send(html);
+    } catch (err: any) {
+        console.error('[Analytics Report Export Error]:', err);
+        res.status(500).json({ message: 'Failed to export report' });
+    }
+};

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
     ShoppingBag, Plus, RefreshCw, ExternalLink, Trash2, 
     AlertCircle, CheckCircle2, Store, Package, Search,
-    Filter, MoreVertical, Loader2
+    Filter, MoreVertical, Loader2, Sparkles
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -28,6 +29,7 @@ interface Product {
 }
 
 export const Ecommerce = () => {
+    const navigate = useNavigate();
     const [stores, setStores] = useState<EcommerceStore[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
@@ -45,6 +47,13 @@ export const Ecommerce = () => {
         sellerId: ''
     });
 
+    // AI Generation states
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [showGenerateModal, setShowGenerateModal] = useState(false);
+    const [generatingPost, setGeneratingPost] = useState(false);
+    const [genPlatform, setGenPlatform] = useState('twitter');
+    const [genTone, setGenTone] = useState('promotional');
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -61,6 +70,41 @@ export const Ecommerce = () => {
             toast.error('Failed to load e-commerce data');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleGeneratePost = async () => {
+        if (!selectedProduct) return;
+        setGeneratingPost(true);
+        try {
+            const { data } = await api.post('/ai/product-post', {
+                productData: {
+                    title: selectedProduct.title,
+                    description: selectedProduct.description,
+                    price: selectedProduct.price,
+                    currency: selectedProduct.currency,
+                    productUrl: selectedProduct.product_url
+                },
+                platform: genPlatform,
+                tone: genTone
+            });
+
+            toast.success(`Post for "${selectedProduct.title}" generated!`);
+            setShowGenerateModal(false);
+            
+            navigate('/studio', {
+                state: {
+                    initialContent: data.content,
+                    initialHashtags: data.hashtags || [],
+                    initialPlatform: genPlatform,
+                    initialMediaUrls: selectedProduct.image_url ? [selectedProduct.image_url] : []
+                }
+            });
+        } catch (err: any) {
+            console.error('Failed to generate product post:', err);
+            toast.error(err.response?.data?.message || 'Failed to generate product post');
+        } finally {
+            setGeneratingPost(false);
         }
     };
 
@@ -270,8 +314,15 @@ export const Ecommerce = () => {
                                             >
                                                 <ExternalLink className="w-4 h-4" />
                                             </a>
-                                            <button className="p-2 text-gray-400 hover:text-purple-600 transition-colors">
-                                                <Plus className="w-4 h-4" />
+                                            <button 
+                                                onClick={() => {
+                                                    setSelectedProduct(product);
+                                                    setShowGenerateModal(true);
+                                                }}
+                                                className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-all"
+                                                title="Generate Social Post with AI"
+                                            >
+                                                <Sparkles className="w-4 h-4 animate-pulse" />
                                             </button>
                                         </div>
                                     </td>
@@ -392,6 +443,116 @@ export const Ecommerce = () => {
                                 Connect Now
                             </button>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* AI Generation Modal */}
+            {showGenerateModal && selectedProduct && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-md p-4">
+                    <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl border border-purple-100 flex flex-col md:flex-row">
+                        {/* Left Side: Product Preview Card */}
+                        <div className="md:w-1/3 bg-purple-50/50 p-6 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-gray-100 text-center">
+                            <img 
+                                src={selectedProduct.image_url || 'https://via.placeholder.com/150'} 
+                                alt={selectedProduct.title}
+                                className="w-28 h-28 md:w-36 md:h-36 rounded-2xl object-cover shadow-md border border-white mb-4 bg-white"
+                            />
+                            <h3 className="font-bold text-gray-900 text-sm line-clamp-2 px-2">{selectedProduct.title}</h3>
+                            <p className="text-purple-600 font-extrabold mt-1 text-base">
+                                {selectedProduct.currency} {selectedProduct.price.toFixed(2)}
+                            </p>
+                            <span className="text-[10px] text-gray-400 mt-2 block bg-white px-2.5 py-1 rounded-full shadow-2xs border border-gray-100">
+                                {selectedProduct.category || 'Product'}
+                            </span>
+                        </div>
+
+                        {/* Right Side: Options and Controls */}
+                        <div className="flex-1 p-6 relative flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center justify-between mb-5">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-1.5 bg-purple-100 rounded-lg text-purple-600">
+                                            <Sparkles className="w-4 h-4" />
+                                        </div>
+                                        <h2 className="text-lg font-bold text-gray-900">Craft Post with Gemini</h2>
+                                    </div>
+                                    <button 
+                                        onClick={() => setShowGenerateModal(false)} 
+                                        className="p-1.5 hover:bg-gray-100 rounded-full transition-colors text-gray-400"
+                                        disabled={generatingPost}
+                                    >
+                                        <Plus className="w-5 h-5 rotate-45" />
+                                    </button>
+                                </div>
+
+                                {generatingPost ? (
+                                    <div className="flex flex-col items-center justify-center py-10 space-y-4 text-center">
+                                        <div className="relative w-16 h-16 flex items-center justify-center">
+                                            <div className="absolute inset-0 rounded-full border-4 border-purple-200 border-t-purple-600 animate-spin"></div>
+                                            <Sparkles className="w-6 h-6 text-purple-600 animate-pulse" />
+                                        </div>
+                                        <div>
+                                            <p className="text-gray-900 font-semibold animate-pulse">Gemini AI is writing your copy...</p>
+                                            <p className="text-xs text-gray-400 mt-1 max-w-[280px]">Analyzing product benefits, pain points, and writing high-conversion CTAs</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {/* Target Platform Selector */}
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Target Social Platform</label>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {[
+                                                    { id: 'twitter', label: 'X (Twitter)', color: 'border-sky-500 text-sky-600 bg-sky-50/50' },
+                                                    { id: 'linkedin', label: 'LinkedIn', color: 'border-blue-700 text-blue-700 bg-blue-50/50' },
+                                                    { id: 'instagram', label: 'Instagram', color: 'border-pink-500 text-pink-600 bg-pink-50/50' },
+                                                    { id: 'facebook', label: 'Facebook', color: 'border-indigo-600 text-indigo-700 bg-indigo-50/50' }
+                                                ].map(plat => (
+                                                    <button
+                                                        key={plat.id}
+                                                        type="button"
+                                                        onClick={() => setGenPlatform(plat.id)}
+                                                        className={`flex items-center justify-center py-2 px-3 text-xs font-medium rounded-xl border transition-all ${
+                                                            genPlatform === plat.id 
+                                                                ? `${plat.color} border-2 shadow-xs` 
+                                                                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                                                        }`}
+                                                    >
+                                                        {plat.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Tone Selector */}
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Copy Tone</label>
+                                            <select
+                                                value={genTone}
+                                                onChange={(e) => setGenTone(e.target.value)}
+                                                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all text-gray-700 font-medium"
+                                            >
+                                                <option value="promotional">Promotional (Pain-Agitate-Solve framework)</option>
+                                                <option value="educational">Educational (Feature breakdown)</option>
+                                                <option value="humorous">Humorous & Witty</option>
+                                                <option value="casual">Casual & Friendly</option>
+                                                <option value="inspirational">Inspirational Storytelling</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                )}
+                             </div>
+
+                             {!generatingPost && (
+                                 <button
+                                     onClick={handleGeneratePost}
+                                     className="w-full py-3.5 mt-6 bg-linear-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl font-bold shadow-lg shadow-purple-200 hover:shadow-xl transition-all duration-200 flex items-center justify-center gap-2"
+                                 >
+                                     <Sparkles className="w-4 h-4 animate-bounce" /> Craft Social Post
+                                 </button>
+                             )}
+                        </div>
                     </div>
                 </div>
             )}

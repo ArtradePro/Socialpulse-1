@@ -8,19 +8,44 @@ import { PlatformIcon } from '../components/common/BrandIcons';
 // Daily engagement data is now fetched from the API and stored in dailyData state
 
 
-interface StatsCardProps { title: string; value: string; change: number; icon: React.ReactNode; }
+interface StatsCardProps {
+    title: string;
+    value: string;
+    change: number;
+    icon: React.ReactNode;
+    color: string;
+    chartData: { value: number }[];
+    strokeColor: string;
+}
 
-const StatsCard: React.FC<StatsCardProps> = ({ title, value, change, icon }) => (
-    <div className={"bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow"}>
-        <div className='flex items-center justify-between mb-4'>
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center">{icon}</div>
-            <div className="flex items-center gap-1 text-sm font-medium">
-                {change >= 0 ? <ArrowUpRight className='w-4 h-4' /> : <ArrowDownRight className='w-4 h-4' />}
-                {Math.abs(change)}%
+const StatsCard: React.FC<StatsCardProps> = ({ title, value, change, icon, color, chartData, strokeColor }) => (
+    <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col justify-between h-[180px]">
+        <div>
+            <div className='flex items-center justify-between mb-2'>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color} bg-opacity-15`}>{icon}</div>
+                <div className={`flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-full ${change >= 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                    {change >= 0 ? <ArrowUpRight className='w-3.5 h-3.5' /> : <ArrowDownRight className='w-3.5 h-3.5' />}
+                    {Math.abs(change)}%
+                </div>
             </div>
+            <p className="text-2xl font-black text-gray-950 tracking-tight">{value}</p>
+            <p className="text-xs font-medium text-gray-400 mt-0.5">{title}</p>
         </div>
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
-        <p className="text-sm text-gray-500 mt-1">{title}</p>
+        
+        {/* Sparkline */}
+        <div className="h-10 w-full mt-2">
+            <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData && chartData.length > 0 ? chartData : [{ value: 0 }, { value: 0 }]}>
+                    <Line 
+                        type="monotone" 
+                        dataKey="value" 
+                        stroke={strokeColor} 
+                        strokeWidth={2} 
+                        dot={false} 
+                    />
+                </LineChart>
+            </ResponsiveContainer>
+        </div>
     </div>
 );
 
@@ -46,6 +71,8 @@ export const Dashboard: React.FC = () => {
     });
     const [dailyData, setDailyData] = useState<any[]>([]);
     const [platformData, setPlatformData] = useState<any[]>([]);
+    const [rawDailyEngagement, setRawDailyEngagement] = useState<any[]>([]);
+    const [audienceData, setAudienceData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     const fetchDashboardData = async () => {
@@ -80,6 +107,9 @@ export const Dashboard: React.FC = () => {
                 color: getPlatformColor(p.platform)
             })));
 
+            setRawDailyEngagement(data.dailyEngagement || []);
+            setAudienceData(data.audienceGrowth || []);
+
             // Recent posts
             setRecentPosts(data.allPosts.slice(0, 5));
 
@@ -111,10 +141,42 @@ export const Dashboard: React.FC = () => {
     };
 
     const statsCards = [
-        { title: 'Total Followers', value: stats.totalFollowers, change: stats.followerChange, icon: <Users className="w-6 h-6 text-purple-600" />, color: 'bg-purple-50' },
-        { title: 'Total Engagement', value: stats.totalEngagement, change: stats.engagementChange, icon: <Heart className="w-6 h-6 text-pink-600" />, color: 'bg-pink-50' },
-        { title: 'Impressions', value: stats.totalImpressions, change: stats.impressionsChange, icon: <Eye className="w-6 h-6 text-blue-600" />, color: 'bg-blue-50' },
-        { title: 'Posts Published', value: stats.scheduledPosts.toString(), change: stats.scheduledChange, icon: <Calendar className="w-6 h-6 text-orange-600" />, color: 'bg-orange-50' },
+        { 
+            title: 'Total Followers', 
+            value: stats.totalFollowers, 
+            change: stats.followerChange, 
+            icon: <Users className="w-5 h-5 text-purple-600" />, 
+            color: 'bg-purple-600',
+            strokeColor: '#8B5CF6',
+            chartData: audienceData.map(d => ({ value: d.total }))
+        },
+        { 
+            title: 'Total Engagement', 
+            value: stats.totalEngagement, 
+            change: stats.engagementChange, 
+            icon: <Heart className="w-5 h-5 text-pink-600" />, 
+            color: 'bg-pink-600',
+            strokeColor: '#EC4899',
+            chartData: rawDailyEngagement.map(d => ({ value: d.likes + d.comments + d.shares }))
+        },
+        { 
+            title: 'Impressions', 
+            value: stats.totalImpressions, 
+            change: stats.impressionsChange, 
+            icon: <Eye className="w-5 h-5 text-blue-600" />, 
+            color: 'bg-blue-600',
+            strokeColor: '#3B82F6',
+            chartData: rawDailyEngagement.map(d => ({ value: d.impressions }))
+        },
+        { 
+            title: 'Posts Published', 
+            value: stats.scheduledPosts.toString(), 
+            change: stats.scheduledChange, 
+            icon: <Calendar className="w-5 h-5 text-orange-600" />, 
+            color: 'bg-orange-600',
+            strokeColor: '#F59E0B',
+            chartData: rawDailyEngagement.map(d => ({ value: d.clicks }))
+        },
     ];
 
     if (loading) {

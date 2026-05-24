@@ -6,13 +6,18 @@ export const authenticate = (
     res: Response,
     next: NextFunction
 ): void => {
+    let token = '';
     const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
+    if (authHeader?.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+    } else if (req.query.token) {
+        token = req.query.token as string;
+    }
+
+    if (!token) {
         res.status(401).json({ message: 'No token provided' });
         return;
     }
-
-    const token = authHeader.split(' ')[1];
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET!) as {
             userId: string;

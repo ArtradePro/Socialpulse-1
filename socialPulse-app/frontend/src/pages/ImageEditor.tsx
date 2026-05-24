@@ -4,9 +4,11 @@ import { fabric } from 'fabric';
 import {
     MousePointer2, Type, Square, Circle, Trash2,
     Undo2, Redo2, Download, Upload, Save, ArrowLeft, Image as ImageIcon,
+    Grid, Sparkles
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import { useBrand } from '../contexts/BrandContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -44,6 +46,10 @@ export const ImageEditor: React.FC = () => {
     const [searchParams]    = useSearchParams();
     const canvasRef         = useRef<HTMLCanvasElement>(null);
     const fabricRef         = useRef<fabric.Canvas | null>(null);
+
+    const { brandLogoUrl }  = useBrand();
+    const [showGrid, setShowGrid] = useState(false);
+    const gridLinesRef      = useRef<fabric.Object[]>([]);
 
     const [tool,       setTool]       = useState<Tool>('select');
     const [history,    setHistory]    = useState<string[]>([]);
@@ -325,6 +331,79 @@ export const ImageEditor: React.FC = () => {
         fabricRef.current.setBackgroundColor(color, () => fabricRef.current!.renderAll());
     };
 
+    const applyWatermark = () => {
+        if (!fabricRef.current) return;
+        if (!brandLogoUrl) {
+            toast.error('No brand logo configured in Workspace Settings');
+            return;
+        }
+        fabric.Image.fromURL(brandLogoUrl, (img) => {
+            const scale = 120 / img.width!;
+            img.set({
+                scaleX: scale,
+                scaleY: scale,
+                left: CANVAS_W - 140,
+                top: CANVAS_H - (img.height! * scale) - 20,
+                opacity: 0.7,
+                selectable: true,
+                originX: 'left',
+                originY: 'top',
+                name: 'watermark'
+            });
+            fabricRef.current!.add(img);
+            fabricRef.current!.setActiveObject(img);
+            fabricRef.current!.renderAll();
+            toast.success('Brand logo watermark applied!');
+        }, { crossOrigin: 'anonymous' });
+    };
+
+    const toggleGrid = () => {
+        const canvas = fabricRef.current;
+        if (!canvas) return;
+
+        const next = !showGrid;
+        setShowGrid(next);
+
+        if (next) {
+            const gridLines: fabric.Object[] = [];
+            const gridSpacing = 40;
+
+            for (let i = gridSpacing; i < CANVAS_W; i += gridSpacing) {
+                const line = new fabric.Line([i, 0, i, CANVAS_H], {
+                    stroke: '#e2e8f0',
+                    strokeWidth: 1,
+                    selectable: false,
+                    evented: false,
+                    opacity: 0.5,
+                });
+                canvas.add(line);
+                gridLines.push(line);
+            }
+
+            for (let i = gridSpacing; i < CANVAS_H; i += gridSpacing) {
+                const line = new fabric.Line([0, i, CANVAS_W, i], {
+                    stroke: '#e2e8f0',
+                    strokeWidth: 1,
+                    selectable: false,
+                    evented: false,
+                    opacity: 0.5,
+                });
+                canvas.add(line);
+                gridLines.push(line);
+            }
+
+            gridLinesRef.current = gridLines;
+            gridLines.forEach(l => canvas.sendToBack(l));
+            canvas.renderAll();
+            toast.success('Visual alignment grid enabled');
+        } else {
+            gridLinesRef.current.forEach(l => canvas.remove(l));
+            gridLinesRef.current = [];
+            canvas.renderAll();
+            toast.success('Visual alignment grid disabled');
+        }
+    };
+
     // ── Export ───────────────────────────────────────────────────────────────
 
     const exportPng = () => {
@@ -398,6 +477,22 @@ export const ImageEditor: React.FC = () => {
                         className="p-2 rounded-lg text-red-400 hover:bg-red-50 transition-colors" title="Delete selected (Del)">
                         <Trash2 className="w-4 h-4" />
                     </button>
+
+                    <button onClick={toggleGrid}
+                        className={`p-2 rounded-lg transition-colors ${showGrid ? 'bg-indigo-50 text-indigo-600 border border-indigo-200' : 'text-gray-500 hover:bg-gray-100'}`}
+                        title="Toggle visual alignment grid"
+                    >
+                        <Grid className="w-4 h-4" />
+                    </button>
+
+                    {brandLogoUrl && (
+                        <button onClick={applyWatermark}
+                            className="p-2 rounded-lg text-purple-600 hover:bg-purple-50 hover:text-purple-800 transition-colors"
+                            title="Apply brand logo watermark"
+                        >
+                            <Sparkles className="w-4 h-4 animate-pulse" />
+                        </button>
+                    )}
 
                     <span className="text-gray-200 select-none">|</span>
 

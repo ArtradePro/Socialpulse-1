@@ -37,18 +37,6 @@ export const ContentStudio: React.FC = () => {
     const [content, setContent] = useState('');
     const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['twitter']);
     const [hashtags, setHashtags] = useState<string[]>([]);
-    
-    useEffect(() => {
-        const state = location.state as any;
-        if (state) {
-            if (state.initialContent) setContent(state.initialContent);
-            if (state.initialHashtags) setHashtags(state.initialHashtags);
-            if (state.initialPlatform) setSelectedPlatforms([state.initialPlatform]);
-            
-            // Clear state so it doesn't re-apply on refresh
-            window.history.replaceState({}, document.title);
-        }
-    }, [location]);
     const [mediaUrls, setMediaUrls] = useState<string[]>([]);
     const [mediaFiles, setMediaFiles] = useState<File[]>([]);
     const [scheduledAt, setScheduledAt] = useState('');
@@ -69,6 +57,19 @@ export const ContentStudio: React.FC = () => {
     const [showHashtagSets, setShowHashtagSets] = useState(false);
     const [showProductPicker, setShowProductPicker] = useState(false);
     const [videoFormat, setVideoFormat] = useState('social');
+
+    useEffect(() => {
+        const state = location.state as any;
+        if (state) {
+            if (state.initialContent) setContent(state.initialContent);
+            if (state.initialHashtags) setHashtags(state.initialHashtags);
+            if (state.initialPlatform) setSelectedPlatforms([state.initialPlatform]);
+            if (state.initialMediaUrls) setMediaUrls(state.initialMediaUrls);
+            
+            // Clear state so it doesn't re-apply on refresh
+            window.history.replaceState({}, document.title);
+        }
+    }, [location]);
 
     useEffect(() => {
         api.get('/templates').then(r => setTemplates(r.data)).catch(() => {});
