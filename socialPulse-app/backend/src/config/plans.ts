@@ -77,7 +77,7 @@ export const PLANS: Record<PlanId, Plan> = {
             teamMembers:       1,
             analyticsHistory:  30,
             scheduling:        true,
-            bulkScheduling:    false,
+            bulkScheduling:    true,
             customBranding:    false,
             apiAccess:         false,
             prioritySupport:   false,
