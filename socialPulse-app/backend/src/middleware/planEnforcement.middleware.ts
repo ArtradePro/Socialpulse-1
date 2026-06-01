@@ -1,9 +1,19 @@
 import { Request, Response, NextFunction } from 'express';
 import { db } from '../config/database';
 import { getPlan, withinLimit, PlanId, PLANS } from '../config/plans';
+import { NotificationService } from '../services/notification.service';
 
 // Alias for legacy code in this file
 type PlanKey = PlanId;
+
+// ─── Reset-date helper ────────────────────────────────────────────────────────
+
+/** Returns the first day of next month as a human-readable string, e.g. "Jul 1" */
+function nextResetDate(): string {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth() + 1, 1)
+        .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
 // ─── Current-month usage helper ───────────────────────────────────────────────
 
@@ -84,18 +94,45 @@ export const enforceAILimit = async (
 
         if (limit === 'unlimited') { next(); return; }
 
-        const used = await monthlyCount(req.user!.userId, 'ai_credit_used');
+        const userId = req.user!.userId;
+        const used   = await monthlyCount(userId, 'ai_credit_used');
+        const reset  = nextResetDate();
 
         if (!withinLimit(limit, used)) {
             res.status(403).json({
-                message: `You've used all ${limit} AI credits this month on the ${plan.name} plan.`,
+                message: `You've used all ${limit} AI credits this month. Credits reset on ${reset}. Upgrade for more.`,
                 code:    'AI_LIMIT_REACHED',
                 upgrade: true,
                 used,
                 limit,
+                resetsOn: reset,
             });
             return;
         }
+
+        // Fire a one-per-month low-credits warning at 80% usage
+        const pct = (used / (limit as number)) * 100;
+        if (pct >= 80) {
+            // Only send once per month — check if we already sent this month
+            const { rows } = await db.query(
+                `SELECT id FROM notifications
+                 WHERE user_id = $1
+                   AND type = 'ai_credits_low'
+                   AND DATE_TRUNC('month', created_at) = DATE_TRUNC('month', NOW())
+                 LIMIT 1`,
+                [userId]
+            );
+            if (rows.length === 0) {
+                NotificationService.create({
+                    userId,
+                    type:    'ai_credits_low',
+                    title:   'AI credits running low',
+                    message: `You've used ${used} of ${limit} AI credits this month. Credits reset on ${reset}.`,
+                    link:    '/billing',
+                }).catch(() => { /* non-fatal */ });
+            }
+        }
+
         next();
     } catch (err) {
         next(err);

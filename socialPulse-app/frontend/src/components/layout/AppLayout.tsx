@@ -12,6 +12,7 @@ import {
 import { NotificationBell } from '../notifications/NotificationBell';
 import { WorkspaceSwitcher } from '../common/WorkspaceSwitcher';
 import { useBrand } from '../../contexts/BrandContext';
+import { usePlan } from '../../hooks/usePlan';
 
 const navSections = [
     {
@@ -69,6 +70,7 @@ const AppLayout: React.FC = () => {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const { user } = useAppSelector(state => state.auth);
     const brand = useBrand();
+    const { usage } = usePlan();
     const dispatch = useAppDispatch();
     const navigate = useNavigate();
 
@@ -166,25 +168,63 @@ const AppLayout: React.FC = () => {
                 </div>
 
                 {/* AI Credits Badge */}
-                {sidebarOpen && (
-                    <div className="mx-4 mt-4 p-3 bg-[#2C2C2C] border border-[#3C3C3C] rounded-xl text-gray-200">
-                        <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold text-gray-400">AI Credits</span>
-                            <span className="text-xs font-black text-[#0C8CE9]">
-                                {user?.aiCredits || 0}
-                            </span>
+                {sidebarOpen && (() => {
+                    const used  = usage?.aiCredits?.used  ?? 0;
+                    const limit = usage?.aiCredits?.limit;
+                    const isUnlimited = limit === 'unlimited';
+                    const limitNum = isUnlimited ? null : (limit as number);
+                    const pct = limitNum ? Math.min((used / limitNum) * 100, 100) : 0;
+                    const isLow      = !isUnlimited && pct >= 80;
+                    const isCritical = !isUnlimited && pct >= 95;
+                    const resetDate  = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1)
+                        .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    return (
+                        <div className={`mx-4 mt-4 p-3 rounded-xl text-gray-200 border ${
+                            isCritical ? 'bg-red-900/30 border-red-500/40' :
+                            isLow      ? 'bg-amber-900/20 border-amber-500/30' :
+                                         'bg-[#2C2C2C] border-[#3C3C3C]'
+                        }`}>
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold text-gray-400">AI Credits</span>
+                                <span className={`text-xs font-black ${
+                                    isCritical ? 'text-red-400' :
+                                    isLow      ? 'text-amber-400' :
+                                                 'text-[#0C8CE9]'
+                                }`}>
+                                    {isUnlimited ? '∞' : `${used} / ${limitNum}`}
+                                </span>
+                            </div>
+                            {!isUnlimited && (
+                                <div className="mt-2 bg-[#1E1E1E] rounded-full h-1.5">
+                                    <div
+                                        className={`h-1.5 rounded-full transition-all ${
+                                            isCritical ? 'bg-red-500' :
+                                            isLow      ? 'bg-amber-400' :
+                                                         'bg-gradient-to-r from-[#0C8CE9] to-[#8B5CF6]'
+                                        }`}
+                                        style={{ width: `${pct}%` }}
+                                    />
+                                </div>
+                            )}
+                            {isCritical && (
+                                <p className="mt-1.5 text-[10px] text-red-400 font-semibold">
+                                    Resets {resetDate} — upgrade for more
+                                </p>
+                            )}
+                            {isLow && !isCritical && (
+                                <p className="mt-1.5 text-[10px] text-amber-400">
+                                    Running low — resets {resetDate}
+                                </p>
+                            )}
+                            <button
+                                onClick={() => navigate('/billing')}
+                                className="mt-2 text-[10px] text-gray-400 font-bold hover:text-white transition-colors"
+                            >
+                                {isUnlimited ? 'View plan →' : 'Upgrade for more →'}
+                            </button>
                         </div>
-                        <div className="mt-2 bg-[#1E1E1E] rounded-full h-1.5">
-                            <div
-                                className="bg-gradient-to-r from-[#0C8CE9] to-[#8B5CF6] h-1.5 rounded-full"
-                                style={{ width: `${Math.min((user?.aiCredits || 0) / 100 * 100, 100)}%` }}
-                            />
-                        </div>
-                        <button className="mt-2 text-[10px] text-gray-400 font-bold hover:text-white transition-colors">
-                            Get more credits →
-                        </button>
-                    </div>
-                )}
+                    );
+                })()}
 
                 {/* Navigation */}
                 <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto figma-scrollbar">
