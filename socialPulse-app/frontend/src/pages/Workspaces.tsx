@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { 
     Plus, Settings, Users, Globe, 
     MoreVertical, Trash2, Shield, 
@@ -45,6 +46,7 @@ const ROLE_ICONS: Record<string, React.ReactNode> = {
 export const Workspaces: React.FC = () => {
     const dispatch = useAppDispatch();
     const { workspaces, activeId } = useAppSelector(s => s.workspace);
+    const location = useLocation();
 
     const [selected, setSelected] = useState<WorkspaceDetail | null>(null);
     const [loading, setLoading] = useState(true);
@@ -65,6 +67,7 @@ export const Workspaces: React.FC = () => {
     // Create workspace modal
     const [showCreate, setShowCreate] = useState(false);
     const [newName, setNewName] = useState('');
+    const [newDescription, setNewDescription] = useState('');
     const [creating, setCreating] = useState(false);
 
     // Invite modal
@@ -72,6 +75,13 @@ export const Workspaces: React.FC = () => {
     const [inviteEmail, setInviteEmail] = useState('');
     const [inviteRole, setInviteRole] = useState('member');
     const [inviting, setInviting] = useState(false);
+
+    // ── Auto-open create modal when navigated with ?new=1 ──────────────────
+    useEffect(() => {
+        if (new URLSearchParams(location.search).get('new') === '1') {
+            setShowCreate(true);
+        }
+    }, [location.search]);
 
     // ── Load workspace list ──────────────────────────────────────────────────
 
@@ -124,9 +134,10 @@ export const Workspaces: React.FC = () => {
         if (!newName.trim()) return;
         setCreating(true);
         try {
-            const { data } = await api.post('/workspaces', { name: newName });
+            const { data } = await api.post('/workspaces', { name: newName, description: newDescription || undefined });
             dispatch(addWorkspace(data)); // Fixed: dispatching the action
             setNewName('');
+            setNewDescription('');
             setShowCreate(false);
             toast.success('Workspace created!');
         } catch (error) {
@@ -235,7 +246,7 @@ export const Workspaces: React.FC = () => {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">Workspaces</h1>
-                    <p className="text-sm text-gray-500 mt-1">Manage team collaboration and organization settings</p>
+                    <p className="text-sm text-gray-500 mt-1">Each workspace is a separate client or company. Switch between them to manage their content independently.</p>
                 </div>
                 <button onClick={() => setShowCreate(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl font-medium hover:opacity-90 transition-opacity text-sm">
@@ -268,7 +279,7 @@ export const Workspaces: React.FC = () => {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="font-semibold text-gray-900 truncate">{ws.name}</p>
-                                <p className="text-xs text-gray-500">{ws.memberCount} members • {ws.role}</p>
+                                <p className="text-xs text-gray-500">{ws.member_count ?? ws.memberCount ?? '?'} members • {ws.role}</p>
                             </div>
                             {ws.id === (activeId ?? workspaces[0]?.id) && (
                                 <span className="ml-auto text-[10px] font-semibold bg-brand-light text-brand px-2 py-0.5 rounded-full shrink-0">
@@ -482,14 +493,23 @@ export const Workspaces: React.FC = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-lg font-bold text-gray-900">Create Workspace</h2>
+                            <div>
+                                <h2 className="text-lg font-bold text-gray-900">New Workspace</h2>
+                                <p className="text-xs text-gray-500 mt-0.5">Create a workspace for each client or company you manage.</p>
+                            </div>
                             <button onClick={() => setShowCreate(false)} className="p-2 hover:bg-gray-100 rounded-xl"><X className="w-5 h-5" /></button>
                         </div>
                         <form onSubmit={handleCreate} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Workspace name</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Client / company name <span className="text-red-500">*</span></label>
                                 <input type="text" value={newName} onChange={e => setNewName(e.target.value)}
-                                    placeholder="Acme Corp, My Brand…" autoFocus
+                                    placeholder="e.g. Acme Corp, Nike, Personal Brand…" autoFocus
+                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Notes <span className="text-gray-400 font-normal">(optional)</span></label>
+                                <input type="text" value={newDescription} onChange={e => setNewDescription(e.target.value)}
+                                    placeholder="e.g. SaaS startup in fintech, focus on LinkedIn…"
                                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                             </div>
                             <div className="flex gap-3 pt-1">

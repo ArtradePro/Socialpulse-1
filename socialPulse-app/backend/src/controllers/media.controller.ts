@@ -89,7 +89,8 @@ export const listMedia = async (req: Request, res: Response): Promise<void> => {
             conditions.push(`mime_type LIKE 'video/%'`);
         }
         if (search) {
-            params.push(`%${search}%`);
+            const escaped = search.replace(/%/g, '\\%').replace(/_/g, '\\_');
+            params.push(`%${escaped}%`);
             conditions.push(`original_name ILIKE $${params.length}`);
         }
 

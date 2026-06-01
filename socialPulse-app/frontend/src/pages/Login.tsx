@@ -1,25 +1,16 @@
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../hooks/useAuth';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '../components/common/Button';
-import { useEffect } from 'react';
 import logo from '../assets/logo.png';
 interface FormData { email: string; password: string }
 
 export const Login = () => {
   const { login, loading, error } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>();
 
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const token = params.get('token');
-    if (token) {
-      localStorage.setItem('accessToken', token);
-      window.location.href = '/dashboard';
-    }
-  }, [location]);
+
 
   const onSubmit = async (data: FormData) => {
     const result = await login(data.email, data.password);

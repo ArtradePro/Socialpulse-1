@@ -9,7 +9,7 @@ let _stripe: InstanceType<typeof Stripe> | null = null;
 const getStripe = (): InstanceType<typeof Stripe> => {
     if (!_stripe) {
         _stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-            apiVersion: '2026-03-25.dahlia' as any,
+            apiVersion: '2024-11-20.acacia' as any,
         });
     }
     return _stripe;

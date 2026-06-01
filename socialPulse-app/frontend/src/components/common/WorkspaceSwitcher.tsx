@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Building2, Plus, Check } from 'lucide-react';
+import { ChevronDown, Building2, Plus, Check, Settings } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { setWorkspaces, switchWorkspace, Workspace } from '../../store/workspaceSlice';
 import api from '../../services/api';
@@ -38,8 +38,7 @@ export const WorkspaceSwitcher: React.FC = () => {
     const handleSwitch = (id: string) => {
         dispatch(switchWorkspace(id));
         setOpen(false);
-        // Reload current page data by navigating to the same location
-        window.location.reload();
+        navigate(0); // trigger React Router reload without full page refresh
     };
 
     if (loading && workspaces.length === 0) return null;
@@ -77,10 +76,17 @@ export const WorkspaceSwitcher: React.FC = () => {
                     ))}
                     <div className="border-t border-gray-100 mt-1 pt-1">
                         <button
-                            onClick={() => { setOpen(false); navigate('/workspaces'); }}
-                            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left text-indigo-600 hover:bg-indigo-50 transition-colors"
+                            onClick={() => { setOpen(false); navigate('/workspaces?new=1'); }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left text-indigo-600 hover:bg-indigo-50 transition-colors font-medium"
                         >
                             <Plus className="w-4 h-4" />
+                            New workspace
+                        </button>
+                        <button
+                            onClick={() => { setOpen(false); navigate('/workspaces'); }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left text-gray-600 hover:bg-gray-50 transition-colors"
+                        >
+                            <Settings className="w-4 h-4" />
                             Manage workspaces
                         </button>
                     </div>

@@ -18,7 +18,8 @@ export const listTemplates = async (req: Request, res: Response): Promise<void> 
             sql += ` AND category = $${params.length}`;
         }
         if (search) {
-            params.push(`%${search}%`);
+            const escaped = search.replace(/%/g, '\\%').replace(/_/g, '\\_');
+            params.push(`%${escaped}%`);
             sql += ` AND (name ILIKE $${params.length} OR content ILIKE $${params.length})`;
         }
         sql += ' ORDER BY is_mine DESC, name';

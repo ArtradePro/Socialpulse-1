@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS hashtag_sets (
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_social_accounts_user_id  ON social_accounts(user_id);
 CREATE INDEX IF NOT EXISTS idx_posts_user_id            ON posts(user_id);
+CREATE INDEX IF NOT EXISTS idx_posts_user_status        ON posts(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_posts_status             ON posts(status);
 CREATE INDEX IF NOT EXISTS idx_posts_scheduled_at       ON posts(scheduled_at) WHERE status = 'scheduled';
 CREATE INDEX IF NOT EXISTS idx_posts_campaign_id        ON posts(campaign_id);

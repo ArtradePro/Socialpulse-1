@@ -23,7 +23,7 @@ const getGemini = () => {
 aiQueue.process('moderate-post', async (job) => {
   const { postId, content } = job.data;
   const response = await getGemini().models.generateContent({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.5-flash',
     contents: [
       { role: 'user', parts: [{ text: content }] }
     ],
@@ -39,7 +39,7 @@ aiQueue.process('moderate-post', async (job) => {
 aiQueue.process('generate-caption', async (job) => {
   const { imageDescription } = job.data;
   const response = await getGemini().models.generateContent({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.5-flash',
     contents: [
       { role: 'user', parts: [{ text: imageDescription }] }
     ],

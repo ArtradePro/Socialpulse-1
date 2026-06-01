@@ -35,7 +35,9 @@ configurePassport();
 app.use(passport.initialize());
 
 app.use(helmet());
-app.set('trust proxy', true);
+// Trust one proxy layer (nginx → node). Prevents X-Forwarded-For spoofing.
+// If behind Cloudflare, change to: app.set('trust proxy', 2)
+app.set('trust proxy', 1);
 
 const allowedOrigins = [
     'http://localhost:3000',
@@ -61,12 +63,15 @@ app.use(cors({
     credentials: true,
 }));
 
-// Relaxed rate limit in test/dev environment (1000 requests per 15 mins for SPAs)
+// Rate limit: 3000 requests per 15 minutes per IP (~200/min — generous for SPAs).
+// Auth endpoints get a tighter limit via nginx (30r/m) on top of this.
 if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'development') {
-    app.use(rateLimit({ 
-        windowMs: 15 * 60 * 1000, 
-        max: 1000,
-        message: { error: 'Too many requests, please try again later.' }
+    app.use(rateLimit({
+        windowMs: 15 * 60 * 1000,
+        max: 3000,
+        standardHeaders: true,   // sends RateLimit-* headers so clients know their status
+        legacyHeaders: false,
+        message: { error: 'Too many requests, please try again later.' },
     }));
 }
 

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { AIService } from '../services/ai.service';
+import { recordUsage } from '../middleware/planEnforcement.middleware';
 
 const handleAiError = (err: any, res: Response, defaultMessage: string) => {
     if (err.message === 'Insufficient AI credits. Please upgrade your plan.') {
@@ -22,6 +23,7 @@ export const generateContent = async (req: Request, res: Response): Promise<void
         const userId = req.user!.userId;
         const workspaceId = req.header('x-workspace-id') as string | undefined;
         const result = await AIService.generateContent(userId, workspaceId, req.body);
+        await recordUsage(userId, 'ai_credit_used');
         res.json(result);
     } catch (err: any) {
         handleAiError(err, res, 'AI generation failed');
@@ -30,8 +32,10 @@ export const generateContent = async (req: Request, res: Response): Promise<void
 
 export const generateHashtags = async (req: Request, res: Response): Promise<void> => {
     try {
+        const userId = req.user!.userId;
         const { topic, platform, count } = req.body;
-        const hashtags = await AIService.generateHashtags(req.user!.userId, topic, platform, count);
+        const hashtags = await AIService.generateHashtags(userId, topic, platform, count);
+        await recordUsage(userId, 'ai_credit_used');
         res.json({ hashtags });
     } catch (err: any) {
         handleAiError(err, res, 'Hashtag generation failed');
@@ -47,6 +51,7 @@ export const generateMagicPlan = async (req: Request, res: Response): Promise<vo
         if (!topic) { res.status(400).json({ message: 'topic is required' }); return; }
         
         const result = await AIService.generateMagicPlan(userId, workspaceId, topic, description || '', days);
+        await recordUsage(userId, 'ai_credit_used', 7);
         res.json(result);
     } catch (err: any) {
         handleAiError(err, res, 'Magic Plan generation failed');
@@ -60,6 +65,7 @@ export const generateReply = async (req: Request, res: Response): Promise<void> 
         const { messageContent, platform } = req.body;
         if (!messageContent) { res.status(400).json({ message: 'messageContent is required' }); return; }
         const result = await AIService.generateReply(userId, workspaceId, messageContent, platform || 'twitter');
+        await recordUsage(userId, 'ai_credit_used');
         res.json(result);
     } catch (err: any) {
         handleAiError(err, res, 'Reply generation failed');
@@ -73,6 +79,7 @@ export const draftFromTrend = async (req: Request, res: Response): Promise<void>
         const { trendContent, platform } = req.body;
         if (!trendContent) { res.status(400).json({ message: 'trendContent is required' }); return; }
         const result = await AIService.draftFromTrend(userId, workspaceId, trendContent, platform || 'twitter');
+        await recordUsage(userId, 'ai_credit_used');
         res.json(result);
     } catch (err: any) {
         handleAiError(err, res, 'Trend drafting failed');
@@ -86,6 +93,7 @@ export const reviewContent = async (req: Request, res: Response): Promise<void> 
         const { content, platform } = req.body;
         if (!content) { res.status(400).json({ message: 'content is required' }); return; }
         const result = await AIService.reviewContent(userId, workspaceId, content, platform || 'twitter');
+        await recordUsage(userId, 'ai_credit_used');
         res.json(result);
     } catch (err: any) {
         handleAiError(err, res, 'Content review failed');
@@ -94,8 +102,10 @@ export const reviewContent = async (req: Request, res: Response): Promise<void> 
 
 export const improveContent = async (req: Request, res: Response): Promise<void> => {
     try {
+        const userId = req.user!.userId;
         const { content, platform, improvement } = req.body;
-        const improved = await AIService.improveContent(req.user!.userId, content, platform, improvement);
+        const improved = await AIService.improveContent(userId, content, platform, improvement);
+        await recordUsage(userId, 'ai_credit_used');
         res.json({ content: improved });
     } catch (err: any) {
         handleAiError(err, res, 'Content improvement failed');
@@ -104,8 +114,10 @@ export const improveContent = async (req: Request, res: Response): Promise<void>
 
 export const generateImageCaption = async (req: Request, res: Response): Promise<void> => {
     try {
+        const userId = req.user!.userId;
         const { imageDescription, platform, tone } = req.body;
-        const caption = await AIService.generateImageCaption(req.user!.userId, imageDescription, platform, tone);
+        const caption = await AIService.generateImageCaption(userId, imageDescription, platform, tone);
+        await recordUsage(userId, 'ai_credit_used');
         res.json({ caption });
     } catch (err: any) {
         handleAiError(err, res, 'Caption generation failed');
@@ -114,9 +126,11 @@ export const generateImageCaption = async (req: Request, res: Response): Promise
 
 export const generateImage = async (req: Request, res: Response): Promise<void> => {
     try {
+        const userId = req.user!.userId;
         const { prompt, size } = req.body;
         if (!prompt) { res.status(400).json({ message: 'prompt is required' }); return; }
-        const url = await AIService.generateImage(req.user!.userId, prompt, size);
+        const url = await AIService.generateImage(userId, prompt, size);
+        await recordUsage(userId, 'ai_credit_used', 2);
         res.json({ url });
     } catch (err: any) {
         handleAiError(err, res, 'Image generation failed');
@@ -129,6 +143,7 @@ export const generateProductPost = async (req: Request, res: Response): Promise<
         const workspaceId = req.header('x-workspace-id') as string | undefined;
         const { productData, platform, tone } = req.body;
         const result = await AIService.generateProductPost(userId, workspaceId, productData, platform, tone);
+        await recordUsage(userId, 'ai_credit_used');
         res.json(result);
     } catch (err: any) {
         handleAiError(err, res, 'Product post generation failed');

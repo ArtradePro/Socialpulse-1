@@ -53,7 +53,8 @@ const authSlice = createSlice({
     logout(state) {
       state.user = null;
       state.accessToken = null;
-      localStorage.clear();
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('activeWorkspaceId');
     },
     setUser(state, action: PayloadAction<User>) {
       state.user = action.payload;

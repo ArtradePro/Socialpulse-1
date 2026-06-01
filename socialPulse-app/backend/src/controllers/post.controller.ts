@@ -25,7 +25,15 @@ export const createPost = async (req: Request, res: Response) => {
         }
 
         // Upload any attached files to cloud storage; fall back to URLs sent in body
-        let mediaUrls: string[] = req.body.mediaUrls ? JSON.parse(req.body.mediaUrls) : [];
+        let mediaUrls: string[] = [];
+        if (req.body.mediaUrls) {
+            try {
+                const parsed = JSON.parse(req.body.mediaUrls);
+                if (Array.isArray(parsed)) mediaUrls = parsed;
+            } catch {
+                // ignore malformed mediaUrls, fall back to empty array
+            }
+        }
         if (req.files && Array.isArray(req.files) && req.files.length > 0) {
             const uploads = await Promise.all(
                 (req.files as Express.Multer.File[]).map(f =>

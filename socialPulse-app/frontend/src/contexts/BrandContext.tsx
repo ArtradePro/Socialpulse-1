@@ -55,7 +55,7 @@ export const BrandProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         });
 
         return () => { cancelled = true; };
-    }, [activeId]);
+    }, [activeId, accessToken]);
 
     return <BrandContext.Provider value={brand}>{children}</BrandContext.Provider>;
 };

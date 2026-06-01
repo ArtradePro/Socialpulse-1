@@ -10,12 +10,12 @@ function slugify(name: string): string {
 
 async function uniqueSlug(base: string): Promise<string> {
     let slug = base;
-    let attempt = 0;
-    while (true) {
+    for (let attempt = 1; attempt <= 20; attempt++) {
         const { rows } = await db.query('SELECT id FROM workspaces WHERE slug = $1', [slug]);
         if (rows.length === 0) return slug;
-        slug = `${base}-${++attempt}`;
+        slug = `${base}-${attempt}`;
     }
+    throw new Error('Could not generate a unique workspace slug — too many collisions');
 }
 
 function assertMembership(req: Request, res: Response): string | null {
@@ -30,7 +30,8 @@ export const listWorkspaces = async (req: Request, res: Response): Promise<void>
     try {
         const userId = req.user!.userId;
         const { rows } = await db.query(
-            `SELECT w.*, wm.role
+            `SELECT w.*, wm.role,
+                    (SELECT COUNT(*)::int FROM workspace_members wm2 WHERE wm2.workspace_id = w.id) AS member_count
              FROM workspaces w
              JOIN workspace_members wm ON wm.workspace_id = w.id
              WHERE wm.user_id = $1
@@ -68,7 +69,7 @@ export const createWorkspace = async (req: Request, res: Response): Promise<void
             [workspace.id, userId]
         );
 
-        res.status(201).json({ ...workspace, role: 'owner' });
+        res.status(201).json({ ...workspace, role: 'owner', member_count: 1 });
     } catch (err) {
         console.error('[Workspaces] createWorkspace:', err);
         res.status(500).json({ message: 'Server error' });

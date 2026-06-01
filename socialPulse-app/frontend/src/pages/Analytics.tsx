@@ -106,16 +106,22 @@ const Analytics: React.FC = () => {
         URL.revokeObjectURL(url);
     };
 
-    const handleExportPDF = () => {
-        const token = localStorage.getItem('accessToken');
-        const workspaceId = localStorage.getItem('activeWorkspaceId');
-        const apiBaseUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api';
-        const resolvedBase = apiBaseUrl.startsWith('http') 
-            ? apiBaseUrl 
-            : `${window.location.origin}${apiBaseUrl}`;
-            
-        const url = `${resolvedBase}/analytics/export?token=${token}&workspace_id=${workspaceId}`;
-        window.open(url, '_blank');
+    const handleExportPDF = async () => {
+        try {
+            const workspaceId = localStorage.getItem('activeWorkspaceId');
+            const resp = await api.get('/analytics/export', {
+                params: workspaceId ? { workspace_id: workspaceId } : {},
+                responseType: 'blob',
+            });
+            const objectUrl = URL.createObjectURL(resp.data as Blob);
+            const a = document.createElement('a');
+            a.href = objectUrl;
+            a.download = 'analytics-report.pdf';
+            a.click();
+            URL.revokeObjectURL(objectUrl);
+        } catch {
+            // silent — server may not implement PDF export yet
+        }
     };
 
     // ── Error state ─────────────────────────────────────────────────────────────

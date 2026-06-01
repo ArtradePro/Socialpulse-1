@@ -6,6 +6,7 @@ export interface Workspace {
     name: string;
     role: 'admin' | 'member' | 'viewer' | 'owner'; // Added 'owner' to match your UI check
     memberCount: number;
+    member_count?: number;
     createdAt?: string;
 }
 
