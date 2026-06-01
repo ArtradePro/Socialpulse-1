@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import crypto from 'crypto';
 import { db } from '../config/database';
+import { getPlan, PlanId } from '../config/plans';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,25 @@ export const createWorkspace = async (req: Request, res: Response): Promise<void
 
     try {
         const userId = req.user!.userId;
+
+        // Enforce per-plan workspace limit
+        const plan = getPlan((req.user!.plan ?? 'free') as PlanId);
+        const limit = plan.limits.workspaces;
+        if (limit !== 'unlimited') {
+            const { rows: countRows } = await db.query(
+                `SELECT COUNT(*)::int AS cnt FROM workspace_members WHERE user_id = $1`,
+                [userId]
+            );
+            if ((countRows[0].cnt as number) >= limit) {
+                res.status(403).json({
+                    message: `Your ${plan.name} plan allows up to ${limit} workspace${limit === 1 ? '' : 's'}. Upgrade to create more.`,
+                    code: 'WORKSPACE_LIMIT_REACHED',
+                    upgrade: true,
+                });
+                return;
+            }
+        }
+
         const slug   = await uniqueSlug(slugify(name.trim()));
 
         const { rows } = await db.query(

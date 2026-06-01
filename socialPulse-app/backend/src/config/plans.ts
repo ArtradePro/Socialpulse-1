@@ -10,6 +10,7 @@ export interface PlanLimits {
     mediaFileSizeMB:   number;
     mediaStorageMB:    number | 'unlimited';
     teamMembers:       number | 'unlimited';
+    workspaces:        number | 'unlimited';
     analyticsHistory:  number;
     scheduling:        boolean;
     bulkScheduling:    boolean;
@@ -49,6 +50,7 @@ export const PLANS: Record<PlanId, Plan> = {
             mediaFileSizeMB:   10,
             mediaStorageMB:    100,
             teamMembers:       1,
+            workspaces:        1,
             analyticsHistory:  7,
             scheduling:        true,
             bulkScheduling:    false,
@@ -75,6 +77,7 @@ export const PLANS: Record<PlanId, Plan> = {
             mediaFileSizeMB:   50,
             mediaStorageMB:    1024,
             teamMembers:       1,
+            workspaces:        3,
             analyticsHistory:  30,
             scheduling:        true,
             bulkScheduling:    true,
@@ -102,6 +105,7 @@ export const PLANS: Record<PlanId, Plan> = {
             mediaFileSizeMB:   200,
             mediaStorageMB:    10240,
             teamMembers:       5,
+            workspaces:        10,
             analyticsHistory:  90,
             scheduling:        true,
             bulkScheduling:    true,
@@ -128,6 +132,7 @@ export const PLANS: Record<PlanId, Plan> = {
             mediaFileSizeMB:   500,
             mediaStorageMB:    'unlimited',
             teamMembers:       'unlimited',
+            workspaces:        'unlimited',
             analyticsHistory:  365,
             scheduling:        true,
             bulkScheduling:    true,
