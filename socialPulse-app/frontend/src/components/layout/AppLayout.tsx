@@ -7,7 +7,7 @@ import {
     LayoutDashboard, PenSquare, Calendar, BarChart3, Settings,
     LogOut, Menu, X, HardDrive, CreditCard, Megaphone, Hash, FileText,
     Sparkles, Paintbrush, Rss, Radio, Inbox, Gift, Key, Building2,
-    ShoppingBag, MousePointer, Share2, Users, Bell
+    ShoppingBag, MousePointer, Share2, Users, Bell, Hand
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { WorkspaceSwitcher } from '../common/WorkspaceSwitcher';
@@ -311,22 +311,22 @@ const AppLayout: React.FC = () => {
                     </div>
 
                     {/* Center: Figma Tools Bar */}
-                    <div className="hidden md:flex items-center bg-[#1E1E1E] rounded-lg p-0.5 border border-[#3C3C3C] gap-0.5">
-                        <button className="p-1.5 bg-[#0C8CE9] text-white rounded-md" title="Move Tool (V)">
-                            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2v10.5l3.2-3.2 2.3 5.3 1.8-.8-2.3-5.3h4L3 2z"/></svg>
+                    <div className="hidden md:flex items-center bg-[#1E1E1E] rounded-lg p-1 border border-[#3C3C3C] gap-0.5">
+                        <button className="p-1.5 bg-[#0C8CE9] text-white rounded-md shadow-sm shadow-[#0C8CE9]/40" title="Move Tool (V)">
+                            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2v10.5l3.2-3.2 2.3 5.3 1.8-.8-2.3-5.3h4L3 2z"/></svg>
                         </button>
-                        <div className="w-[1px] h-3 bg-gray-700/60 mx-1" />
-                        <button className="p-1.5 text-gray-400 hover:text-white rounded-md transition-colors" title="Select (V)">
+                        <div className="w-[1px] h-4 bg-[#3C3C3C] mx-1" />
+                        <button className="p-1.5 text-gray-300 hover:text-white hover:bg-[#3C3C3C] rounded-md transition-colors" title="Select (V)">
                             <MousePointer className="w-3.5 h-3.5" />
                         </button>
-                        <button className="p-1.5 text-gray-500 hover:text-white rounded-md cursor-not-allowed" title="Frame Tool (F)" disabled>
-                            <LayoutDashboard className="w-3.5 h-3.5 opacity-40" />
+                        <button className="p-1.5 text-gray-300 hover:text-white hover:bg-[#3C3C3C] rounded-md transition-colors cursor-not-allowed" title="Frame Tool (F)" disabled>
+                            <LayoutDashboard className="w-3.5 h-3.5" />
                         </button>
-                        <button className="p-1.5 text-gray-500 hover:text-white rounded-md cursor-not-allowed" title="Text Tool (T)" disabled>
-                            <span className="font-serif font-black text-xs opacity-40">T</span>
+                        <button className="p-1.5 text-gray-300 hover:text-white hover:bg-[#3C3C3C] rounded-md transition-colors cursor-not-allowed" title="Text Tool (T)" disabled>
+                            <span className="font-serif font-black text-sm leading-none">T</span>
                         </button>
-                        <button className="p-1.5 text-gray-500 hover:text-white rounded-md cursor-not-allowed" title="Hand Tool (H)" disabled>
-                            <span className="text-xs opacity-40">✋</span>
+                        <button className="p-1.5 text-gray-300 hover:text-white hover:bg-[#3C3C3C] rounded-md transition-colors cursor-not-allowed" title="Hand Tool (H)" disabled>
+                            <Hand className="w-3.5 h-3.5" />
                         </button>
                     </div>
 
