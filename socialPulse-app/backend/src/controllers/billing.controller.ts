@@ -355,11 +355,22 @@ export const getBillingInfo = async (req: Request, res: Response): Promise<void>
       },
       limits: plan.limits,
       usage: {
-        socialAccounts: parseInt(usage.social_accounts),
-        postsThisMonth: parseInt(usage.posts_this_month),
-        mediaBytes:     parseInt(usage.media_bytes),
-        mediaMb:        Math.round(parseInt(usage.media_bytes) / (1024 * 1024)),
-        aiCredits:      parseInt(usage.ai_credits ?? '0'),
+        posts: {
+          used:  parseInt(usage.posts_this_month),
+          limit: plan.limits.postsPerMonth,
+        },
+        aiCredits: {
+          used:  parseInt(usage.ai_credits ?? '0'),
+          limit: plan.limits.aiCreditsPerMonth,
+        },
+        socialAccounts: {
+          used:  parseInt(usage.social_accounts),
+          limit: plan.limits.socialAccounts,
+        },
+        storage: {
+          usedBytes: parseInt(usage.media_bytes),
+          limitMB:   plan.limits.mediaStorageMB,
+        },
       },
       allPlans: Object.entries(PLANS).map(([key, cfg]) => ({
         key,
