@@ -1158,23 +1158,43 @@ Mobile (Expo / React Native)
 ## 14. QUICK COMMAND REFERENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+── Production Deploy ─────────────────────────────────────────────────────────
+
+# FRONTEND deploy (Hostinger shared hosting — 147.93.42.56)
+# 1. Build locally:
+cd socialPulse-app/frontend && npm run build
+# 2. Open FileZilla: host=147.93.42.56  user=u308964511.usesocialpulse.com  port=21
+# 3. Local panel → socialPulse-app/frontend/dist/
+# 4. Remote panel → /public_html/
+# 5. Ctrl+A → Upload → Overwrite all
+# Verify: Invoke-WebRequest -Uri "https://usesocialpulse.com/index.html" -UseBasicParsing
+
+# BACKEND deploy (VPS — 2.24.98.197)
+# SSH in, then:
+cd /var/www/socialpulse && git pull
+cd socialPulse-app/backend && npm install && npm run build
+pm2 restart socialpulse
+
+# VPS psql shortcut (DB uses individual env vars, NOT DATABASE_URL)
+PGPASSWORD='<DB_PASSWORD>' psql -h 127.0.0.1 -p 5432 -U postgres -d socialpulse
+
+# Upgrade a user's plan for testing (re-login after to refresh JWT)
+PGPASSWORD='<DB_PASSWORD>' psql -h 127.0.0.1 -p 5432 -U postgres -d socialpulse \
+  -c "UPDATE users SET plan = 'pro' WHERE email = 'user@example.com';"
+
+── Local Development ─────────────────────────────────────────────────────────
+
 # Start full stack with Docker
 docker-compose up -d
 
-# Server only (development with hot-reload)
-cd server && npm run dev
+# Backend only (development with hot-reload)
+cd socialPulse-app/backend && npm run dev
 
-# Client only
-cd client && npm start
+# Frontend only
+cd socialPulse-app/frontend && npm run dev
 
 # Run database migrations
-cd server && npm run migrate
-
-# Install all server dependencies
-cd server && npm install
-
-# Install all client dependencies
-cd client && npm install
+cd socialPulse-app/backend && npm run migrate
 
 # Check TypeScript errors (backend)
 cd socialPulse-app/backend && npx tsc --noEmit
@@ -1201,9 +1221,6 @@ cd socialPulse-app/mobile && npm run ios
 
 # Check TypeScript errors (mobile)
 cd socialPulse-app/mobile && npx tsc --noEmit
-
-# psql shortcut
-psql postgresql://postgres:password@localhost:5432/socialpulse
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1271,6 +1288,9 @@ Triggers:   push or pull_request to main
 Dashboard:  https://github.com/ArtradePro/Socialpulse-1/actions
 Status:     ✅ Live — all 3 jobs passing
 
+Note: Render also has this repo connected and builds the backend on every push.
+      Render is a staging/secondary deploy — production backend runs on the VPS.
+
 ── Jobs ──────────────────────────────────────────────────────────────────────
 
   Job         What it does
@@ -1333,7 +1353,35 @@ Status:     ✅ Live — all 3 jobs passing
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-## 17. PROJECT COMPLETION SUMMARY
+## 18. INFRASTRUCTURE — LIVE ENVIRONMENT REFERENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Layer         Host                    Details
+  ──────────    ──────────────────────  ─────────────────────────────────────
+  Frontend      Hostinger shared        IP: 147.93.42.56
+                usesocialpulse.com      doc root: public_html/
+                                        deploy: FTP from dist/ (FileZilla)
+                                        FTP user: u308964511.usesocialpulse.com
+
+  Backend API   VPS (KVM1)              IP: 2.24.98.197
+                api.usesocialpulse.com  PM2 process: socialpulse (port 5000)
+                                        repo: /var/www/socialpulse
+                                        deploy: git pull + npm run build + pm2 restart
+
+  Database      VPS — PostgreSQL        DB: socialpulse  user: postgres
+                                        Env vars: DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD
+                                        Note: VPS does NOT use DATABASE_URL — uses individual vars
+
+  DNS           Hostinger nameservers   ns1/ns2.dns-parking.com
+                                        A record → 147.93.42.56 (frontend)
+                                        api. CNAME/A → 2.24.98.197 (backend)
+
+  Render        Staging deploy          Connected to GitHub; builds backend on every push
+                                        Does not affect production; check Render dashboard for logs
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## 18. PROJECT COMPLETION SUMMARY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ┌─────────────────────────────────────────────────────────────────┐
