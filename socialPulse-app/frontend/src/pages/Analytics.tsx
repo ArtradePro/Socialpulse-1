@@ -5,6 +5,7 @@ import {
     TrendingUp, RefreshCw, Download, AlertCircle,
 } from 'lucide-react';
 
+import api from '../services/api';
 import { useAnalytics, DateRange, Platform } from '../hooks/useAnalytics';
 import MetricCard            from '../components/analytics/MetricCard';
 import EngagementChart       from '../components/analytics/EngagementChart';
