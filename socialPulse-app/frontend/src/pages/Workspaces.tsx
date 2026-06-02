@@ -249,8 +249,8 @@ export const Workspaces: React.FC = () => {
                     <p className="text-sm text-gray-500 mt-1">Each workspace is a separate client or company. Switch between them to manage their content independently.</p>
                 </div>
                 <button onClick={() => setShowCreate(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl font-medium hover:opacity-90 transition-opacity text-sm">
-                    <Plus className="w-4 h-4" /> New workspace
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition-colors text-sm shadow-sm">
+                    <Plus className="w-4 h-4" /> New Workspace
                 </button>
             </div>
 
@@ -403,7 +403,7 @@ export const Workspaces: React.FC = () => {
                                         </div>
 
                                         <button type="submit" disabled={savingBrand}
-                                            className="w-full py-2.5 bg-brand text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
+                                            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium disabled:opacity-50 transition-colors">
                                             {savingBrand ? 'Saving…' : 'Save branding'}
                                         </button>
                                     </form>
@@ -518,7 +518,7 @@ export const Workspaces: React.FC = () => {
                                     Cancel
                                 </button>
                                 <button type="submit" disabled={!newName.trim() || creating}
-                                    className="flex-1 py-2.5 bg-brand text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
+                                    className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium disabled:opacity-50 transition-colors">
                                     {creating ? 'Creating…' : 'Create workspace'}
                                 </button>
                             </div>
