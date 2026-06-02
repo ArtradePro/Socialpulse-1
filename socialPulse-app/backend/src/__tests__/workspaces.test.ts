@@ -20,7 +20,12 @@ describeIfDb('Workspaces endpoints', () => {
 
     beforeEach(async () => {
         await cleanDb(dbClient);
-        ({ token } = await registerAndLogin({ email: 'wsuser@example.com' }));
+        const reg = await registerAndLogin({ email: 'wsuser@example.com' });
+        // Upgrade to starter plan (3 workspaces) so multi-workspace tests pass,
+        // then re-login to get a JWT that reflects the new plan.
+        await dbClient.query("UPDATE users SET plan = 'starter' WHERE id = $1", [reg.userId]);
+        const loginRes = await request.post('/api/auth/login').send({ email: 'wsuser@example.com', password: 'Password123!' });
+        token = loginRes.body.token as string;
     });
 
     afterAll(async () => {
