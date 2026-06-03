@@ -29,10 +29,25 @@ export const authenticate = (
     }
 };
 
-export const requireRole = (_role: string) =>
+const PLAN_ORDER: Record<string, number> = { free: 0, starter: 1, pro: 2, enterprise: 3 };
+
+/**
+ * Require the user to be on a minimum plan tier.
+ * Usage: router.post('/bulk', requireRole('pro'), bulkCreatePosts)
+ */
+export const requireRole = (minPlan: string) =>
     (req: Request, res: Response, next: NextFunction): void => {
         if (!req.user) {
             res.status(403).json({ message: 'Forbidden' });
+            return;
+        }
+        const userLevel = PLAN_ORDER[req.user.plan ?? 'free'] ?? 0;
+        const minLevel  = PLAN_ORDER[minPlan] ?? 0;
+        if (userLevel < minLevel) {
+            res.status(403).json({
+                message: `This feature requires the ${minPlan} plan or higher.`,
+                upgrade: true,
+            });
             return;
         }
         next();

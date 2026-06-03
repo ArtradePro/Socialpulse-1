@@ -10,6 +10,18 @@ export const register = async (req: Request, res: Response) => {
     try {
         const { email, password, fullName, referralCode } = req.body;
 
+        // Input validation
+        if (!fullName || typeof fullName !== 'string' || fullName.trim().length === 0) {
+            return res.status(400).json({ message: 'Full name is required' });
+        }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!email || !emailRegex.test(email)) {
+            return res.status(400).json({ message: 'A valid email address is required' });
+        }
+        if (!password || password.length < 8) {
+            return res.status(400).json({ message: 'Password must be at least 8 characters' });
+        }
+
         const existingUser = await db.query(
             'SELECT id FROM users WHERE email = $1',
             [email]
@@ -19,16 +31,12 @@ export const register = async (req: Request, res: Response) => {
             return res.status(409).json({ message: 'Email already registered' });
         }
 
-        if (!password) {
-            return res.status(400).json({ message: 'Password is required' });
-        }
-
         const passwordHash = await bcrypt.hash(password, 12);
 
         const result = await db.query(
             `INSERT INTO users (email, password_hash, full_name, ai_credits)
-             VALUES ($1, $2, $3, 10) RETURNING id, email, full_name, plan, ai_credits`,
-            [email, passwordHash, fullName]
+             VALUES ($1, $2, $3, 5) RETURNING id, email, full_name, plan, ai_credits`,
+            [email, passwordHash, fullName.trim()]
         );
 
         const user = result.rows[0];

@@ -23,144 +23,167 @@ const deltaPercent = (current: number, previous: number): number => {
 export const getDashboard = async (req: Request, res: Response) => {
     try {
         const userId   = req.user!.userId;
-        const range    = (req.query.range as string)    || '30d';
-        const platform = (req.query.platform as string) || 'all';
+
+        // Whitelist range and platform to prevent injection via string interpolation
+        const VALID_RANGES    = new Set(['7d', '14d', '30d', '90d']);
+        const VALID_PLATFORMS = new Set(['twitter', 'instagram', 'linkedin', 'facebook', 'tiktok', 'youtube', 'pinterest']);
+        const rawRange    = (req.query.range as string)    || '30d';
+        const rawPlatform = (req.query.platform as string) || 'all';
+        const range    = VALID_RANGES.has(rawRange)       ? rawRange    : '30d';
+        const platform = VALID_PLATFORMS.has(rawPlatform) ? rawPlatform : 'all';
         const interval = rangeToInterval(range);
 
-        // ── Base platform filter ─────────────────────────────────────────────
-        const platformFilter = platform !== 'all'
-            ? `AND pa.platform = '${platform}'`
-            : '';
+        // platformParam drives parameterized filtering. null = all platforms.
+        const platformParam: string | null = platform !== 'all' ? platform : null;
 
-        // ── Current-period metrics ───────────────────────────────────────────
-        const metricsNow = await db.query(`
-            SELECT
-                COALESCE(SUM(pa.impressions), 0) AS impressions,
-                COALESCE(SUM(pa.reach),       0) AS reach,
-                COALESCE(SUM(pa.likes + pa.comments + pa.shares), 0) AS engagements,
-                COALESCE(SUM(pa.clicks),      0) AS clicks,
-                COALESCE(AVG(pa.engagement_rate), 0) AS avg_er,
-                COUNT(DISTINCT p.id) AS posts_count
-            FROM posts p
-            LEFT JOIN post_analytics pa ON p.id = pa.post_id
-            WHERE p.user_id = $1
-              AND p.published_at >= NOW() - INTERVAL '${interval}'
-              ${platformFilter}
-        `, [userId]);
+        // ── Run independent queries in parallel ──────────────────────────────
+        const [metricsNow, metricsPrev, followersNow, dailySeries, platformRows,
+               topPosts, allPosts, heatmapRaw] = await Promise.all([
 
-        // ── Previous-period metrics (for deltas) ─────────────────────────────
-        const metricsPrev = await db.query(`
-            SELECT
-                COALESCE(SUM(pa.impressions), 0) AS impressions,
-                COALESCE(SUM(pa.reach),       0) AS reach,
-                COALESCE(SUM(pa.likes + pa.comments + pa.shares), 0) AS engagements,
-                COALESCE(SUM(pa.clicks),      0) AS clicks
-            FROM posts p
-            LEFT JOIN post_analytics pa ON p.id = pa.post_id
-            WHERE p.user_id = $1
-              AND p.published_at >= NOW() - INTERVAL '${interval}' * 2
-              AND p.published_at <  NOW() - INTERVAL '${interval}'
-              ${platformFilter}
-        `, [userId]);
+            // Current-period metrics
+            db.query(`
+                SELECT
+                    COALESCE(SUM(pa.impressions), 0) AS impressions,
+                    COALESCE(SUM(pa.reach),       0) AS reach,
+                    COALESCE(SUM(pa.likes + pa.comments + pa.shares), 0) AS engagements,
+                    COALESCE(SUM(pa.clicks),      0) AS clicks,
+                    COALESCE(AVG(pa.engagement_rate), 0) AS avg_er,
+                    COUNT(DISTINCT p.id) AS posts_count
+                FROM posts p
+                LEFT JOIN post_analytics pa ON p.id = pa.post_id
+                WHERE p.user_id = $1
+                  AND p.published_at >= NOW() - INTERVAL '${interval}'
+                  AND ($2::text IS NULL OR pa.platform = $2)
+            `, [userId, platformParam]),
 
-        // ── Follower totals ──────────────────────────────────────────────────
-        const followersNow = await db.query(`
-            SELECT COALESCE(SUM(followers_count), 0) AS total
-            FROM social_accounts
-            WHERE user_id = $1 AND is_active = true
-              ${platform !== 'all' ? `AND platform = '${platform}'` : ''}
-        `, [userId]);
+            // Previous-period metrics (for deltas)
+            db.query(`
+                SELECT
+                    COALESCE(SUM(pa.impressions), 0) AS impressions,
+                    COALESCE(SUM(pa.reach),       0) AS reach,
+                    COALESCE(SUM(pa.likes + pa.comments + pa.shares), 0) AS engagements,
+                    COALESCE(SUM(pa.clicks),      0) AS clicks
+                FROM posts p
+                LEFT JOIN post_analytics pa ON p.id = pa.post_id
+                WHERE p.user_id = $1
+                  AND p.published_at >= NOW() - INTERVAL '${interval}' * 2
+                  AND p.published_at <  NOW() - INTERVAL '${interval}'
+                  AND ($2::text IS NULL OR pa.platform = $2)
+            `, [userId, platformParam]),
 
-        const now  = metricsNow.rows[0] || { impressions: 0, reach: 0, engagements: 0, clicks: 0, avg_er: 0, posts_count: 0 };
+            // Follower totals
+            db.query(`
+                SELECT COALESCE(SUM(followers_count), 0) AS total
+                FROM social_accounts
+                WHERE user_id = $1 AND is_active = true
+                  AND ($2::text IS NULL OR platform = $2)
+            `, [userId, platformParam]),
+
+            // Daily engagement series
+            db.query(`
+                SELECT
+                    DATE(p.published_at) AS date,
+                    COALESCE(SUM(pa.likes),       0) AS likes,
+                    COALESCE(SUM(pa.comments),    0) AS comments,
+                    COALESCE(SUM(pa.shares),      0) AS shares,
+                    COALESCE(SUM(pa.impressions), 0) AS impressions,
+                    COALESCE(SUM(pa.reach),       0) AS reach,
+                    COALESCE(SUM(pa.clicks),      0) AS clicks
+                FROM posts p
+                JOIN post_analytics pa ON p.id = pa.post_id
+                WHERE p.user_id = $1
+                  AND p.published_at >= NOW() - INTERVAL '${interval}'
+                  AND ($2::text IS NULL OR pa.platform = $2)
+                GROUP BY DATE(p.published_at)
+                ORDER BY date ASC
+            `, [userId, platformParam]),
+
+            // Platform breakdown
+            db.query(`
+                SELECT
+                    pa.platform,
+                    COALESCE(SUM(pa.likes),          0) AS likes,
+                    COALESCE(SUM(pa.comments),        0) AS comments,
+                    COALESCE(SUM(pa.shares),          0) AS shares,
+                    COALESCE(SUM(pa.impressions),     0) AS impressions,
+                    COALESCE(AVG(pa.engagement_rate), 0) AS engagement_rate,
+                    COUNT(DISTINCT p.id)                 AS posts_count,
+                    sa.followers_count,
+                    0                                    AS follower_delta
+                FROM posts p
+                JOIN post_analytics pa ON p.id = pa.post_id
+                JOIN social_accounts sa
+                     ON sa.user_id = p.user_id AND sa.platform = pa.platform
+                WHERE p.user_id = $1
+                  AND p.published_at >= NOW() - INTERVAL '${interval}'
+                GROUP BY pa.platform, sa.followers_count
+                ORDER BY impressions DESC
+            `, [userId]),
+
+            // Top posts
+            db.query(`
+                SELECT
+                    p.id, p.content, p.platforms, p.published_at,
+                    p.media_urls,
+                    COALESCE(SUM(pa.likes),          0) AS likes,
+                    COALESCE(SUM(pa.comments),        0) AS comments,
+                    COALESCE(SUM(pa.shares),          0) AS shares,
+                    COALESCE(SUM(pa.impressions),     0) AS impressions,
+                    COALESCE(SUM(pa.reach),           0) AS reach,
+                    COALESCE(SUM(pa.clicks),          0) AS clicks,
+                    COALESCE(AVG(pa.engagement_rate), 0) AS engagement_rate
+                FROM posts p
+                JOIN post_analytics pa ON p.id = pa.post_id
+                WHERE p.user_id = $1
+                  AND p.status = 'published'
+                  AND p.published_at >= NOW() - INTERVAL '${interval}'
+                  AND ($2::text IS NULL OR pa.platform = $2)
+                GROUP BY p.id, p.content, p.platforms, p.published_at, p.media_urls
+                ORDER BY engagement_rate DESC
+                LIMIT 5
+            `, [userId, platformParam]),
+
+            // All posts (for table) — capped at 200 rows to prevent memory issues
+            db.query(`
+                SELECT
+                    p.id, p.content, p.platforms, p.published_at,
+                    p.media_urls,
+                    COALESCE(SUM(pa.likes),          0) AS likes,
+                    COALESCE(SUM(pa.comments),        0) AS comments,
+                    COALESCE(SUM(pa.shares),          0) AS shares,
+                    COALESCE(SUM(pa.impressions),     0) AS impressions,
+                    COALESCE(SUM(pa.reach),           0) AS reach,
+                    COALESCE(SUM(pa.clicks),          0) AS clicks,
+                    COALESCE(AVG(pa.engagement_rate), 0) AS engagement_rate
+                FROM posts p
+                JOIN post_analytics pa ON p.id = pa.post_id
+                WHERE p.user_id = $1
+                  AND p.status = 'published'
+                  AND ($2::text IS NULL OR pa.platform = $2)
+                GROUP BY p.id, p.content, p.platforms, p.published_at, p.media_urls
+                ORDER BY p.published_at DESC
+                LIMIT 200
+            `, [userId, platformParam]),
+
+            // Best-time heatmap
+            db.query(`
+                SELECT
+                    EXTRACT(DOW  FROM p.published_at)::int AS day,
+                    EXTRACT(HOUR FROM p.published_at)::int AS hour,
+                    AVG(pa.engagement_rate) AS value
+                FROM posts p
+                JOIN post_analytics pa ON p.id = pa.post_id
+                WHERE p.user_id = $1 AND p.status = 'published'
+                  AND ($2::text IS NULL OR pa.platform = $2)
+                GROUP BY day, hour
+            `, [userId, platformParam]),
+        ]);
+
+        const now  = metricsNow.rows[0]  || { impressions: 0, reach: 0, engagements: 0, clicks: 0, avg_er: 0, posts_count: 0 };
         const prev = metricsPrev.rows[0] || { impressions: 0, reach: 0, engagements: 0, clicks: 0 };
 
-        // ── Daily engagement series ──────────────────────────────────────────
-        const dailySeries = await db.query(`
-            SELECT
-                DATE(p.published_at) AS date,
-                COALESCE(SUM(pa.likes),       0) AS likes,
-                COALESCE(SUM(pa.comments),    0) AS comments,
-                COALESCE(SUM(pa.shares),      0) AS shares,
-                COALESCE(SUM(pa.impressions), 0) AS impressions,
-                COALESCE(SUM(pa.reach),       0) AS reach,
-                COALESCE(SUM(pa.clicks),      0) AS clicks
-            FROM posts p
-            JOIN post_analytics pa ON p.id = pa.post_id
-            WHERE p.user_id = $1
-              AND p.published_at >= NOW() - INTERVAL '${interval}'
-              ${platformFilter}
-            GROUP BY DATE(p.published_at)
-            ORDER BY date ASC
-        `, [userId]);
-
-        // ── Platform breakdown ───────────────────────────────────────────────
-        const platformRows = await db.query(`
-            SELECT
-                pa.platform,
-                COALESCE(SUM(pa.likes),          0) AS likes,
-                COALESCE(SUM(pa.comments),        0) AS comments,
-                COALESCE(SUM(pa.shares),          0) AS shares,
-                COALESCE(SUM(pa.impressions),     0) AS impressions,
-                COALESCE(AVG(pa.engagement_rate), 0) AS engagement_rate,
-                COUNT(DISTINCT p.id)                 AS posts_count,
-                sa.followers_count,
-                0                                    AS follower_delta
-            FROM posts p
-            JOIN post_analytics pa ON p.id = pa.post_id
-            JOIN social_accounts sa
-                 ON sa.user_id = p.user_id AND sa.platform = pa.platform
-            WHERE p.user_id = $1
-              AND p.published_at >= NOW() - INTERVAL '${interval}'
-            GROUP BY pa.platform, sa.followers_count
-            ORDER BY impressions DESC
-        `, [userId]);
-
-        // ── Top posts ────────────────────────────────────────────────────────
-        const topPosts = await db.query(`
-            SELECT
-                p.id, p.content, p.platforms, p.published_at,
-                p.media_urls,
-                COALESCE(SUM(pa.likes),          0) AS likes,
-                COALESCE(SUM(pa.comments),        0) AS comments,
-                COALESCE(SUM(pa.shares),          0) AS shares,
-                COALESCE(SUM(pa.impressions),     0) AS impressions,
-                COALESCE(SUM(pa.reach),           0) AS reach,
-                COALESCE(SUM(pa.clicks),          0) AS clicks,
-                COALESCE(AVG(pa.engagement_rate), 0) AS engagement_rate
-            FROM posts p
-            JOIN post_analytics pa ON p.id = pa.post_id
-            WHERE p.user_id = $1
-              AND p.status = 'published'
-              AND p.published_at >= NOW() - INTERVAL '${interval}'
-              ${platformFilter}
-            GROUP BY p.id, p.content, p.platforms, p.published_at, p.media_urls
-            ORDER BY engagement_rate DESC
-            LIMIT 5
-        `, [userId]);
-
-        // ── All posts (for table) ────────────────────────────────────────────
-        const allPosts = await db.query(`
-            SELECT
-                p.id, p.content, p.platforms, p.published_at,
-                p.media_urls,
-                COALESCE(SUM(pa.likes),          0) AS likes,
-                COALESCE(SUM(pa.comments),        0) AS comments,
-                COALESCE(SUM(pa.shares),          0) AS shares,
-                COALESCE(SUM(pa.impressions),     0) AS impressions,
-                COALESCE(SUM(pa.reach),           0) AS reach,
-                COALESCE(SUM(pa.clicks),          0) AS clicks,
-                COALESCE(AVG(pa.engagement_rate), 0) AS engagement_rate
-            FROM posts p
-            JOIN post_analytics pa ON p.id = pa.post_id
-            WHERE p.user_id = $1
-              AND p.status = 'published'
-              ${platformFilter}
-            GROUP BY p.id, p.content, p.platforms, p.published_at, p.media_urls
-            ORDER BY p.published_at DESC
-        `, [userId]);
-
-        // ── Audience growth (cumulative daily follower snapshots) ────────────
-        // Fallback: generate synthetic growth if no snapshot table exists
+        // ── Audience growth (note: synthesized from current follower total;
+        //    replace with a follower_snapshots table for real historical data) ──
         const audienceGrowth = dailySeries.rows.map((row: any, i: number) => {
             const base = parseInt(followersNow.rows[0].total) || 0;
             const step = Math.floor(base * 0.02);
@@ -173,19 +196,6 @@ export const getDashboard = async (req: Request, res: Response) => {
                 facebook:  Math.floor((base * 0.14) - step * 0.14 * (dailySeries.rows.length - 1 - i)),
             };
         });
-
-        // ── Best-time heatmap (from published post data) ─────────────────────
-        const heatmapRaw = await db.query(`
-            SELECT
-                EXTRACT(DOW  FROM p.published_at)::int AS day,
-                EXTRACT(HOUR FROM p.published_at)::int AS hour,
-                AVG(pa.engagement_rate) AS value
-            FROM posts p
-            JOIN post_analytics pa ON p.id = pa.post_id
-            WHERE p.user_id = $1 AND p.status = 'published'
-              ${platformFilter}
-            GROUP BY day, hour
-        `, [userId]);
 
         // ── Build response ────────────────────────────────────────────────────
         res.json({

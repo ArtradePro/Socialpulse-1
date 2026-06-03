@@ -48,9 +48,6 @@ export class AIService {
         options: ContentGenerationOptions
     ): Promise<{ content: string; hashtags: string[] }> {
 
-        const user = await db.query('SELECT ai_credits FROM users WHERE id = $1', [userId]);
-        if (user.rows[0].ai_credits <= 0) throw new Error('Insufficient AI credits.');
-
         const { guidelines: customGuidelines, purchaseUrl } = await this.getWorkspaceContext(workspaceId);
 
         const platformGuide: Record<string, string> = {
@@ -92,7 +89,6 @@ export class AIService {
             config: { systemInstruction, responseMimeType: 'application/json' }
         });
 
-        await db.query('UPDATE users SET ai_credits = GREATEST(0, ai_credits - 1) WHERE id = $1', [userId]);
         const resultText = result.text || '{}';
         return JSON.parse(resultText.replace(/```json\n?|\n?```/g, '').trim());
     }
@@ -140,7 +136,6 @@ export class AIService {
             config: { systemInstruction: 'You are a master digital marketer and social media strategist.', responseMimeType: 'application/json' }
         });
 
-        await db.query('UPDATE users SET ai_credits = GREATEST(0, ai_credits - 7) WHERE id = $1', [userId]);
         const resultText = result.text || '{}';
         return JSON.parse(resultText.replace(/```json\n?|\n?```/g, '').trim());
     }
@@ -171,9 +166,8 @@ export class AIService {
             config: { systemInstruction: guidelines, responseMimeType: 'application/json' }
         });
 
-        await db.query('UPDATE users SET ai_credits = GREATEST(0, ai_credits - 1) WHERE id = $1', [userId]);
-        const resultText = result.text || '{}';
-        return JSON.parse(resultText.replace(/```json\n?|\n?```/g, '').trim());
+        const resultText2 = result.text || '{}';
+        return JSON.parse(resultText2.replace(/```json\n?|\n?```/g, '').trim());
     }
 
     static async draftFromTrend(
@@ -191,9 +185,8 @@ export class AIService {
             config: { responseMimeType: 'application/json' }
         });
 
-        await db.query('UPDATE users SET ai_credits = GREATEST(0, ai_credits - 1) WHERE id = $1', [userId]);
-        const resultText = result.text || '{}';
-        return JSON.parse(resultText.replace(/```json\n?|\n?```/g, '').trim());
+        const resultText3 = result.text || '{}';
+        return JSON.parse(resultText3.replace(/```json\n?|\n?```/g, '').trim());
     }
 
     static async reviewContent(
@@ -219,9 +212,8 @@ export class AIService {
             config: { responseMimeType: 'application/json' }
         });
 
-        await db.query('UPDATE users SET ai_credits = GREATEST(0, ai_credits - 1) WHERE id = $1', [userId]);
-        const resultText = result.text || '{}';
-        return JSON.parse(resultText.replace(/```json\n?|\n?```/g, '').trim());
+        const resultText4 = result.text || '{}';
+        return JSON.parse(resultText4.replace(/```json\n?|\n?```/g, '').trim());
     }
 
     static async generateHashtags(userId: string, topic: string, platform: string, count: number = 10): Promise<string[]> {
@@ -230,9 +222,8 @@ export class AIService {
             contents: [{ role: 'user', parts: [{ text: `Generate ${count} hashtags for ${platform} about ${topic}. Return JSON array.` }] }],
             config: { responseMimeType: 'application/json' }
         });
-        await db.query('UPDATE users SET ai_credits = GREATEST(0, ai_credits - 1) WHERE id = $1', [userId]);
-        const resultText = result.text || '[]';
-        return JSON.parse(resultText.replace(/```json\n?|\n?```/g, '').trim());
+        const resultText5 = result.text || '[]';
+        return JSON.parse(resultText5.replace(/```json\n?|\n?```/g, '').trim());
     }
 
     static async improveContent(userId: string, content: string, platform: string, improvement: string): Promise<string> {
@@ -240,7 +231,6 @@ export class AIService {
             model: 'gemini-2.5-flash',
             contents: [{ role: 'user', parts: [{ text: `Improve this ${platform} post for ${improvement}: "${content}"` }] }]
         });
-        await db.query('UPDATE users SET ai_credits = GREATEST(0, ai_credits - 1) WHERE id = $1', [userId]);
         return result.text?.trim() || content;
     }
 
@@ -249,16 +239,10 @@ export class AIService {
             model: 'gemini-2.5-flash',
             contents: [{ role: 'user', parts: [{ text: `Caption for ${platform} (${tone}): "${imageDescription}"` }] }]
         });
-        await db.query('UPDATE users SET ai_credits = GREATEST(0, ai_credits - 1) WHERE id = $1', [userId]);
         return result.text?.trim() || '';
     }
 
     static async generateImage(userId: string, prompt: string, size: string = '1024x1024'): Promise<string> {
-        const user = await db.query('SELECT ai_credits FROM users WHERE id = $1', [userId]);
-        if (!user.rows[0] || user.rows[0].ai_credits <= 0) {
-            throw new Error('Insufficient AI credits. Please upgrade your plan.');
-        }
-
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) throw new Error('GEMINI_API_KEY missing in environment variables');
 
@@ -292,8 +276,7 @@ export class AIService {
                 throw new Error('The AI service returned a success response but no image was generated. This can happen if the prompt violates safety guidelines.');
             }
 
-            // Successfully generated - deduct 2 credits for image generation
-            await db.query('UPDATE users SET ai_credits = GREATEST(0, ai_credits - 2) WHERE id = $1', [userId]);
+            // Successfully generated
             console.log(`[AIService] Image generated successfully for user ${userId}`);
             
             return `data:image/png;base64,${base64Image}`;
@@ -356,9 +339,8 @@ export class AIService {
             config: { systemInstruction, responseMimeType: 'application/json' }
         });
 
-        await db.query('UPDATE users SET ai_credits = GREATEST(0, ai_credits - 1) WHERE id = $1', [userId]);
-        const resultText = result.text || '{}';
-        return JSON.parse(resultText.replace(/```json\n?|\n?```/g, '').trim());
+        const resultText6 = result.text || '{}';
+        return JSON.parse(resultText6.replace(/```json\n?|\n?```/g, '').trim());
     }
 
     static async generateAnalyticsInsights(metrics: any[]): Promise<string> {

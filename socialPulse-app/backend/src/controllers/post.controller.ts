@@ -100,10 +100,19 @@ export const getPosts = async (req: Request, res: Response) => {
 
         const result = await db.query(queryStr, params);
 
-        const countResult = await db.query(
-            'SELECT COUNT(*) FROM posts WHERE user_id = $1 AND (workspace_id = $2 OR $2 IS NULL)',
-            [userId, req.workspaceId || null]
-        );
+        // Count query must mirror the same filters as the main query for correct pagination
+        let countQueryStr = 'SELECT COUNT(*) FROM posts p WHERE p.user_id = $1 AND (p.workspace_id = $2 OR $2 IS NULL)';
+        const countParams: any[] = [userId, req.workspaceId || null];
+        let countParamIdx = 3;
+        if (status) {
+            countQueryStr += ` AND p.status = $${countParamIdx++}`;
+            countParams.push(status);
+        }
+        if (platform) {
+            countQueryStr += ` AND $${countParamIdx++} = ANY(p.platforms)`;
+            countParams.push(platform);
+        }
+        const countResult = await db.query(countQueryStr, countParams);
 
         res.json({
             posts: result.rows,

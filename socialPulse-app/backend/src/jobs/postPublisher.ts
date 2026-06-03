@@ -80,6 +80,13 @@ export const initScheduler = () => {
                                 postData.media_urls
                             );
                             break;
+                        default:
+                            // Platform not yet supported for publishing
+                            results[platform] = {
+                                success: false,
+                                error: `Platform "${platform}" is not yet supported for publishing`,
+                            };
+                            continue;
                     }
 
                     results[platform] = { success: true, platformPostId };

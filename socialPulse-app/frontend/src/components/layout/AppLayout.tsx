@@ -7,7 +7,7 @@ import {
     LayoutDashboard, PenSquare, Calendar, BarChart3, Settings,
     LogOut, Menu, X, HardDrive, CreditCard, Megaphone, Hash, FileText,
     Sparkles, Paintbrush, Rss, Radio, Inbox, Gift, Key, Building2,
-    ShoppingBag, MousePointer, Share2, Users, Bell, Hand
+    ShoppingBag, MousePointer, Share2, Bell, Hand
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { WorkspaceSwitcher } from '../common/WorkspaceSwitcher';
@@ -60,12 +60,6 @@ const navSections = [
 // Flat list used for page title lookup
 const allNavItems = navSections.flatMap(s => s.items);
 
-const CursorSvg = ({ color }: { color: string }) => (
-    <svg width="14" height="20" viewBox="0 0 14 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-md">
-        <path d="M0 0L14 7L7.5 9L11 16.5L8.5 18L5 10.5L0 13V0Z" fill={color} stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
-);
-
 const AppLayout: React.FC = () => {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const { user } = useAppSelector(state => state.auth);
@@ -73,32 +67,6 @@ const AppLayout: React.FC = () => {
     const { usage } = usePlan();
     const dispatch = useAppDispatch();
     const navigate = useNavigate();
-
-    // Multiplayer Cursor states
-    const [multiplayerActive, setMultiplayerActive] = useState(true);
-    const [cursors, setCursors] = useState([
-        { id: 1, name: "Vernon (Free)", color: "#7C3AED", x: 25, y: 45 },
-        { id: 2, name: "Gemini Writer (AI)", color: "#F24E1E", x: 60, y: 70 },
-        { id: 3, name: "Sarah (Admin)", color: "#0C8CE9", x: 80, y: 25 }
-    ]);
-
-    useEffect(() => {
-        if (!multiplayerActive) return;
-        const interval = setInterval(() => {
-            setCursors(prev =>
-                prev.map(c => {
-                    const changeX = Math.random() * 24 - 12;
-                    const changeY = Math.random() * 20 - 10;
-                    return {
-                        ...c,
-                        x: Math.max(15, Math.min(85, c.x + changeX)),
-                        y: Math.max(15, Math.min(80, c.y + changeY))
-                    };
-                })
-            );
-        }, 4000);
-        return () => clearInterval(interval);
-    }, [multiplayerActive]);
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -120,31 +88,6 @@ const AppLayout: React.FC = () => {
     return (
         <div className="flex h-screen bg-[#F3F3F3] text-gray-800 relative overflow-hidden select-none">
             
-            {/* Multiplayer Simulated Cursors layer */}
-            {multiplayerActive && (
-                <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">
-                    {cursors.map(c => (
-                        <div 
-                            key={c.id} 
-                            className="figma-cursor"
-                            style={{ 
-                                left: `${c.x}%`, 
-                                top: `${c.y}%`,
-                                transition: 'left 4s cubic-bezier(0.25, 1, 0.5, 1), top 4s cubic-bezier(0.25, 1, 0.5, 1)'
-                            }}
-                        >
-                            <CursorSvg color={c.color} />
-                            <div 
-                                className="figma-cursor-badge"
-                                style={{ backgroundColor: c.color }}
-                            >
-                                {c.name}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-
             {/* Sidebar */}
             <aside
                 className={`${
@@ -330,22 +273,8 @@ const AppLayout: React.FC = () => {
                         </button>
                     </div>
 
-                    {/* Right: Multiplayer Toggle + Sharing */}
+                    {/* Right: Sharing */}
                     <div className="flex items-center gap-3">
-                        {/* Multiplayer Cursors Toggle */}
-                        <button 
-                            onClick={() => setMultiplayerActive(!multiplayerActive)}
-                            className={`p-1.5 rounded-lg border transition-all flex items-center gap-1.5 text-xs font-bold ${
-                                multiplayerActive 
-                                    ? 'bg-[#0C8CE9]/15 border-[#0C8CE9]/30 text-[#0C8CE9]' 
-                                    : 'bg-transparent border-[#3C3C3C] text-gray-400 hover:text-white hover:border-[#4C4C4C]'
-                            }`}
-                            title="Toggle Simulated Multiplayer Cursors"
-                        >
-                            <Users className="w-3.5 h-3.5" />
-                            {sidebarOpen && <span>Multiplayer</span>}
-                        </button>
-
                         <div className="h-4 w-[1px] bg-gray-700" />
                         
                         <WorkspaceSwitcher />

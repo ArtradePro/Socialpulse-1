@@ -22,15 +22,8 @@ const start = async (): Promise<void> => {
         initRssJob();
         initListeningJob();
         initInboxJob();
-
-        // Auto-migration for Branding Columns
-        const { db } = require('./config/database');
-        await db.query('ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS ai_guidelines TEXT');
-        await db.query('ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS purchase_url TEXT');
-        console.log('Branding columns verified/added');
-
     } catch (err) {
-        console.warn('Redis unavailable or Migration failed — continuing startup:', err);
+        console.warn('Redis unavailable — continuing startup without queue features:', err);
     }
 
     // Register Gemini test route

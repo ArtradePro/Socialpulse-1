@@ -40,20 +40,30 @@ export const getPublicPost = async (req: Request, res: Response): Promise<void> 
 export const submitApproval = async (req: Request, res: Response): Promise<void> => {
     try {
         const { token } = req.params;
-        const { status, feedback } = req.body; // 'approved' | 'rejected'
-        
-        if (status === 'approved') {
-            await db.query(
-                `UPDATE posts SET status = 'scheduled', approved_at = NOW(), approval_feedback = $1 WHERE approval_token = $2`,
-                [feedback || null, token]
-            );
-        } else {
-            await db.query(
-                `UPDATE posts SET status = 'draft', approval_feedback = $1 WHERE approval_token = $2`,
-                [feedback || null, token]
-            );
+        const { status, feedback } = req.body;
+
+        // Validate status strictly — any unexpected value falls through as rejected
+        if (status !== 'approved' && status !== 'rejected') {
+            res.status(400).json({ message: 'status must be "approved" or "rejected"' });
+            return;
         }
-        
+
+        const newPostStatus = status === 'approved' ? 'scheduled' : 'draft';
+
+        // Clear the token after use so it becomes single-use
+        const { rowCount } = await db.query(
+            `UPDATE posts
+             SET status = $1, approved_at = CASE WHEN $2 THEN NOW() ELSE approved_at END,
+                 approval_feedback = $3, approval_token = NULL
+             WHERE approval_token = $4`,
+            [newPostStatus, status === 'approved', feedback || null, token]
+        );
+
+        if (!rowCount) {
+            res.status(404).json({ message: 'Approval link not found or already used' });
+            return;
+        }
+
         res.json({ message: `Post ${status}` });
     } catch (err) {
         res.status(500).json({ message: 'Failed to submit approval' });
