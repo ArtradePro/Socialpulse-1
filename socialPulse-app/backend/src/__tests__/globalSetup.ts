@@ -22,6 +22,9 @@ export default async function globalSetup(): Promise<void> {
     const pool = new Pool({ connectionString: url });
     const client = await pool.connect();
     try {
+        // Drop and recreate public schema to drop all tables and start completely fresh
+        await client.query('DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;');
+        
         const schema = readFileSync(join(__dirname, '../../database/schema.sql'), 'utf-8');
         await client.query(schema);
         console.log('✓ Test database schema applied');

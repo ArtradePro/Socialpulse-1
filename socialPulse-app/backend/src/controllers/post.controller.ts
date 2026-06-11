@@ -75,15 +75,23 @@ export const getPosts = async (req: Request, res: Response) => {
         const userId = req.user!.userId;
         const offset = (Number(page) - 1) * Number(limit);
 
+        const params: any[] = [userId];
         let queryStr = `
             SELECT p.*,
                    COALESCE(json_agg(pa.*) FILTER (WHERE pa.id IS NOT NULL), '[]') as analytics
             FROM posts p
             LEFT JOIN post_analytics pa ON p.id = pa.post_id
-            WHERE p.user_id = $1 AND ${req.workspaceId ? 'p.workspace_id = $2' : 'p.workspace_id IS NULL'}
+            WHERE p.user_id = $1
         `;
-        const params: any[] = [userId, req.workspaceId || null];
-        let paramIndex = 3;
+
+        if (req.workspaceId) {
+            queryStr += ' AND p.workspace_id = $2';
+            params.push(req.workspaceId);
+        } else {
+            queryStr += ' AND p.workspace_id IS NULL';
+        }
+
+        let paramIndex = params.length + 1;
 
         if (status) {
             queryStr += ` AND p.status = $${paramIndex++}`;
@@ -101,9 +109,17 @@ export const getPosts = async (req: Request, res: Response) => {
         const result = await db.query(queryStr, params);
 
         // Count query must mirror the same filters as the main query for correct pagination
-        let countQueryStr = `SELECT COUNT(*) FROM posts p WHERE p.user_id = $1 AND ${req.workspaceId ? 'p.workspace_id = $2' : 'p.workspace_id IS NULL'}`;
-        const countParams: any[] = [userId, req.workspaceId || null];
-        let countParamIdx = 3;
+        const countParams: any[] = [userId];
+        let countQueryStr = `SELECT COUNT(*) FROM posts p WHERE p.user_id = $1`;
+
+        if (req.workspaceId) {
+            countQueryStr += ' AND p.workspace_id = $2';
+            countParams.push(req.workspaceId);
+        } else {
+            countQueryStr += ' AND p.workspace_id IS NULL';
+        }
+
+        let countParamIdx = countParams.length + 1;
         if (status) {
             countQueryStr += ` AND p.status = $${countParamIdx++}`;
             countParams.push(status);
@@ -171,19 +187,37 @@ export const updatePost = async (req: Request, res: Response) => {
 
         const mediaUrlsJson = mediaUrls !== undefined ? JSON.stringify(mediaUrls) : undefined;
 
-        const result = await db.query(
-            `UPDATE posts
+        const params = [
+            content ?? null,
+            platforms ?? null,
+            scheduledAt ?? null,
+            hashtags ?? null,
+            mediaUrlsJson ?? null,
+            id,
+            req.user!.userId
+        ];
+
+        let queryStr = `
+            UPDATE posts
              SET content = COALESCE($1, content),
                  platforms = COALESCE($2, platforms),
                  scheduled_at = COALESCE($3, scheduled_at),
                  hashtags = COALESCE($4, hashtags),
                  media_urls = COALESCE($5, media_urls),
                  updated_at = NOW()
-             WHERE id = $6 AND user_id = $7 AND ${req.workspaceId ? 'workspace_id = $8' : 'workspace_id IS NULL'}
-             RETURNING *`,
-            [content ?? null, platforms ?? null, scheduledAt ?? null, hashtags ?? null,
-             mediaUrlsJson ?? null, id, req.user!.userId, req.workspaceId || null]
-        );
+             WHERE id = $6 AND user_id = $7
+        `;
+
+        if (req.workspaceId) {
+            queryStr += ' AND workspace_id = $8';
+            params.push(req.workspaceId);
+        } else {
+            queryStr += ' AND workspace_id IS NULL';
+        }
+
+        queryStr += ' RETURNING *';
+
+        const result = await db.query(queryStr, params);
 
         if (!result.rows[0]) {
             res.status(404).json({ message: 'Post not found' });
@@ -191,7 +225,8 @@ export const updatePost = async (req: Request, res: Response) => {
         }
 
         res.json(result.rows[0]);
-    } catch (error) {
+    } catch (error: any) {
+        console.error('[updatePost] Error:', error.message, error.stack);
         res.status(500).json({ message: 'Failed to update post' });
     }
 };
