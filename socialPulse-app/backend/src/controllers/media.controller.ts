@@ -76,7 +76,7 @@ export const listMedia = async (req: Request, res: Response): Promise<void> => {
             sort  = 'newest',
         } = req.query as Record<string, string>;
 
-        const conditions: string[] = ['user_id = $1', 'is_deleted = false', '(workspace_id = $2 OR $2 IS NULL)'];
+        const conditions: string[] = ['user_id = $1', 'is_deleted = false', (req as any).workspaceId ? 'workspace_id = $2' : 'workspace_id IS NULL'];
         const params: any[]        = [userId, (req as any).workspaceId || null];
 
         if (folder) {
@@ -135,7 +135,7 @@ export const deleteMedia = async (req: Request, res: Response): Promise<void> =>
         const userId = req.user!.userId;
 
         const { rows } = await db.query(
-            `SELECT * FROM media_files WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)`,
+            `SELECT * FROM media_files WHERE id = $1 AND user_id = $2 AND ${(req as any).workspaceId ? 'workspace_id = $3' : 'workspace_id IS NULL'}`,
             [id, userId, (req as any).workspaceId || null]
         );
 
@@ -174,7 +174,7 @@ export const bulkDeleteMedia = async (req: Request, res: Response): Promise<void
         }
 
         const { rows } = await db.query(
-            `SELECT * FROM media_files WHERE id = ANY($1) AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL) AND is_deleted = false`,
+            `SELECT * FROM media_files WHERE id = ANY($1) AND user_id = $2 AND ${(req as any).workspaceId ? 'workspace_id = $3' : 'workspace_id IS NULL'} AND is_deleted = false`,
             [ids, userId, (req as any).workspaceId || null]
         );
 
@@ -184,7 +184,7 @@ export const bulkDeleteMedia = async (req: Request, res: Response): Promise<void
 
         await db.query(
             `UPDATE media_files SET is_deleted = true, updated_at = NOW()
-             WHERE id = ANY($1) AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)`,
+             WHERE id = ANY($1) AND user_id = $2 AND ${(req as any).workspaceId ? 'workspace_id = $3' : 'workspace_id IS NULL'}`,
             [ids, userId, (req as any).workspaceId || null]
         );
 
@@ -208,7 +208,7 @@ export const getStorageUsage = async (req: Request, res: Response): Promise<void
                 COUNT(CASE WHEN mime_type LIKE 'image/%' THEN 1 END)               AS image_count,
                 COUNT(CASE WHEN mime_type LIKE 'video/%' THEN 1 END)               AS video_count
              FROM media_files
-             WHERE user_id = $1 AND (workspace_id = $2 OR $2 IS NULL) AND is_deleted = false`,
+             WHERE user_id = $1 AND ${(req as any).workspaceId ? 'workspace_id = $2' : 'workspace_id IS NULL'} AND is_deleted = false`,
             [userId, (req as any).workspaceId || null]
         );
 
@@ -247,7 +247,7 @@ export const updateMedia = async (req: Request, res: Response): Promise<void> =>
              SET tags       = COALESCE($1, tags),
                  folder     = COALESCE($2, folder),
                  updated_at = NOW()
-             WHERE id = $3 AND user_id = $4 AND (workspace_id = $5 OR $5 IS NULL) AND is_deleted = false
+             WHERE id = $3 AND user_id = $4 AND ${(req as any).workspaceId ? 'workspace_id = $5' : 'workspace_id IS NULL'} AND is_deleted = false
              RETURNING *`,
             [tags, folder, id, userId, (req as any).workspaceId || null]
         );

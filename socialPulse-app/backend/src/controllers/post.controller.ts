@@ -80,7 +80,7 @@ export const getPosts = async (req: Request, res: Response) => {
                    COALESCE(json_agg(pa.*) FILTER (WHERE pa.id IS NOT NULL), '[]') as analytics
             FROM posts p
             LEFT JOIN post_analytics pa ON p.id = pa.post_id
-            WHERE p.user_id = $1 AND (p.workspace_id = $2 OR $2 IS NULL)
+            WHERE p.user_id = $1 AND ${req.workspaceId ? 'p.workspace_id = $2' : 'p.workspace_id IS NULL'}
         `;
         const params: any[] = [userId, req.workspaceId || null];
         let paramIndex = 3;
@@ -101,7 +101,7 @@ export const getPosts = async (req: Request, res: Response) => {
         const result = await db.query(queryStr, params);
 
         // Count query must mirror the same filters as the main query for correct pagination
-        let countQueryStr = 'SELECT COUNT(*) FROM posts p WHERE p.user_id = $1 AND (p.workspace_id = $2 OR $2 IS NULL)';
+        let countQueryStr = `SELECT COUNT(*) FROM posts p WHERE p.user_id = $1 AND ${req.workspaceId ? 'p.workspace_id = $2' : 'p.workspace_id IS NULL'}`;
         const countParams: any[] = [userId, req.workspaceId || null];
         let countParamIdx = 3;
         if (status) {
@@ -179,7 +179,7 @@ export const updatePost = async (req: Request, res: Response) => {
                  hashtags = COALESCE($4, hashtags),
                  media_urls = COALESCE($5, media_urls),
                  updated_at = NOW()
-             WHERE id = $6 AND user_id = $7 AND (workspace_id = $8 OR $8 IS NULL)
+             WHERE id = $6 AND user_id = $7 AND ${req.workspaceId ? 'workspace_id = $8' : 'workspace_id IS NULL'}
              RETURNING *`,
             [content ?? null, platforms ?? null, scheduledAt ?? null, hashtags ?? null,
              mediaUrlsJson ?? null, id, req.user!.userId, req.workspaceId || null]
@@ -224,7 +224,7 @@ export const publishNow = async (req: Request, res: Response) => {
 
         const result = await db.query(
             `UPDATE posts SET status = 'scheduled', scheduled_at = NOW() 
-             WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)
+             WHERE id = $1 AND user_id = $2 AND ${req.workspaceId ? 'workspace_id = $3' : 'workspace_id IS NULL'}
              RETURNING id`,
             [id, req.user!.userId, req.workspaceId || null]
         );

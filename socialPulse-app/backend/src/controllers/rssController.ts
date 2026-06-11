@@ -13,7 +13,7 @@ export const listFeeds = async (req: Request, res: Response): Promise<void> => {
                     COUNT(e.id) AS total_entries
              FROM rss_feeds f
              LEFT JOIN rss_entries e ON e.feed_id = f.id
-             WHERE f.user_id = $1 AND (f.workspace_id = $2 OR $2 IS NULL)
+             WHERE f.user_id = $1 AND ${req.workspaceId ? 'f.workspace_id = $2' : 'f.workspace_id IS NULL'}
              GROUP BY f.id
              ORDER BY f.created_at DESC`,
             [req.user!.userId, req.workspaceId || null]
@@ -41,10 +41,11 @@ export const createFeed = async (req: Request, res: Response): Promise<void> => 
         }
 
         const { rows } = await db.query(
-            `INSERT INTO rss_feeds (user_id, name, url, platforms, auto_post, interval_hours)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+            `INSERT INTO rss_feeds (user_id, workspace_id, name, url, platforms, auto_post, interval_hours)
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
             [
                 req.user!.userId,
+                req.workspaceId || null,
                 feedTitle,
                 url,
                 platforms ?? [],
@@ -70,9 +71,9 @@ export const updateFeed = async (req: Request, res: Response): Promise<void> => 
                  auto_post      = COALESCE($3, auto_post),
                  interval_hours = COALESCE($4, interval_hours),
                  is_active      = COALESCE($5, is_active)
-             WHERE id = $6 AND user_id = $7 RETURNING *`,
+             WHERE id = $6 AND user_id = $7 AND ${req.workspaceId ? 'workspace_id = $8' : 'workspace_id IS NULL'} RETURNING *`,
             [name ?? null, platforms ?? null, autoPost ?? null,
-             intervalHours ?? null, isActive ?? null, id, req.user!.userId]
+             intervalHours ?? null, isActive ?? null, id, req.user!.userId, req.workspaceId || null]
         );
         if (!rows[0]) { res.status(404).json({ message: 'Feed not found' }); return; }
         res.json(rows[0]);
@@ -86,8 +87,8 @@ export const deleteFeed = async (req: Request, res: Response): Promise<void> => 
     try {
         const { id } = req.params;
         const { rowCount } = await db.query(
-            'DELETE FROM rss_feeds WHERE id = $1 AND user_id = $2',
-            [id, req.user!.userId]
+            `DELETE FROM rss_feeds WHERE id = $1 AND user_id = $2 AND ${req.workspaceId ? 'workspace_id = $3' : 'workspace_id IS NULL'}`,
+            [id, req.user!.userId, req.workspaceId || null]
         );
         if (!rowCount) { res.status(404).json({ message: 'Feed not found' }); return; }
         res.status(204).send();
@@ -101,8 +102,8 @@ export const fetchFeedNow = async (req: Request, res: Response): Promise<void> =
     try {
         const { id } = req.params;
         const { rows: feedRows } = await db.query(
-            'SELECT * FROM rss_feeds WHERE id = $1 AND user_id = $2',
-            [id, req.user!.userId]
+            `SELECT * FROM rss_feeds WHERE id = $1 AND user_id = $2 AND ${req.workspaceId ? 'workspace_id = $3' : 'workspace_id IS NULL'}`,
+            [id, req.user!.userId, req.workspaceId || null]
         );
         if (!feedRows[0]) { res.status(404).json({ message: 'Feed not found' }); return; }
 

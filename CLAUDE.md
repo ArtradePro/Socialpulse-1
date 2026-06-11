@@ -20,16 +20,9 @@ Stack at a glance:
   Database  →  PostgreSQL (primary) + Redis (cache + queues)
   Queue     →  Bull (post scheduling + publishing)
   AI        →  Google Gemini 2.5 Flash + Imagen 4.0
+  Auth      →  JWT (access token) + Passport.js (Google OAuth)
   Storage   →  Cloudinary (default) or AWS S3 (env-switchable)
   Billing   →  Stripe (subscriptions + webhooks)
-  Auth      →  JWT (access token in Authorization header)
-  Infra     →  Docker Compose (local), deployable to any VPS/cloud
-
-Monorepo layout:
-  socialPulse-app/frontend/  →  React web frontend (Vite)
-  socialPulse-app/backend/   →  Express backend
-  socialPulse-app/mobile/    →  React Native (Expo) mobile app
-  CLAUDE.md                  →  this file — always at repo root
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -73,7 +66,8 @@ socialPulse-1/
     │       ├── controllers/
     │       │   ├── auth.controller.ts         ← register, login, profile, forgotPassword, resetPassword, notif-prefs
     │       │   ├── post.controller.ts         ← CRUD + publishNow + bulkCreatePosts
-    │       │   ├── aiController.ts            ← generate, hashtags, improve, caption, generateImage (DALL-E 3)
+    │       │   ├── aiController.ts            ← generate, hashtags, improve, caption, review, reply,
+    │       │   │                                 magic-plan, draft-from-trend, product-post, generateImage (Imagen 4.0)
     │       │   ├── analyticsController.ts     ← getDashboard (single endpoint)
     │       │   ├── media.controller.ts        ← upload, list, delete, bulkDelete, usage, update
     │       │   ├── billing.controller.ts      ← checkout, portal, subscription, usage, webhook
@@ -112,9 +106,11 @@ socialPulse-1/
     │       │
     │       ├── services/
     │       │   ├── storage.service.ts     ← S3 + Cloudinary unified API
-    │       │   ├── ai.service.ts          ← OpenAI wrapper (text + DALL-E 3 image)
+    │       │   ├── ai.service.ts          ← Gemini 2.5 Flash wrapper (all AI text + Imagen 4.0 images)
     │       │   ├── email.service.ts       ← Nodemailer singleton; no-op if SMTP_PASS unset
     │       │   ├── notification.service.ts
+    │       │   ├── link.service.ts        ← URL shortener (shorten + resolve + click tracking)
+    │       │   ├── ecommerce.service.ts   ← Shopify / WooCommerce / Amazon / Takealot dispatcher
     │       │   ├── twitterService.ts      ← publish + analytics + searchRecent + getMentions
     │       │   ├── instagramService.ts    ← single image, video/Reels, carousel (up to 10)
     │       │   ├── linkedinService.ts     ← text + up to 9 images via UGC Post API
@@ -189,7 +185,7 @@ socialPulse-1/
     │           ├── MediaLibrary.tsx / Billing.tsx
     │           ├── HashtagSets.tsx / Templates.tsx
     │           ├── RssFeeds.tsx / ApiKeys.tsx / Referrals.tsx
-    │           ├── ImageGenerator.tsx ← DALL-E 3; "Edit" button → ImageEditor
+    │           ├── ImageGenerator.tsx ← Imagen 4.0; "Edit" button → ImageEditor
     │           ├── ImageEditor.tsx    ← fabric.js canvas; tools/filters/undo/redo/save-to-library
     │           ├── SocialListening.tsx / UnifiedInbox.tsx
     │           └── Workspaces.tsx     ← workspace list + members tab + branding tab
@@ -520,6 +516,18 @@ POST   /api/ai/improve                🔒 ⚡(AI credits)
         body: { content, platform, improvement }
 POST   /api/ai/caption                🔒 ⚡(AI credits)
         body: { imageDescription, platform, tone }
+POST   /api/ai/review                 🔒 ⚡(AI credits)
+        body: { content, platform }  → { score, feedback[], remix }
+POST   /api/ai/reply                  🔒 ⚡(AI credits)
+        body: { messageContent, platform }
+POST   /api/ai/magic-plan             🔒 ⚡(7 AI credits)
+        body: { topic, description?, days? }
+POST   /api/ai/draft-from-trend       🔒 ⚡(AI credits)
+        body: { trendContent, platform }
+POST   /api/ai/product-post           🔒 ⚡(AI credits)
+        body: { productData, platform, tone }
+POST   /api/ai/image                  🔒 ⚡(2 AI credits)
+        body: { prompt, size? }  size: '1024x1024'|'1792x1024'|'1024x1792'
 
 ── Analytics ─────────────────────────────────────────────────────────────────
 GET    /api/analytics/dashboard       🔒  ?range=7d|14d|30d|90d&platform=all|twitter|...
@@ -563,6 +571,18 @@ POST   /api/teams/:id/invite            🔒  body: { email, role } (admin+)
 DELETE /api/teams/:id/invites/:inviteId 🔒  cancel pending invite (admin+)
 PATCH  /api/teams/:id/members/:userId/role 🔒 body: { role } (admin+)
 DELETE /api/teams/:id/members/:userId   🔒  remove member (admin+)
+
+── Client Approval Portals ──────────────────────────────────────────────────
+POST   /api/approvals/generate-link          🔒  body: { postId } → { token }
+GET    /api/approvals/public/:token               PUBLIC — branded post view
+POST   /api/approvals/public/:token/submit        PUBLIC — body: { status, feedback? }
+
+── E-commerce ────────────────────────────────────────────────────────────────
+GET    /api/ecommerce/stores                 🔒  list stores for active workspace
+POST   /api/ecommerce/stores                 🔒  body: { platform, name, apiUrl, apiKey, apiSecret, sellerId }
+DELETE /api/ecommerce/stores/:id             🔒  disconnect + delete products
+POST   /api/ecommerce/stores/:id/sync        🔒  manual product sync
+GET    /api/ecommerce/products               🔒  ?search=&page=&limit=
 
 ── AI Image Generation ───────────────────────────────────────────────────────
 POST   /api/ai/image                  🔒 ⚡(2 AI credits)
@@ -844,7 +864,7 @@ JWT_SECRET=change-me-minimum-32-chars
 JWT_EXPIRES_IN=7d
 
 # ── AI ────────────────────────────────────────────────────────
-OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=AIza...
 
 # ── Storage ───────────────────────────────────────────────────
 STORAGE_PROVIDER=cloudinary            # 'cloudinary' | 's3'
@@ -1016,7 +1036,8 @@ CORE FEATURES
   ✅ Media Library (upload, library, grid/list, bulk ops)
   ✅ Subscription & Billing (Stripe, plan cards, usage bars)
   ✅ Plan enforcement (post/AI/account/storage/feature limits)
-  ✅ AI content generation (GPT-4, hashtags, improve, caption)
+  ✅ AI content generation (Gemini 2.5 Flash: generate, hashtags, improve, caption, review, reply,
+                             magic-plan, draft-from-trend, product-post, image generation)
   ✅ Storage service (Cloudinary + S3 dual-provider)
 
 PRIORITY 1 — Required before launch
@@ -1044,7 +1065,7 @@ PRIORITY 3 — Post-launch growth
   ✅ Unified Inbox                (message list, unread filter, platform filter, sync, 15-min cron)
   ✅ RSS Auto-posting             (feed CRUD, per-feed interval, auto-post toggle, hourly cron)
   ✅ Public API + key management  (SHA-256 hashed keys, X-API-Key middleware, key lifecycle UI)
-  ✅ AI Image Generation          (DALL-E 3, 3 sizes, 2 AI credits, download/copy, gallery UI)
+  ✅ AI Image Generation          (Imagen 4.0, 3 sizes, 2 AI credits, download/copy, gallery UI)
   ✅ Referral system              (10-char code, 20 credit reward, register integration, stats UI)
   ✅ Advanced Image Editor        (fabric.js canvas; select/text/rect/circle tools; filters; undo/redo)
   ✅ Multi-workspace support      (workspaces table + workspace_members + workspace_invites; X-Workspace-Id
@@ -1052,6 +1073,9 @@ PRIORITY 3 — Post-launch growth
   ✅ White-label support          (brand_color/name/logo_url/custom_domain on workspaces; BrandContext;
                                    CSS --brand-color var injection; public /brand/:domain endpoint)
   ✅ Mobile App (React Native)    (Expo app; auth, dashboard, content studio, scheduler, analytics, profile)
+  ✅ E-commerce integration        (Shopify, WooCommerce, Amazon, Takealot; product sync; AI product posts)
+  ✅ Client Approval Portals       (token-based; branded public portal; approve/reject with feedback)
+  ✅ Link Shortener                (built-in; auto-injects into AI content; click tracking)
 
 INFRASTRUCTURE & DEVOPS
   ✅ GitHub Actions CI/CD    (3 parallel jobs: backend typecheck+35 tests, frontend typecheck, mobile typecheck)

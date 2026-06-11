@@ -4,7 +4,7 @@ import {
     Wand2, Image, Hash, Smile, Calendar, Send, Save, 
     Loader2, X, FolderOpen, FileText, Tag, Megaphone,
     Search, CheckCircle2, AlertCircle, Sparkles, ShoppingBag,
-    Video, Share2, Monitor, Square, Palette
+    Video, Share2, Monitor, Square, Palette, Smartphone
 } from "lucide-react";
 import { PlatformIcon } from '../components/common/BrandIcons';
 import toast from 'react-hot-toast';
@@ -26,6 +26,18 @@ const platforms = [
 ];
 const tones = ['Professional', 'Casual', 'Humorous', 'Inspirational', 'Educational', 'Promotional'];
 const contentLengths = ['Short', 'Medium', 'Long'];
+
+const defaultHashtagSets: HashtagSet[] = [
+    { id: 'def-tech', name: '🔥 Tech & Coding', hashtags: ['tech', 'coding', 'developer', 'software', 'innovation'] },
+    { id: 'def-startup', name: '🚀 Startup & Growth', hashtags: ['startup', 'business', 'marketing', 'growth', 'entrepreneur'] },
+    { id: 'def-creative', name: '🎨 Design & UI', hashtags: ['design', 'uidesign', 'branding', 'creative', 'graphicdesign'] },
+];
+
+const defaultTemplates: Template[] = [
+    { id: 'def-launch', name: '📢 Product Launch', content: "🚀 We are thrilled to introduce our new feature! Designed to help you automate workflows and save hours every week. Try it out and let us know what you think! 👇\n\n#launch #productivity" },
+    { id: 'def-tip', name: '💡 Weekly Tip', content: "💡 Tip of the week: Always structure your content with clear, readable sections. Using list formats or bullet points can increase engagement by up to 40%!\n\n#marketingtips #growth" },
+    { id: 'def-question', name: '❓ Question of the Day', content: "❓ Quick question: What is the single biggest challenge you face in your daily workflow? Let us know in the comments! 👇" }
+];
 
 interface Template { id: string; name: string; content: string; }
 interface HashtagSet { id: string; name: string; hashtags: string[]; }
@@ -233,11 +245,12 @@ export const ContentStudio: React.FC = () => {
                                 <Video className="w-4 h-4 text-brand" />
                                 Content Format
                             </h3>
-                            <div className="grid grid-cols-3 gap-4 mt-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                                 {[
-                                    { id: 'social', label: 'Social media', res: '800 x 800 px', icon: Share2 },
-                                    { id: 'hd',     label: 'HD video',     res: '1920 x 1080 px', icon: Monitor },
-                                    { id: 'square', label: 'Square video', res: '1080 x 1080 px', icon: Square },
+                                    { id: 'social',   label: 'Social media',   res: '800 x 800 px', icon: Share2 },
+                                    { id: 'hd',       label: 'HD video',       res: '1920 x 1080 px (16:9)', icon: Monitor },
+                                    { id: 'square',   label: 'Square video',   res: '1080 x 1080 px (1:1)', icon: Square },
+                                    { id: 'vertical', label: 'Vertical video', res: '1080 x 1920 px (9:16)', icon: Smartphone },
                                 ].map(format => (
                                     <button 
                                         key={format.id}
@@ -300,65 +313,100 @@ export const ContentStudio: React.FC = () => {
                                     </div>
                                 )}
                                 <div className='flex items-center justify-between mt-4 pt-3 border-t border-gray-100'>
-                                    <div className='flex items-center gap-1 flex-wrap'>
-                                        <label className='p-2 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors' title='Upload file'>
-                                            <Image className='w-5 h-5 text-gray-500' />
+                                    <div className='flex items-center gap-2 flex-wrap'>
+                                        <label className='p-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 rounded-xl cursor-pointer transition-all shadow-xs' title='Upload file'>
+                                            <Image className='w-5 h-5' />
                                             <input type='file' className='hidden' accept='image/*,video/*' multiple onChange={handleFileUpload} />
                                         </label>
                                         <button
                                             onClick={() => setShowMediaPicker(true)}
-                                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                            className="p-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 rounded-xl transition-all shadow-xs"
                                             title="Pick from Media Library"
                                         >
-                                            <FolderOpen className="w-5 h-5 text-gray-500" />
+                                            <FolderOpen className="w-5 h-5" />
                                         </button>
                                         <div className='relative'>
                                             <button
                                                 onClick={() => { setShowHashtagSets(v => !v); setShowTemplates(false); }}
-                                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                                className="p-2 bg-amber-50 text-amber-600 hover:bg-amber-100 hover:text-amber-700 rounded-xl transition-all shadow-xs"
                                                 title="Insert Hashtag Set"
                                             >
-                                                <Tag className="w-5 h-5 text-gray-500" />
+                                                <Tag className="w-5 h-5" />
                                             </button>
-                                            {showHashtagSets && hashtagSets.length > 0 && (
-                                                <div className="absolute left-0 top-9 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-48 py-1">
-                                                    {hashtagSets.map(s => (
-                                                        <button
-                                                            key={s.id}
-                                                            onClick={() => applyHashtagSet(s)}
-                                                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 truncate"
-                                                        >
-                                                            <span className="font-medium">{s.name}</span>
-                                                            <span className="text-gray-400 ml-1">({s.hashtags.length})</span>
-                                                        </button>
-                                                    ))}
+                                            {showHashtagSets && (
+                                                <div className="absolute left-0 top-11 z-20 bg-white border border-gray-150 rounded-xl shadow-lg min-w-48 py-1 max-h-60 overflow-y-auto">
+                                                    {hashtagSets.length > 0 ? (
+                                                        hashtagSets.map(s => (
+                                                            <button
+                                                                key={s.id}
+                                                                onClick={() => applyHashtagSet(s)}
+                                                                className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 truncate text-gray-700"
+                                                            >
+                                                                <span className="font-medium text-gray-800">{s.name}</span>
+                                                                <span className="text-gray-400 ml-1">({s.hashtags.length})</span>
+                                                            </button>
+                                                        ))
+                                                    ) : (
+                                                        <>
+                                                            <div className="px-4 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 bg-gray-50/50">Default Presets</div>
+                                                            {defaultHashtagSets.map(s => (
+                                                                 <button
+                                                                     key={s.id}
+                                                                     onClick={() => applyHashtagSet(s)}
+                                                                     className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 truncate text-gray-700"
+                                                                 >
+                                                                     <span className="font-medium text-gray-800">{s.name}</span>
+                                                                     <span className="text-gray-400 ml-1">({s.hashtags.length})</span>
+                                                                 </button>
+                                                            ))}
+                                                        </>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
                                         <div className='relative'>
                                             <button
                                                 onClick={() => { setShowTemplates(v => !v); setShowHashtagSets(false); }}
-                                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                                className="p-2 bg-purple-50 text-purple-600 hover:bg-purple-100 hover:text-purple-700 rounded-xl transition-all shadow-xs"
                                                 title="Load Template"
                                             >
-                                                <FileText className="w-5 h-5 text-gray-500" />
+                                                <FileText className="w-5 h-5" />
                                             </button>
-                                            {showTemplates && templates.length > 0 && (
-                                                <div className="absolute left-0 top-9 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-56 py-1 max-h-56 overflow-y-auto">
-                                                    {templates.map(t => (
-                                                        <button
-                                                            key={t.id}
-                                                            onClick={() => applyTemplate(t)}
-                                                            className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 truncate"
-                                                        >
-                                                            {t.name}
-                                                        </button>
-                                                    ))}
+                                            {showTemplates && (
+                                                <div className="absolute left-0 top-11 z-20 bg-white border border-gray-150 rounded-xl shadow-lg min-w-56 py-1 max-h-60 overflow-y-auto">
+                                                    {templates.length > 0 ? (
+                                                        templates.map(t => (
+                                                            <button
+                                                                key={t.id}
+                                                                onClick={() => applyTemplate(t)}
+                                                                className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 truncate text-gray-700"
+                                                            >
+                                                                {t.name}
+                                                            </button>
+                                                        ))
+                                                    ) : (
+                                                        <>
+                                                            <div className="px-4 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 bg-gray-50/50">Default Presets</div>
+                                                            {defaultTemplates.map(t => (
+                                                                <button
+                                                                    key={t.id}
+                                                                    onClick={() => applyTemplate(t)}
+                                                                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 truncate text-gray-700"
+                                                                >
+                                                                    {t.name}
+                                                                </button>
+                                                            ))}
+                                                        </>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
-                                        <button onClick={handleGenerateHashtags} className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Generate hashtags">
-                                            <Hash className="w-5 h-5 text-gray-500" />
+                                        <button 
+                                            onClick={handleGenerateHashtags} 
+                                            className="p-2 bg-sky-50 text-sky-600 hover:bg-sky-100 hover:text-sky-700 rounded-xl transition-all shadow-xs" 
+                                            title="Generate hashtags"
+                                        >
+                                            <Hash className="w-5 h-5" />
                                         </button>
                                          <button 
                                             onClick={handleAIReview} 
@@ -370,24 +418,27 @@ export const ContentStudio: React.FC = () => {
                                         </button>
                                         <button 
                                             onClick={() => setShowProductPicker(true)}
-                                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors" 
+                                            className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 rounded-xl transition-all shadow-xs" 
                                             title="Promote Product"
                                         >
-                                            <ShoppingBag className="w-5 h-5 text-gray-500" />
+                                            <ShoppingBag className="w-5 h-5" />
                                         </button>
                                         <div className="w-px h-6 bg-gray-200 mx-1" />
                                         <a 
                                             href="https://www.canva.com/templates/" 
                                             target="_blank" 
                                             rel="noopener noreferrer"
-                                            className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-[#00C4CC] to-[#7D2AE8] text-white rounded-lg text-xs font-bold hover:opacity-90 transition-all shadow-sm"
+                                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#00C4CC] to-[#7D2AE8] text-white rounded-xl text-xs font-bold hover:scale-102 hover:opacity-95 active:scale-98 transition-all shadow-sm"
                                             title="Design with Canva"
                                         >
                                             <Palette className="w-4 h-4" />
                                             Canva
                                         </a>
-                                        <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Add emoji">
-                                            <Smile className="w-5 h-5 text-gray-500" />
+                                        <button 
+                                            className="p-2 bg-yellow-50 text-yellow-600 hover:bg-yellow-100 hover:text-yellow-700 rounded-xl transition-all shadow-xs" 
+                                            title="Add emoji"
+                                        >
+                                            <Smile className="w-5 h-5" />
                                         </button>
                                     </div>
                                     <span className={`text-sm font-medium ${content.length > charLimit * 0.9 ? 'text-red-500' : 'text-gray-400'}`}>
@@ -553,6 +604,7 @@ export const ContentStudio: React.FC = () => {
                                             mediaUrls={mediaUrls}
                                             brandName={brand.brandName || 'SocialPulse Identity'}
                                             brandLogoUrl={brand.brandLogoUrl || ''}
+                                            videoFormat={videoFormat}
                                         />
                                     ))
                                 ) : (
@@ -563,6 +615,7 @@ export const ContentStudio: React.FC = () => {
                                         mediaUrls={mediaUrls}
                                         brandName={brand.brandName || 'SocialPulse Identity'}
                                         brandLogoUrl={brand.brandLogoUrl || ''}
+                                        videoFormat={videoFormat}
                                     />
                                 )
                             ) : (

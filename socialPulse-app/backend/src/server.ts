@@ -9,8 +9,22 @@ import { initAnalyticsSync } from './jobs/analyticsSync';
 import { initRssJob } from './jobs/rssJob';
 import { initListeningJob } from './jobs/listeningJob';
 import { initInboxJob } from './jobs/inboxJob';
+import { processQueue, processPendingScrapeTasks, checkScheduledTasks } from './services/automationService';
 
 const PORT = process.env.PORT || 5000;
+
+const startAutomationSafetyNet = () => {
+    console.log('🤖 Starting Automation Safety-Net Ticking loop (every 60s)...');
+    setInterval(async () => {
+        try {
+            await checkScheduledTasks();
+            await processPendingScrapeTasks();
+            await processQueue();
+        } catch (err) {
+            console.error('❌ Error in background automation safety-net tick:', err);
+        }
+    }, 60 * 1000);
+};
 
 const start = async (): Promise<void> => {
     await connectDB();
@@ -24,6 +38,10 @@ const start = async (): Promise<void> => {
         initInboxJob();
     } catch (err) {
         console.warn('Redis unavailable — continuing startup without queue features:', err);
+    }
+
+    if (process.env.NODE_ENV !== 'test') {
+        startAutomationSafetyNet();
     }
 
     // Register Gemini test route

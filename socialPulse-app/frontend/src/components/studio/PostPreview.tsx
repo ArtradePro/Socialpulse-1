@@ -9,6 +9,7 @@ interface PostPreviewProps {
     mediaUrls: string[];
     brandName: string;
     brandLogoUrl: string;
+    videoFormat?: string;
 }
 
 export const PostPreview: React.FC<PostPreviewProps> = ({
@@ -17,13 +18,22 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
     hashtags,
     mediaUrls,
     brandName,
-    brandLogoUrl
+    brandLogoUrl,
+    videoFormat
 }) => {
     const handle = brandName.toLowerCase().replace(/\s/g, '');
     const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(brandName || 'S')}&background=7C3AED&color=fff`;
     const avatar = brandLogoUrl || defaultAvatar;
 
     const fullContent = `${content}${hashtags.length > 0 ? '\n\n' + hashtags.map(h => `#${h}`).join(' ') : ''}`;
+
+    const getMediaAspect = (isSingle: boolean) => {
+        if (!isSingle) return 'aspect-square';
+        if (videoFormat === 'hd') return 'aspect-video';
+        if (videoFormat === 'vertical') return 'aspect-[9/16]';
+        if (videoFormat === 'square' || videoFormat === 'social') return 'aspect-square';
+        return 'aspect-video'; // Twitter default
+    };
 
     if (platform === 'twitter') {
         return (
@@ -44,7 +54,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
                         {mediaUrls.length > 0 && (
                             <div className={`mt-3 grid gap-0.5 rounded-2xl overflow-hidden border border-gray-200 ${mediaUrls.length === 1 ? 'grid-cols-1' : mediaUrls.length === 2 ? 'grid-cols-2' : mediaUrls.length === 3 ? 'grid-cols-2' : 'grid-cols-2'}`}>
                                 {mediaUrls.slice(0, 4).map((url, i) => (
-                                    <img key={i} src={url} alt="" className={`object-cover w-full h-full ${mediaUrls.length === 1 ? 'aspect-video' : mediaUrls.length === 3 && i === 0 ? 'row-span-2' : 'aspect-square'}`} />
+                                    <img key={i} src={url} alt="" className={`object-cover w-full h-full ${mediaUrls.length === 1 ? getMediaAspect(true) : mediaUrls.length === 3 && i === 0 ? 'row-span-2' : 'aspect-square'}`} />
                                 ))}
                             </div>
                         )}
@@ -71,7 +81,7 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
                     <MoreHorizontal className="w-5 h-5 text-gray-900" />
                 </div>
                 {mediaUrls.length > 0 ? (
-                    <div className="relative aspect-square bg-black flex items-center justify-center overflow-hidden">
+                    <div className={`relative ${videoFormat === 'vertical' ? 'aspect-[9/16]' : videoFormat === 'hd' ? 'aspect-video' : 'aspect-square'} bg-black flex items-center justify-center overflow-hidden`}>
                         <img src={mediaUrls[0]} alt="" className="w-full h-full object-cover" />
                         {mediaUrls.length > 1 && (
                             <div className="absolute top-3 right-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full font-semibold">
@@ -120,7 +130,17 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
                 </div>
                 {mediaUrls.length > 0 && (
                     <div className="w-full">
-                        <img src={mediaUrls[0]} alt="" className="w-full object-cover max-h-96" />
+                        <img 
+                            src={mediaUrls[0]} 
+                            alt="" 
+                            className={`w-full object-cover ${
+                                videoFormat === 'vertical' 
+                                    ? 'aspect-[9/16] max-h-[500px]' 
+                                    : videoFormat === 'hd' 
+                                        ? 'aspect-video' 
+                                        : 'max-h-96'
+                            }`} 
+                        />
                         {mediaUrls.length > 1 && <div className="text-center py-2 text-sm text-gray-500 font-medium bg-gray-50 border-t border-gray-100">+{mediaUrls.length - 1} more images</div>}
                     </div>
                 )}
@@ -161,7 +181,16 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
             {mediaUrls.length > 0 && (
                 <div className="mt-3 grid grid-cols-1 gap-1">
                     {mediaUrls.map((url, idx) => (
-                        <img key={idx} src={url} alt="" className="rounded-lg w-full object-cover max-h-80 shadow-sm border border-gray-100" />
+                        <img 
+                            key={idx} 
+                            src={url} 
+                            alt="" 
+                            className={`rounded-lg w-full object-cover shadow-sm border border-gray-100 ${
+                                idx === 0 && mediaUrls.length === 1 
+                                    ? (videoFormat === 'vertical' ? 'aspect-[9/16] max-h-[500px]' : videoFormat === 'hd' ? 'aspect-video' : 'max-h-80') 
+                                    : 'max-h-80'
+                            }`} 
+                        />
                     ))}
                 </div>
             )}

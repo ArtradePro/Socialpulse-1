@@ -11,7 +11,7 @@ export const listRules = async (req: Request, res: Response): Promise<void> => {
                     COUNT(lr.id) AS result_count
              FROM listening_rules r
              LEFT JOIN listening_results lr ON lr.rule_id = r.id
-             WHERE r.user_id = $1 AND (r.workspace_id = $2 OR $2 IS NULL)
+             WHERE r.user_id = $1 AND ${req.workspaceId ? 'r.workspace_id = $2' : 'r.workspace_id IS NULL'}
              GROUP BY r.id
              ORDER BY r.created_at DESC`,
             [req.user!.userId, (req as any).workspaceId || null]
@@ -43,7 +43,7 @@ export const deleteRule = async (req: Request, res: Response): Promise<void> => 
     try {
         const { id } = req.params;
         const { rowCount } = await db.query(
-            'DELETE FROM listening_rules WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)',
+            `DELETE FROM listening_rules WHERE id = $1 AND user_id = $2 AND ${req.workspaceId ? 'workspace_id = $3' : 'workspace_id IS NULL'}`,
             [id, req.user!.userId, (req as any).workspaceId || null]
         );
         if (!rowCount) { res.status(404).json({ message: 'Rule not found' }); return; }
@@ -78,7 +78,7 @@ export const getResults = async (req: Request, res: Response): Promise<void> => 
         const offset = parseInt(req.query.offset as string) || 0;
         const ruleId = req.query.rule_id as string | undefined;
 
-        let where = 'WHERE ru.user_id = $1 AND (ru.workspace_id = $2 OR $2 IS NULL)';
+        let where = `WHERE ru.user_id = $1 AND ${req.workspaceId ? 'ru.workspace_id = $2' : 'ru.workspace_id IS NULL'}`;
         const params: unknown[] = [req.user!.userId, (req as any).workspaceId || null];
         if (ruleId) { where += ' AND lr.rule_id = $3'; params.push(ruleId); }
 
@@ -104,7 +104,7 @@ export const fetchRuleNow = async (req: Request, res: Response): Promise<void> =
     try {
         const { id } = req.params;
         const { rows: ruleRows } = await db.query(
-            'SELECT * FROM listening_rules WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)',
+            `SELECT * FROM listening_rules WHERE id = $1 AND user_id = $2 AND ${req.workspaceId ? 'workspace_id = $3' : 'workspace_id IS NULL'}`,
             [id, req.user!.userId, (req as any).workspaceId || null]
         );
         if (!ruleRows[0]) { res.status(404).json({ message: 'Rule not found' }); return; }

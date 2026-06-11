@@ -483,3 +483,146 @@ CREATE INDEX IF NOT EXISTS idx_schedules_time    ON schedules(scheduled_at);
 CREATE OR REPLACE TRIGGER trg_schedules_updated_at
   BEFORE UPDATE ON schedules
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ─── Outscraper Lead Generation & GHL Automations Tables ───
+
+-- Scrape Tasks Table
+CREATE TABLE IF NOT EXISTS scrape_tasks (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id   UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    query          VARCHAR(255) NOT NULL,
+    location       VARCHAR(255) NOT NULL,
+    limit_count    INTEGER      DEFAULT 20,
+    status         VARCHAR(50)  DEFAULT 'PENDING',
+    leads_found    INTEGER      DEFAULT 0,
+    leads_ingested INTEGER      DEFAULT 0,
+    schedule       VARCHAR(50),
+    error_message  TEXT,
+    created_at     TIMESTAMP    DEFAULT NOW(),
+    updated_at     TIMESTAMP    DEFAULT NOW()
+);
+
+-- Scraped Leads Table
+CREATE TABLE IF NOT EXISTS scraped_leads (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id      UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    business_name     VARCHAR(255) NOT NULL,
+    email             VARCHAR(255),
+    phone             VARCHAR(50),
+    address           TEXT,
+    city              VARCHAR(100),
+    category          VARCHAR(150),
+    rating            NUMERIC(3,2),
+    reviews_count     INTEGER      DEFAULT 0,
+    website           TEXT,
+    competitor_rating NUMERIC(3,2),
+    status            VARCHAR(50)  DEFAULT 'SCRAPED',
+    crm_lead_id       UUID,
+    tag_applied       VARCHAR(100),
+    created_at        TIMESTAMP    DEFAULT NOW(),
+    updated_at        TIMESTAMP    DEFAULT NOW()
+);
+
+-- Automation Workflows Table
+CREATE TABLE IF NOT EXISTS automation_workflows (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    name         VARCHAR(255) NOT NULL,
+    trigger_type VARCHAR(100) NOT NULL,
+    is_active    BOOLEAN      DEFAULT true,
+    steps        TEXT         NOT NULL,
+    created_at   TIMESTAMP    DEFAULT NOW(),
+    updated_at   TIMESTAMP    DEFAULT NOW()
+);
+
+-- Automation Queue Table
+CREATE TABLE IF NOT EXISTS automation_queue (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id    UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    workflow_id     UUID NOT NULL REFERENCES automation_workflows(id) ON DELETE CASCADE,
+    scraped_lead_id UUID NOT NULL REFERENCES scraped_leads(id) ON DELETE CASCADE,
+    current_step    INTEGER      DEFAULT 0,
+    execute_at      TIMESTAMP    NOT NULL,
+    status          VARCHAR(50)  DEFAULT 'PENDING',
+    logs            JSONB        DEFAULT '[]',
+    created_at      TIMESTAMP    DEFAULT NOW(),
+    updated_at      TIMESTAMP    DEFAULT NOW()
+);
+
+-- Automation Activity Logs Table
+CREATE TABLE IF NOT EXISTS automation_activity_logs (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    task_name    VARCHAR(100) NOT NULL,
+    level        VARCHAR(20)  DEFAULT 'INFO',
+    message      TEXT         NOT NULL,
+    details      JSONB,
+    created_at   TIMESTAMP    DEFAULT NOW()
+);
+
+-- Indexes for performance & workspace isolation
+CREATE INDEX IF NOT EXISTS idx_scrape_tasks_workspace       ON scrape_tasks(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_scraped_leads_workspace      ON scraped_leads(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_scraped_leads_email_phone    ON scraped_leads(email, phone);
+CREATE INDEX IF NOT EXISTS idx_automation_workflows_wk      ON automation_workflows(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_automation_queue_wk          ON automation_queue(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_automation_queue_status      ON automation_queue(status);
+CREATE INDEX IF NOT EXISTS idx_automation_activity_logs_wk  ON automation_activity_logs(workspace_id);
+
+-- Updated_at triggers
+CREATE OR REPLACE TRIGGER trg_scrape_tasks_updated_at
+  BEFORE UPDATE ON scrape_tasks
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE OR REPLACE TRIGGER trg_scraped_leads_updated_at
+  BEFORE UPDATE ON scraped_leads
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE OR REPLACE TRIGGER trg_automation_workflows_updated_at
+  BEFORE UPDATE ON automation_workflows
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE OR REPLACE TRIGGER trg_automation_queue_updated_at
+  BEFORE UPDATE ON automation_queue
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Brand Voices Table
+CREATE TABLE IF NOT EXISTS brand_voices (
+    workspace_id     UUID PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
+    tone_of_voice    VARCHAR(255) DEFAULT 'professional, friendly',
+    value_proposition TEXT,
+    target_keywords  TEXT[]       DEFAULT '{}',
+    forbidden_words  TEXT[]       DEFAULT '{}',
+    created_at       TIMESTAMP    DEFAULT NOW(),
+    updated_at       TIMESTAMP    DEFAULT NOW()
+);
+
+-- Buyer Personas Table
+CREATE TABLE IF NOT EXISTS buyer_personas (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id   UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    name           VARCHAR(255) NOT NULL,
+    industry       VARCHAR(255),
+    role           VARCHAR(255),
+    pain_points    TEXT[]       DEFAULT '{}',
+    goals          TEXT[]       DEFAULT '{}',
+    objections     TEXT[]       DEFAULT '{}',
+    copy_prompt    TEXT,
+    is_active      BOOLEAN      DEFAULT true,
+    created_at     TIMESTAMP    DEFAULT NOW(),
+    updated_at     TIMESTAMP    DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_buyer_personas_wk ON buyer_personas(workspace_id);
+
+-- Triggers for updated_at
+CREATE OR REPLACE TRIGGER trg_brand_voices_updated_at
+  BEFORE UPDATE ON brand_voices
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE OR REPLACE TRIGGER trg_buyer_personas_updated_at
+  BEFORE UPDATE ON buyer_personas
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+

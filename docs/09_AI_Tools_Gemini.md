@@ -1,40 +1,74 @@
 # 09. AI Tools (Gemini Integration)
 
-At the heart of SocialPulse is our **Gemini AI Engine**. We don't just use AI to "write text"; we use it to build frameworks that sell.
+At the heart of SocialPulse is our **Gemini 2.5 Flash AI Engine**. We don't just use AI to "write text"; we use it to build frameworks that sell.
 
 ## 1. AI Content Reviewer (The Revenue Engine)
 This is the most powerful tool in the Content Studio. It uses the **Pain-Solution-CTA** framework to score your drafts.
 
-### Example Review Logic
+### Example Review Response
 ```json
 {
-  "framework": "Pain-Solution-CTA",
   "score": 85,
-  "analysis": {
-    "hook": "Strong - targets the 'time-poor agency owner' pain point.",
-    "proof": "Missing - add a client testimonial or data point.",
-    "cta": "Direct - leads to the booking page."
-  }
+  "feedback": [
+    { "component": "Hook",  "status": "pass", "message": "Strong — targets the 'time-poor agency owner' pain point." },
+    { "component": "Proof", "status": "fail", "message": "Missing — add a client testimonial or data point." },
+    { "component": "CTA",   "status": "pass", "message": "Direct — leads to the booking page." }
+  ],
+  "remix": "Struggling to keep up with social media? [Proof point]. SocialPulse automates it all → [Link]"
 }
 ```
 
-* **Framework Analysis**: It checks if your post has a compelling hook (Pain), a clear offer (Promise), social proof, and a strong call to action (CTA).
-* **One-Click Remix**: If your draft is weak, the AI provides a "Remix." Click "Apply" to instantly upgrade your post to a high-conversion version.
+* **Framework Analysis**: Checks your post for a compelling hook (Pain), a clear offer (Promise), social proof, and a strong call to action (CTA). A score of 0–100 is returned.
+* **One-Click Remix**: If your draft is weak, the AI returns a fully rewritten "Remix" version. Click "Apply" to instantly replace your post with the high-conversion version.
+* **API endpoint**: `POST /api/ai/review` — body: `{ content, platform }`
 
 ## 2. AI Writer & Strategist
-* **Generation**: Give the AI a topic (e.g., "Why social media is important for dentists") and select your tone (Professional, Witty, Aggressive).
-* **Magic 7-Day Plan**: Located in the Campaigns tab, this feature generates a full week of strategic content tailored to your campaign goals in one click.
+* **Content Generation**: Provide a topic, tone (Professional / Witty / Aggressive), length, language, optional target audience and keywords. The AI returns a ready-to-publish post plus hashtags.
+  * **API endpoint**: `POST /api/ai/generate`
+* **Hashtag Generator**: Supply a topic and platform to receive a curated list of hashtags.
+  * **API endpoint**: `POST /api/ai/hashtags`
+* **Improve Existing Post**: Select an improvement goal (e.g., "more engaging", "add urgency") and the AI rewrites the copy.
+  * **API endpoint**: `POST /api/ai/improve`
+* **Image Caption**: Describe an image and the AI writes a platform-optimised caption.
+  * **API endpoint**: `POST /api/ai/caption`
 
-## 3. AI Image Generation (Imagen 4.0)
+## 3. Magic 7-Day Plan
+Located in the **Campaigns** tab, this feature generates a complete multi-day content calendar in a single click.
+* **Inputs**: Campaign name, optional description, and the number of days (default 7).
+* **Output**: A sequenced series of posts across Twitter, LinkedIn, Instagram, and Facebook — mixing Educational, Engagement, Promotional, and Behind-the-Scenes content types.
+* **Costs**: 7 AI credits per plan generated (one per post).
+* **API endpoint**: `POST /api/ai/magic-plan`
+
+## 4. AI Reply Generator (Unified Inbox)
+When viewing a message or mention in the Unified Inbox, click **"AI Reply"** to instantly draft a context-aware response.
+* The AI reads the incoming message, your workspace brand guidelines, and your configured purchase link to craft a relevant, concise reply.
+* The reply is pre-loaded into the reply box for your review before sending.
+* **API endpoint**: `POST /api/ai/reply` — body: `{ messageContent, platform }`
+
+## 5. Trend-to-Post (Social Listening)
+Spotted a trending topic in your **Social Listening** feed? Click **"Draft Post"** on any result.
+* The AI reads the trend content and creates a platform-native post that joins the conversation — including your workspace purchase link if relevant.
+* **API endpoint**: `POST /api/ai/draft-from-trend` — body: `{ trendContent, platform }`
+
+## 6. Product Post Generator (E-commerce)
+From the **E-commerce** section, select any synced product and click **"Generate Post"**.
+* The AI uses the product title, description, price, and image URL to write a ready-to-schedule promotional post.
+* Select the target platform and tone (Promotional / Conversational / Luxury) before generating.
+* **API endpoint**: `POST /api/ai/product-post` — body: `{ productData, platform, tone }`
+
+## 7. AI Image Generation (Imagen 4.0)
 * **Prompt Example**:
   > "A high-tech workspace with purple neon lighting, cinematic style, 8k resolution, photorealistic"
+* **Sizes**: 1024×1024, 1792×1024 (landscape), 1024×1792 (portrait).
+* **Cost**: 2 AI credits per image.
+* **Integration**: Generated images can be downloaded, copied to clipboard, or saved directly to your Media Library for immediate use in posts.
+* **API endpoint**: `POST /api/ai/image` — body: `{ prompt, size? }`
 
-* **Integration**: The generated image is saved directly to your Media Library and can be attached to any post immediately.
-
-## 4. Smart Guidelines
-The AI is only as good as its instructions. Use the **Workspace Branding** settings to provide "Global Guidelines."
-* **Example**: "Never use the word 'hustle'," "Always end with a question," "Use British English spelling."
-* **Result**: The AI will apply these rules to every post it drafts, ensuring a consistent brand voice.
+## 8. Smart Brand Guidelines
+The AI is only as good as its instructions. Set **AI Guidelines** per workspace in **Workspace Settings → Branding**.
+* **Example guidelines**: "Never use the word 'hustle'. Always end with a question. Use British English spelling."
+* **Result**: The AI applies these rules to every post, reply, plan, and product post it drafts in this workspace — ensuring a consistent brand voice across all features.
+* **Purchase URL + Link Shortener**: Set a `Purchase URL` in workspace settings. The platform automatically shortens it via the built-in link shortener and injects the short link into every AI-generated post and review.
 
 ---
 **← [08. Analytics](./08_Analytics.md)** | **[Index](../SOCIALPULSE_MANUAL.md)** | **[Next: Media Library](./10_Media_Library.md) →**

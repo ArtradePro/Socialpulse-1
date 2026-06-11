@@ -26,6 +26,8 @@ import inboxRoutes        from './routes/inbox';
 import referralsRoutes    from './routes/referrals';
 import approvalRoutes     from './routes/approval';
 import ecommerceRoutes    from './routes/ecommerce.routes';
+import automationRoutes   from './routes/automation.routes';
+import avatarRoutes       from './routes/avatar.routes';
 import { LinkService } from './services/link.service';
 import { errorHandler, notFound } from './middleware/errorHandler';
 
@@ -99,6 +101,8 @@ app.use('/api/inbox',         inboxRoutes);
 app.use('/api/referrals',     referralsRoutes);
 app.use('/api/approvals',     approvalRoutes);
 app.use('/api/ecommerce',     ecommerceRoutes);
+app.use('/api/automations',    automationRoutes);
+app.use('/api/avatars',        avatarRoutes);
 
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

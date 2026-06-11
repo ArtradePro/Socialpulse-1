@@ -10,11 +10,11 @@ export const listCampaigns = async (req: Request, res: Response): Promise<void> 
                     COUNT(p.id) FILTER (WHERE p.campaign_id = c.id)             AS post_count,
                     COUNT(p.id) FILTER (WHERE p.campaign_id = c.id
                                           AND p.status = 'published')           AS published_count
-              FROM campaigns c
-             LEFT JOIN posts p ON p.campaign_id = c.id
-             WHERE c.user_id = $1 AND (c.workspace_id = $2 OR $2 IS NULL)
-             GROUP BY c.id
-             ORDER BY c.created_at DESC`,
+               FROM campaigns c
+              LEFT JOIN posts p ON p.campaign_id = c.id
+              WHERE c.user_id = $1 AND ${req.workspaceId ? 'c.workspace_id = $2' : 'c.workspace_id IS NULL'}
+              GROUP BY c.id
+              ORDER BY c.created_at DESC`,
             [req.user!.userId, req.workspaceId || null]
         );
         res.json(rows);
@@ -28,7 +28,7 @@ export const getCampaign = async (req: Request, res: Response): Promise<void> =>
     const { id } = req.params;
 
     const { rows: campaign } = await db.query(
-        'SELECT * FROM campaigns WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)',
+        `SELECT * FROM campaigns WHERE id = $1 AND user_id = $2 AND ${req.workspaceId ? 'workspace_id = $3' : 'workspace_id IS NULL'}`,
         [id, req.user!.userId, req.workspaceId || null]
     );
     if (!campaign[0]) { res.status(404).json({ message: 'Not found' }); return; }
@@ -75,7 +75,7 @@ export const updateCampaign = async (req: Request, res: Response): Promise<void>
              start_date  = COALESCE($3, start_date),
              end_date    = COALESCE($4, end_date),
              status      = COALESCE($5, status)
-         WHERE id = $6 AND user_id = $7 AND (workspace_id = $8 OR $8 IS NULL) RETURNING *`,
+         WHERE id = $6 AND user_id = $7 AND ${req.workspaceId ? 'workspace_id = $8' : 'workspace_id IS NULL'} RETURNING *`,
         [name ?? null, description ?? null, startDate ?? null,
          endDate ?? null, status ?? null, id, req.user!.userId, req.workspaceId || null]
     );
@@ -86,10 +86,10 @@ export const updateCampaign = async (req: Request, res: Response): Promise<void>
 export const deleteCampaign = async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
     // Unlink posts from this campaign first
-    await db.query('UPDATE posts SET campaign_id = NULL WHERE campaign_id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)',
+    await db.query(`UPDATE posts SET campaign_id = NULL WHERE campaign_id = $1 AND user_id = $2 AND ${req.workspaceId ? 'workspace_id = $3' : 'workspace_id IS NULL'}`,
         [id, req.user!.userId, req.workspaceId || null]);
     const { rowCount } = await db.query(
-        'DELETE FROM campaigns WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)', 
+        `DELETE FROM campaigns WHERE id = $1 AND user_id = $2 AND ${req.workspaceId ? 'workspace_id = $3' : 'workspace_id IS NULL'}`, 
         [id, req.user!.userId, req.workspaceId || null]
     );
     if (!rowCount) { res.status(404).json({ message: 'Not found' }); return; }
@@ -102,7 +102,7 @@ export const generateMagicPlan = async (req: Request, res: Response): Promise<vo
         const userId = req.user!.userId;
 
         const { rows: campaign } = await db.query(
-            'SELECT * FROM campaigns WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR $3 IS NULL)',
+            `SELECT * FROM campaigns WHERE id = $1 AND user_id = $2 AND ${req.workspaceId ? 'workspace_id = $3' : 'workspace_id IS NULL'}`,
             [id, userId, req.workspaceId || null]
         );
         if (!campaign[0]) { res.status(404).json({ message: 'Campaign not found' }); return; }
