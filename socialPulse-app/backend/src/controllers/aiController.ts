@@ -167,3 +167,21 @@ export const generateProductPost = async (req: Request, res: Response): Promise<
         handleAiError(err, res, 'Product post generation failed');
     }
 };
+
+export const generateAdCreative = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const userId = req.user!.userId;
+        const workspaceId = req.header('x-workspace-id') as string | undefined;
+        const { productName, productDesc, objective, tone } = req.body;
+        if (!productName || !objective) {
+            res.status(400).json({ message: 'productName and objective are required' });
+            return;
+        }
+        const result = await AIService.generateAdCreative(userId, workspaceId, productName, productDesc || '', objective, tone || 'conversion');
+        await recordUsage(userId, 'ai_credit_used');
+        deductAiCredits(userId, 1).catch(console.error);
+        res.json(result);
+    } catch (err: any) {
+        handleAiError(err, res, 'Ad creative generation failed');
+    }
+};

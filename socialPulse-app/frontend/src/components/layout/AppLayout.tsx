@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { io, Socket } from 'socket.io-client';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { logout, setUser } from '../../store/authSlice';
 import api from '../../services/api';
@@ -7,7 +8,7 @@ import {
     LayoutDashboard, PenSquare, Calendar, BarChart3, Settings,
     LogOut, Menu, X, HardDrive, CreditCard, Megaphone, Hash, FileText,
     Sparkles, Paintbrush, Rss, Radio, Inbox, Gift, Key, Building2,
-    ShoppingBag, MousePointer, Share2, Bell, Hand
+    ShoppingBag, MousePointer, Share2, Bell, Hand, Store, Target
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { WorkspaceSwitcher } from '../common/WorkspaceSwitcher';
@@ -24,6 +25,7 @@ const navSections = [
             { path: '/analytics',  icon: BarChart3,       label: 'Analytics' },
             { path: '/campaigns',  icon: Megaphone,       label: 'Campaigns' },
             { path: '/magic-plan', icon: Sparkles,        label: 'Magic Plan' },
+            { path: '/ads',        icon: Target,          label: 'Paid Ads' },
         ],
     },
     {
@@ -35,6 +37,7 @@ const navSections = [
             { path: '/image-gen',     icon: Sparkles,    label: 'Image Generator' },
             { path: '/image-editor',  icon: Paintbrush,  label: 'Image Editor' },
             { path: '/ecommerce',     icon: ShoppingBag, label: 'E-commerce' },
+            { path: '/storefront',    icon: Store,       label: 'Mobile Storefront' },
         ],
     },
     {
@@ -67,6 +70,200 @@ const AppLayout: React.FC = () => {
     const { usage } = usePlan();
     const dispatch = useAppDispatch();
     const navigate = useNavigate();
+    const { activeId } = useAppSelector(state => state.workspace);
+
+    const [multiplayerActive, setMultiplayerActive] = useState(true);
+    const [isWsConnected, setIsWsConnected] = useState(false);
+    const [remoteCursors, setRemoteCursors] = useState<Record<string, {
+        socketId: string;
+        fullName: string;
+        color: string;
+        x: number;
+        y: number;
+        avatar?: string;
+        lastSeen: number;
+    }>>({});
+    const [simulatedCursors, setSimulatedCursors] = useState<Record<string, {
+        socketId: string;
+        fullName: string;
+        color: string;
+        x: number;
+        y: number;
+        avatar?: string;
+        lastSeen: number;
+    }>>({});
+
+    const getUserColor = (userId: string) => {
+        const colors = [
+            '#F87171', '#F59E0B', '#10B981', '#3B82F6', '#6366F1', 
+            '#8B5CF6', '#EC4899', '#14B8A6', '#F43F5E', '#06B6D4'
+        ];
+        let hash = 0;
+        for (let i = 0; i < userId.length; i++) {
+            hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const index = Math.abs(hash) % colors.length;
+        return colors[index];
+    };
+
+    // WebSocket sync effect
+    useEffect(() => {
+        if (!multiplayerActive || !activeId || !user) {
+            setRemoteCursors({});
+            setIsWsConnected(false);
+            return;
+        }
+
+        const socketUrl = (() => {
+            const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) || '';
+            if (apiUrl.endsWith('/api')) {
+                return apiUrl.substring(0, apiUrl.length - 4);
+            }
+            return apiUrl || window.location.origin;
+        })();
+
+        console.log(`🔌 Connecting to WebSocket at ${socketUrl}`);
+        const socket: Socket = io(socketUrl, {
+            withCredentials: true,
+            transports: ['websocket', 'polling']
+        });
+
+        socket.on('connect', () => {
+            console.log('🔌 WebSocket connected:', socket.id);
+            setIsWsConnected(true);
+            socket.emit('join-workspace', activeId);
+        });
+
+        socket.on('cursor-update', (data: { socketId: string; x: number; y: number; fullName: string; color: string; avatar?: string }) => {
+            setRemoteCursors(prev => ({
+                ...prev,
+                [data.socketId]: {
+                    ...data,
+                    lastSeen: Date.now()
+                }
+            }));
+        });
+
+        socket.on('cursor-remove', (socketId: string) => {
+            setRemoteCursors(prev => {
+                const next = { ...prev };
+                delete next[socketId];
+                return next;
+            });
+        });
+
+        socket.on('disconnect', () => {
+            setIsWsConnected(false);
+        });
+
+        socket.on('connect_error', (err) => {
+            console.warn('🔌 WebSocket connection error, using simulation fallback:', err);
+            setIsWsConnected(false);
+        });
+
+        // Cleanup stale cursors
+        const cleanupInterval = setInterval(() => {
+            const now = Date.now();
+            setRemoteCursors(prev => {
+                let changed = false;
+                const next = { ...prev };
+                for (const [id, cursor] of Object.entries(next)) {
+                    if (now - cursor.lastSeen > 10000) {
+                        delete next[id];
+                        changed = true;
+                    }
+                }
+                return changed ? next : prev;
+            });
+        }, 5000);
+
+        // Track local mouse movement and emit coordinates
+        let lastSent = 0;
+        const handleMouseMove = (e: MouseEvent) => {
+            const now = Date.now();
+            if (now - lastSent < 50) return; // throttle 50ms
+            lastSent = now;
+
+            const x = (e.clientX / window.innerWidth) * 100;
+            const y = (e.clientY / window.innerHeight) * 100;
+
+            socket.emit('mouse-move', {
+                workspaceId: activeId,
+                x,
+                y,
+                fullName: user.fullName,
+                color: getUserColor(user.id),
+                avatar: user.avatar
+            });
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            clearInterval(cleanupInterval);
+            socket.disconnect();
+        };
+    }, [multiplayerActive, activeId, user]);
+
+    // Fallback simulation effect
+    useEffect(() => {
+        if (!multiplayerActive) {
+            setSimulatedCursors({});
+            return;
+        }
+        if (isWsConnected) {
+            setSimulatedCursors({});
+            return;
+        }
+
+        const mockUsers = [
+            { id: 'mock1', fullName: 'Sarah Jenkins', color: '#10B981' },
+            { id: 'mock2', fullName: 'Gemini Agent 🤖', color: '#8B5CF6' }
+        ];
+
+        const cursors: Record<string, {
+            socketId: string;
+            fullName: string;
+            color: string;
+            x: number;
+            y: number;
+            avatar?: string;
+            lastSeen: number;
+        }> = {};
+        mockUsers.forEach(mu => {
+            cursors[mu.id] = {
+                socketId: mu.id,
+                fullName: mu.fullName,
+                color: mu.color,
+                x: 50 + (Math.random() - 0.5) * 30,
+                y: 50 + (Math.random() - 0.5) * 30,
+                lastSeen: Date.now()
+            };
+        });
+        setSimulatedCursors(cursors);
+
+        const interval = setInterval(() => {
+            setSimulatedCursors(prev => {
+                const next = { ...prev };
+                for (const [id, cursor] of Object.entries(next)) {
+                    const dx = (Math.random() - 0.5) * 6;
+                    const dy = (Math.random() - 0.5) * 6;
+                    next[id] = {
+                        ...cursor,
+                        x: Math.max(5, Math.min(95, cursor.x + dx)),
+                        y: Math.max(5, Math.min(95, cursor.y + dy)),
+                        lastSeen: Date.now()
+                    };
+                }
+                return next;
+            });
+        }, 150);
+
+        return () => clearInterval(interval);
+    }, [multiplayerActive, isWsConnected]);
+
+    const displayCursors = isWsConnected ? remoteCursors : simulatedCursors;
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -281,6 +478,24 @@ const AppLayout: React.FC = () => {
                         <NotificationBell />
                         
                         <button
+                            onClick={() => setMultiplayerActive(prev => !prev)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-[0.98] ${
+                                multiplayerActive
+                                    ? 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-md shadow-emerald-600/20'
+                                    : 'bg-[#1E1E1E] border border-[#3C3C3C] text-gray-400 hover:text-white hover:bg-[#2C2C2C]'
+                            }`}
+                            title={multiplayerActive ? 'Multiplayer active' : 'Multiplayer paused'}
+                        >
+                            <div className={`w-2 h-2 rounded-full ${multiplayerActive ? 'bg-emerald-300 animate-pulse' : 'bg-gray-500'}`} />
+                            <span className="hidden sm:inline">Multiplayer</span>
+                        </button>
+
+                        <div className="h-4 w-[1px] bg-gray-700" />
+                        
+                        <WorkspaceSwitcher />
+                        <NotificationBell />
+                        
+                        <button
                             onClick={() => navigate('/studio')}
                             className="flex items-center gap-1 px-3 py-1.5 bg-[#8B5CF6] text-white rounded-lg text-xs font-extrabold hover:bg-opacity-95 shadow-md shadow-[#8B5CF6]/20 transition-all active:scale-[0.98]"
                         >
@@ -294,6 +509,51 @@ const AppLayout: React.FC = () => {
                 <main className="flex-1 overflow-y-auto p-6 relative">
                     <Outlet />
                 </main>
+            </div>
+
+            {/* Collaborative Cursors Overlay */}
+            <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">
+                {Object.values(displayCursors).map(cursor => (
+                    <div
+                        key={cursor.socketId}
+                        className="absolute transition-all duration-200 ease-out"
+                        style={{
+                            left: `${cursor.x}%`,
+                            top: `${cursor.y}%`,
+                            transform: 'translate(-2px, -2px)'
+                        }}
+                    >
+                        {/* Cursor Arrow */}
+                        <svg
+                            className="w-4 h-4 drop-shadow-md"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                        >
+                            <path
+                                d="M4.5 3V17.5L8.5 13.5L13.5 21L16.5 19L11.5 12L17.5 11.5L4.5 3Z"
+                                fill={cursor.color}
+                                stroke="white"
+                                strokeWidth="2"
+                                strokeLinejoin="round"
+                            />
+                        </svg>
+                        {/* Name Tag */}
+                        <div
+                            className="ml-4 mt-1.5 px-2 py-0.5 rounded-md text-[9px] font-bold text-white shadow-md flex items-center gap-1 transition-all"
+                            style={{ backgroundColor: cursor.color }}
+                        >
+                            {cursor.avatar && (
+                                <img
+                                    src={cursor.avatar}
+                                    alt=""
+                                    className="w-3.5 h-3.5 rounded-full border border-white/40"
+                                />
+                            )}
+                            {cursor.fullName}
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );

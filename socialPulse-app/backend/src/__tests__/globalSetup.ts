@@ -3,7 +3,7 @@ import { join } from 'path';
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
 
-dotenv.config({ path: join(__dirname, '../../../.env') });
+dotenv.config({ path: join(__dirname, '../../.env.test') });
 
 // Tests require TEST_DATABASE_URL (a separate DB from dev).
 // If not set, tests will be skipped via the helper below.

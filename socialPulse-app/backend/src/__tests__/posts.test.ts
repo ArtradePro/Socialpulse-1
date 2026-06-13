@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 import { join } from 'path';
-dotenv.config({ path: join(__dirname, '../../../.env') });
+dotenv.config({ path: join(__dirname, '../../.env.test') });
 
 import type { PoolClient } from 'pg';
 import { getTestPool, closeTestPool, cleanDb } from './helpers/db';

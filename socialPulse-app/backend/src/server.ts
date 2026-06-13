@@ -1,6 +1,8 @@
 // import geminiTestRoute from "./routes/geminiTest";
 import 'dotenv/config';
-import { app } from './app';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import { app, allowedOrigins } from './app';
 import { connectDB } from './config/database';
 import { connectRedis } from './config/redis';
 import { initScheduler } from './jobs/postPublisher';
@@ -9,6 +11,7 @@ import { initAnalyticsSync } from './jobs/analyticsSync';
 import { initRssJob } from './jobs/rssJob';
 import { initListeningJob } from './jobs/listeningJob';
 import { initInboxJob } from './jobs/inboxJob';
+import { initAdPerformanceJob } from './jobs/adPerformance.job';
 import { processQueue, processPendingScrapeTasks, checkScheduledTasks } from './services/automationService';
 
 const PORT = process.env.PORT || 5000;
@@ -36,6 +39,7 @@ const start = async (): Promise<void> => {
         initRssJob();
         initListeningJob();
         initInboxJob();
+        initAdPerformanceJob();
     } catch (err) {
         console.warn('Redis unavailable — continuing startup without queue features:', err);
     }
@@ -47,7 +51,36 @@ const start = async (): Promise<void> => {
     // Register Gemini test route
     // app.use("/api", geminiTestRoute);
 
-    app.listen(PORT, () => console.log(`SocialPulse API running on http://localhost:${PORT}`));
+    const server = createServer(app);
+    const io = new Server(server, {
+        cors: {
+            origin: allowedOrigins,
+            credentials: true
+        }
+    });
+
+    io.on('connection', (socket) => {
+        socket.on('join-workspace', (workspaceId: string) => {
+            socket.join(`workspace:${workspaceId}`);
+        });
+
+        socket.on('mouse-move', (data: { workspaceId: string; x: number; y: number; fullName: string; color: string; avatar?: string }) => {
+            socket.to(`workspace:${data.workspaceId}`).emit('cursor-update', {
+                socketId: socket.id,
+                x: data.x,
+                y: data.y,
+                fullName: data.fullName,
+                color: data.color,
+                avatar: data.avatar
+            });
+        });
+
+        socket.on('disconnect', () => {
+            io.emit('cursor-remove', socket.id);
+        });
+    });
+
+    server.listen(PORT, () => console.log(`SocialPulse API running on http://localhost:${PORT}`));
 };
 
 start().catch((err) => {

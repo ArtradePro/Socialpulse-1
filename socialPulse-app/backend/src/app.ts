@@ -28,6 +28,9 @@ import approvalRoutes     from './routes/approval';
 import ecommerceRoutes    from './routes/ecommerce.routes';
 import automationRoutes   from './routes/automation.routes';
 import avatarRoutes       from './routes/avatar.routes';
+import salesPagesRoutes   from './routes/salesPages';
+import adCampaignsRoutes  from './routes/adCampaigns';
+import crmRoutes          from './routes/crm';
 import { LinkService } from './services/link.service';
 import { errorHandler, notFound } from './middleware/errorHandler';
 
@@ -41,7 +44,7 @@ app.use(helmet());
 // If behind Cloudflare, change to: app.set('trust proxy', 2)
 app.set('trust proxy', 1);
 
-const allowedOrigins = [
+export const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:3001',
     'https://usesocialpulse.com',
@@ -103,6 +106,9 @@ app.use('/api/approvals',     approvalRoutes);
 app.use('/api/ecommerce',     ecommerceRoutes);
 app.use('/api/automations',    automationRoutes);
 app.use('/api/avatars',        avatarRoutes);
+app.use('/api/storefront',     salesPagesRoutes);
+app.use('/api/ads',            adCampaignsRoutes);
+app.use('/api/crm',            crmRoutes);
 
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

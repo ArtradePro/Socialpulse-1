@@ -343,6 +343,44 @@ export class AIService {
         return JSON.parse(resultText6.replace(/```json\n?|\n?```/g, '').trim());
     }
 
+    static async generateAdCreative(
+        userId: string,
+        workspaceId: string | undefined,
+        productName: string,
+        productDesc: string,
+        objective: string,
+        tone: string = 'conversion'
+    ): Promise<{ adCopy: string; headline: string }> {
+        const { guidelines } = await this.getWorkspaceContext(workspaceId);
+
+        const prompt = `
+            Create high-converting Meta paid ad creative content (Facebook/Instagram Ads) promoting this product:
+            Product Name: ${productName}
+            Product Description: ${productDesc}
+            Campaign Objective: ${objective}
+            Tone: ${tone}
+            
+            Return a JSON object containing:
+            1. "adCopy": Bouncing primary ad body copy. Use emojis, start with a hook, agitate a pain point, offer the solution, and end with a direct Call to Action. Limit to ~150 words.
+            2. "headline": A short, punchy ad headline (under 40 characters) that goes under the media asset.
+            
+            Format: {"adCopy": "...", "headline": "..."}
+        `;
+
+        const systemInstruction = `You are a world-class Facebook and Instagram direct-response ad copywriter.
+        ${guidelines ? `BRAND GUIDELINES: ${guidelines}` : ''}
+        Return only JSON.`;
+
+        const result = await getAI().models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: { systemInstruction, responseMimeType: 'application/json' }
+        });
+
+        const resultText = result.text || '{}';
+        return JSON.parse(resultText.replace(/```json\n?|\n?```/g, '').trim());
+    }
+
     static async generateAnalyticsInsights(metrics: any[]): Promise<string> {
         const statsStr = metrics.map(m => `${m.platform}: ${m.impressions} impr, ${m.engagements} eng, ${m.er.toFixed(2)}% ER`).join('\n');
         

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { generateContent, generateHashtags, generateMagicPlan, generateReply, draftFromTrend, reviewContent, improveContent, generateImageCaption, generateImage, generateProductPost } from '../controllers/aiController';
+import { generateContent, generateHashtags, generateMagicPlan, generateReply, draftFromTrend, reviewContent, improveContent, generateImageCaption, generateImage, generateProductPost, generateAdCreative } from '../controllers/aiController';
 import { authenticate } from '../middleware/auth.middleware';
 import { resolveWorkspace } from '../middleware/workspace.middleware';
 
@@ -18,5 +18,6 @@ router.post('/improve',  improveContent);
 router.post('/caption',  generateImageCaption);
 router.post('/image',    generateImage);
 router.post('/product-post', generateProductPost);
+router.post('/generate-ad-creative', generateAdCreative);
 
 export default router;

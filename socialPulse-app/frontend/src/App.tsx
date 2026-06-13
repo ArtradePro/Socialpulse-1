@@ -28,6 +28,9 @@ import { ImageEditor }   from './pages/ImageEditor';
 import { Workspaces }   from './pages/Workspaces';
 import { Ecommerce }    from './pages/Ecommerce';
 import { MagicPlan }    from './pages/MagicPlan';
+import { Storefront }   from './pages/Storefront';
+import { PublicStorefront } from './pages/PublicStorefront';
+import { Ads }          from './pages/Ads';
 
 import { ApprovalPortal } from './pages/ApprovalPortal';
 import AppLayout from './components/layout/AppLayout';
@@ -46,6 +49,7 @@ const App: React.FC = () => {
                     <Route path="/register" element={<Register />} />
                     <Route path="/team-invite/:token" element={<AcceptInvite />} />
                     <Route path="/approve/:token" element={<ApprovalPortal />} />
+                    <Route path="/s/:slug" element={<PublicStorefront />} />
 
                     <Route path="/" element={<Home />} />
 
@@ -72,6 +76,8 @@ const App: React.FC = () => {
                         <Route path="workspaces"   element={<Workspaces />} />
                         <Route path="ecommerce"    element={<Ecommerce />} />
                         <Route path="magic-plan"   element={<MagicPlan />} />
+                        <Route path="storefront"   element={<Storefront />} />
+                        <Route path="ads"          element={<Ads />} />
                     </Route>
 
                     {/* NEW: Catch-all route. If path not found, go to login */}
