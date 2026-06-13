@@ -250,8 +250,8 @@ export class AIService {
         try {
             console.log(`[AIService] Attempting image generation for user ${userId}. Prompt: "${prompt}"`);
             
-            // Note: imagen-3.0-generate-001 is the standard, but some projects use imagen-3.0-alpha-generate-001
-            const modelId = 'imagen-3.0-generate-001';
+            // Note: imagen-4.0-generate-001 is the standard Imagen 4.0 model
+            const modelId = 'imagen-4.0-generate-001';
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predict?key=${apiKey}`;
 
             const response = await axios.post(
