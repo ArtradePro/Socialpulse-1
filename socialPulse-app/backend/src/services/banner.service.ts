@@ -38,7 +38,7 @@ export const generateStaticBanner = async (input: BannerInput): Promise<Buffer> 
 
     // Composite overlay on base image
     const finalImage = await sharp(resizedBase)
-        .composite([{ input: Buffer.from(svgOverlay), blend: 'over' }])
+        .composite([{ input: Buffer.from(svgOverlay.trim()), blend: 'over' }])
         .png()
         .toBuffer();
 
@@ -73,7 +73,7 @@ const createFallbackBackground = async (width: number, height: number, theme: st
         </svg>
     `;
 
-    return Buffer.from(svg);
+    return Buffer.from(svg.trim());
 };
 
 // Generates theme-specific overlay layers
