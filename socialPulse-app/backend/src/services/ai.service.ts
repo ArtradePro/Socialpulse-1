@@ -242,13 +242,76 @@ export class AIService {
         return result.text?.trim() || '';
     }
 
-    static async generateImage(userId: string, prompt: string, size: string = '1024x1024'): Promise<string> {
+    private static async getBase64Image(url: string): Promise<{ data: string; mimeType: string }> {
+        const response = await axios.get(url, { responseType: 'arraybuffer' });
+        const contentType = (response.headers['content-type'] as string) || 'image/png';
+        const base64 = Buffer.from(response.data).toString('base64');
+        return { data: base64, mimeType: contentType };
+    }
+
+    static async generateImage(
+        userId: string,
+        prompt: string,
+        size: string = '1024x1024',
+        referenceImageUrl?: string
+    ): Promise<string> {
         const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) throw new Error('GEMINI_API_KEY missing in environment variables');
 
+        let finalPrompt = prompt;
+
+        if (referenceImageUrl) {
+            try {
+                console.log(`[AIService] Reference image URL provided: ${referenceImageUrl}. Generating description using Gemini 2.5...`);
+                const { data: base64Data, mimeType } = await this.getBase64Image(referenceImageUrl);
+                
+                const describeResponse = await getAI().models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: [
+                        {
+                            role: 'user',
+                            parts: [
+                                {
+                                    inlineData: {
+                                        mimeType,
+                                        data: base64Data
+                                    }
+                                },
+                                {
+                                    text: 'Describe the main subject in this image in extreme detail for a text-to-image generator. Focus on its appearance, shape, branding, colors, text, labels, and material. Do not describe the background or surroundings. Keep the description under 120 words.'
+                                }
+                            ]
+                        }
+                    ]
+                });
+
+                const description = describeResponse.text?.trim() || '';
+                if (description) {
+                    console.log(`[AIService] Reference image description: "${description}"`);
+                    
+                    const imageRegex = /@Image(\s*\([^)]*\))?/gi;
+                    if (imageRegex.test(finalPrompt)) {
+                        finalPrompt = finalPrompt.replace(imageRegex, description);
+                    } else {
+                        // Append as style/subject reference instructions
+                        finalPrompt = `${finalPrompt}. The main subject should match this description: ${description}`;
+                    }
+                }
+            } catch (err: any) {
+                console.error('[AIService] Failed to generate reference image description:', err.message);
+                // clean up token to prevent model confusion
+                finalPrompt = finalPrompt.replace(/@Image(\s*\([^)]*\))?/gi, 'product');
+            }
+        } else {
+            // strip out stray token
+            finalPrompt = finalPrompt.replace(/@Image(\s*\([^)]*\))?/gi, 'product');
+        }
+
+        console.log(`[AIService] Final prompt sent to Imagen: "${finalPrompt}"`);
+
         // Imagen 3.0 via Direct REST API
         try {
-            console.log(`[AIService] Attempting image generation for user ${userId}. Prompt: "${prompt}"`);
+            console.log(`[AIService] Attempting image generation for user ${userId}.`);
             
             // Note: imagen-4.0-generate-001 is the standard Imagen 4.0 model
             const modelId = 'imagen-4.0-generate-001';
@@ -257,7 +320,7 @@ export class AIService {
             const response = await axios.post(
                 url,
                 {
-                    instances: [{ prompt }],
+                    instances: [{ prompt: finalPrompt }],
                     parameters: { 
                         sampleCount: 1,
                         // aspect_ratio: size === '1024x1024' ? '1:1' : '3:4' // Imagen supports ratios now

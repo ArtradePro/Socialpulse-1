@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Download, Copy, Loader2, ImageIcon, Paintbrush } from 'lucide-react';
+import { Sparkles, Download, Copy, Loader2, ImageIcon, Paintbrush, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import MediaPicker from '../components/media/MediaPicker';
+import { MediaFile } from '../services/media.service';
 
 type ImageSize = '1024x1024' | '1792x1024' | '1024x1792';
 
@@ -19,13 +21,19 @@ export const ImageGenerator: React.FC = () => {
     const [generating,  setGenerating]  = useState(false);
     const [imageUrl,    setImageUrl]    = useState<string | null>(null);
     const [history,     setHistory]     = useState<{ prompt: string; url: string }[]>([]);
+    const [refImage,    setRefImage]    = useState<MediaFile | null>(null);
+    const [showMediaPicker, setShowMediaPicker] = useState(false);
 
     const handleGenerate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!prompt.trim()) return;
         setGenerating(true);
         try {
-            const { data } = await api.post('/ai/image', { prompt, size });
+            const { data } = await api.post('/ai/image', { 
+                prompt, 
+                size,
+                referenceImageUrl: refImage?.url
+            });
             setImageUrl(data.url);
             setHistory(prev => [{ prompt, url: data.url }, ...prev.slice(0, 7)]);
         } catch (err: any) {
@@ -34,6 +42,16 @@ export const ImageGenerator: React.FC = () => {
         } finally {
             setGenerating(false);
         }
+    };
+
+    const insertToken = () => {
+        setPrompt(prev => {
+            const token = '@Image';
+            if (prev.endsWith(' ') || prev.length === 0) {
+                return prev + token;
+            }
+            return prev + ' ' + token;
+        });
     };
 
     const downloadImage = async () => {
@@ -65,15 +83,69 @@ export const ImageGenerator: React.FC = () => {
                 {/* Left: controls */}
                 <div className="space-y-4">
                     <form onSubmit={handleGenerate} className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Describe your image</label>
-                            <textarea
-                                value={prompt}
-                                onChange={e => setPrompt(e.target.value)}
-                                rows={5}
-                                placeholder="A minimalist flat-lay of a coffee cup on a marble surface with autumn leaves, warm lighting, professional product photography style…"
-                                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                            />
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Describe your image</label>
+                                <textarea
+                                    value={prompt}
+                                    onChange={e => setPrompt(e.target.value)}
+                                    rows={5}
+                                    placeholder="A minimalist flat-lay of a coffee cup on a marble surface with autumn leaves, warm lighting, professional product photography style…"
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                                />
+                            </div>
+
+                            {/* Reference Image Option */}
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400">Reference Image (optional)</label>
+                                    {!refImage && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowMediaPicker(true)}
+                                            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1 transition-colors"
+                                        >
+                                            <ImageIcon className="w-3.5 h-3.5" /> Select Reference
+                                        </button>
+                                    )}
+                                </div>
+
+                                {refImage ? (
+                                    <div className="flex items-center gap-3 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/80 transition-all">
+                                        <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-indigo-200 shrink-0">
+                                            <img src={refImage.url} alt="" className="w-full h-full object-cover" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-medium text-gray-700 truncate">{refImage.originalName}</p>
+                                            <button
+                                                type="button"
+                                                onClick={insertToken}
+                                                className="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold mt-1 flex items-center gap-1 transition-colors"
+                                            >
+                                                Use <span className="bg-indigo-100 text-indigo-700 px-1 py-0.5 rounded font-mono font-bold">@Image</span> in prompt
+                                            </button>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setRefImage(null)}
+                                            className="p-1 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="border border-dashed border-gray-200 hover:border-indigo-300 rounded-xl p-3 text-center transition-colors">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowMediaPicker(true)}
+                                            className="inline-flex items-center justify-center gap-1.5 text-xs text-gray-500 hover:text-indigo-600 transition-colors py-1 w-full"
+                                        >
+                                            <ImageIcon className="w-4 h-4 text-gray-400" />
+                                            <span>Attach consistent subject/product reference image</span>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div>
@@ -159,6 +231,13 @@ export const ImageGenerator: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            <MediaPicker
+                open={showMediaPicker}
+                onClose={() => setShowMediaPicker(false)}
+                onSelect={(files) => setRefImage(files[0] || null)}
+                multiple={false}
+            />
         </div>
     );
 };

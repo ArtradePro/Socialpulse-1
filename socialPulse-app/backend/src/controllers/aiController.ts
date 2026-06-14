@@ -143,9 +143,9 @@ export const generateImageCaption = async (req: Request, res: Response): Promise
 export const generateImage = async (req: Request, res: Response): Promise<void> => {
     try {
         const userId = req.user!.userId;
-        const { prompt, size } = req.body;
+        const { prompt, size, referenceImageUrl } = req.body;
         if (!prompt) { res.status(400).json({ message: 'prompt is required' }); return; }
-        const url = await AIService.generateImage(userId, prompt, size);
+        const url = await AIService.generateImage(userId, prompt, size, referenceImageUrl);
         await recordUsage(userId, 'ai_credit_used', 2);
         deductAiCredits(userId, 2).catch(console.error);
         res.json({ url });

@@ -78,6 +78,25 @@ export const Ads: React.FC = () => {
             toast.error('Discount and promo text are required');
             return;
         }
+        if (bannerImageUrl) {
+            const urlLower = bannerImageUrl.toLowerCase().trim();
+            const isWebpage = urlLower.includes('takealot.com/') || 
+                              urlLower.includes('amazon.com/') || 
+                              urlLower.includes('ebay.com/') || 
+                              urlLower.includes('search') || 
+                              urlLower.endsWith('.html') ||
+                              urlLower.endsWith('.htm');
+            
+            const hasImageExtension = /\.(jpg|jpeg|png|webp|gif|svg|bmp)/.test(urlLower);
+            const hasImagePathKeyword = /(image|img|upload|assets|media|pic)/.test(urlLower);
+            
+            if (isWebpage || (!hasImageExtension && !hasImagePathKeyword)) {
+                toast.error('Please enter a direct link to an image file (e.g. ending in .jpg, .png) rather than a webpage URL.', {
+                    duration: 6000
+                });
+                return;
+            }
+        }
         setGeneratingBanner(true);
         try {
             const { data } = await api.post('/ads/banner', {
@@ -667,7 +686,10 @@ export const Ads: React.FC = () => {
                             )}
 
                             <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Product Image URL</label>
+                                <div className="flex justify-between items-center mb-1.5">
+                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Product Image URL</label>
+                                    <span className="text-[9px] text-gray-400 normal-case">(Must be direct image link)</span>
+                                </div>
                                 <input
                                     type="text"
                                     value={bannerImageUrl}
@@ -675,6 +697,9 @@ export const Ads: React.FC = () => {
                                     placeholder="https://example.com/product.jpg"
                                     className="w-full px-4 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
+                                <p className="mt-1 text-[9px] text-gray-400 leading-normal">
+                                    To get this, visit the product page, right-click the product image, and select <strong>"Copy image link"</strong> or <strong>"Copy image address"</strong>.
+                                </p>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
