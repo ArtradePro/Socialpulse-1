@@ -84,9 +84,9 @@ A workspace is a completely isolated environment containing its own:
 ## 3. High-Fidelity Branding Settings
 Every workspace can be uniquely branded to reflect the corporate identity of the client or brand you are managing.
 * **Brand Identity**: Upload a logo and set a display name.
-* **UI Customization**: Set a "Brand Color" to personalize the interface (injected as a CSS variable across the entire UI).
-* **Custom Domain**: Set a custom domain for the workspace's public approval portal and brand pages.
-* **AI Guidelines**: Provide the AI with specific instructions for this brand (e.g., "Always use emojis," "Tone: Professional but witty," "Never mention competitors"). Gemini 2.5 Flash follows these rules for every post, reply, and plan it drafts.
+* **UI Customization**: Set a "Brand Color" to personalize the interface (injected as a CSS variable across the UI).
+* **Custom Domain**: Set a custom domain for the workspace's public-facing approval portal and brand pages.
+* **AI Guidelines**: Provide the AI with specific instructions for this brand (e.g., "Always use emojis," "Tone: Professional but witty," "Never mention competitors"). The Gemini AI follows these rules for every post, reply, and plan it drafts in this workspace.
 * **Purchase URL (Default CTA Link)**: Set a store or landing page URL. The platform automatically shortens it via the built-in link shortener and injects the short link into all AI-generated content. The AI Reviewer will also flag if your post is missing this link.
 
 ## 4. Built-in Link Shortener
@@ -113,9 +113,10 @@ Connecting your platforms is the core of the SocialPulse experience. Our high-fi
 ## 1. Supported Platforms
 SocialPulse currently supports:
 * **X (Twitter)**: Full posting and engagement tracking.
-* **Instagram**: Business and Creator accounts (via Facebook), including single image, Reels, and carousel posts.
-* **Facebook**: Pages — text, single image, multi-image, and video posts.
-* **LinkedIn**: Personal profiles and Company pages — text and up to 9 images via UGC Post API.
+* **Instagram**: Business and Creator accounts (via Facebook).
+* **Facebook**: Pages and Groups management.
+* **LinkedIn**: Personal profiles and Company pages.
+* **Canva**: Direct integration for design workflows.
 
 ## 2. Connection Process
 1. **Navigate to Settings**: Go to the "Connected Accounts" tab within your workspace.
@@ -163,7 +164,7 @@ graph LR
     A[Agency Drafts Post] --> B[Generate Secure Link]
     B --> C[Client Views Portal]
     C --> D{Decision}
-    D -- Approve --> E[Auto-Schedules]
+    D -- Approve --> E[Post Auto-Schedules]
     D -- Feedback --> F[Agency Notified]
     F --> A
 ```
@@ -171,8 +172,12 @@ graph LR
 1. Click the **Share** icon on any scheduled or draft post.
 2. SocialPulse generates a unique, tamper-proof token and returns a shareable link.
 3. Send the link to your client.
-4. **The Portal**: Your client sees a branded page showing the post content, media, and target platforms. They can **Approve** (auto-sets the post to `scheduled`) or **Request Changes** (returns to `draft` with their written feedback).
+4. **The Portal**: Your client sees a branded page showing the post content, media, and target platforms. They can **Approve** (which sets the post to `scheduled`) or **Request Changes** (which returns the post to `draft` and stores their written feedback).
 5. **No login is required for the client.**
+6. **API endpoints**:
+   - `POST /api/approvals/generate-link` — body: `{ postId }` — returns `{ token }`
+   - `GET  /api/approvals/public/:token` — public view of the post
+   - `POST /api/approvals/public/:token/submit` — body: `{ status: 'approved'|'rejected', feedback? }`
 
 ---
 
@@ -264,7 +269,7 @@ SocialPulse uses "Safety-Net" logic to ensure your dashboard never crashes.
 
 ---
 
-# 09. AI Tools (Gemini 2.5 Flash Integration)
+# 09. AI Tools (Gemini Integration)
 
 At the heart of SocialPulse is our **Gemini 2.5 Flash AI Engine**. We don't just use AI to "write text"; we use it to build frameworks that sell.
 
@@ -284,35 +289,63 @@ This is the most powerful tool in the Content Studio. It uses the **Pain-Solutio
 }
 ```
 
-* **Framework Analysis**: Checks your post for a compelling hook (Pain), a clear offer (Promise), social proof, and a strong CTA. Returns a score of 0–100.
-* **One-Click Remix**: If your draft is weak, the AI returns a fully rewritten "Remix" version. Click "Apply" to instantly replace your post.
+* **Framework Analysis**: Checks your post for a compelling hook (Pain), a clear offer (Promise), social proof, and a strong call to action (CTA). A score of 0–100 is returned.
+* **One-Click Remix**: If your draft is weak, the AI returns a fully rewritten "Remix" version. Click "Apply" to instantly replace your post with the high-conversion version.
+* **API endpoint**: `POST /api/ai/review` — body: `{ content, platform }`
 
 ## 2. AI Writer & Strategist
-* **Content Generation**: Provide a topic, tone (Professional / Witty / Aggressive), length, language, optional target audience and keywords. Returns a ready-to-publish post plus hashtags.
-* **Hashtag Generator**: Supply a topic and platform to receive a curated hashtag list.
+* **Content Generation**: Provide a topic, tone (Professional / Witty / Aggressive), length, language, optional target audience and keywords. The AI returns a ready-to-publish post plus hashtags.
+  * **API endpoint**: `POST /api/ai/generate`
+* **Hashtag Generator**: Supply a topic and platform to receive a curated list of hashtags.
+  * **API endpoint**: `POST /api/ai/hashtags`
 * **Improve Existing Post**: Select an improvement goal (e.g., "more engaging", "add urgency") and the AI rewrites the copy.
+  * **API endpoint**: `POST /api/ai/improve`
 * **Image Caption**: Describe an image and the AI writes a platform-optimised caption.
+  * **API endpoint**: `POST /api/ai/caption`
 
 ## 3. Magic 7-Day Plan
-Located in the **Campaigns** tab. Provide a campaign name and optional description. The AI generates a fully sequenced multi-day calendar mixing Educational, Engagement, Promotional, and Behind-the-Scenes posts across all four platforms. **Costs 7 AI credits** (one per post).
+Located in the **Campaigns** tab, this feature generates a complete multi-day content calendar in a single click.
+* **Inputs**: Campaign name, optional description, and the number of days (default 7).
+* **Output**: A sequenced series of posts across Twitter, LinkedIn, Instagram, and Facebook — mixing Educational, Engagement, Promotional, and Behind-the-Scenes content types.
+* **Costs**: 7 AI credits per plan generated (one per post).
+* **API endpoint**: `POST /api/ai/magic-plan`
 
 ## 4. AI Reply Generator (Unified Inbox)
-When viewing a message or mention in the Unified Inbox, click **"AI Reply"** to instantly draft a context-aware response using the incoming message, your brand guidelines, and your workspace purchase link.
+When viewing a message or mention in the Unified Inbox, click **"AI Reply"** to instantly draft a context-aware response.
+* The AI reads the incoming message, your workspace brand guidelines, and your configured purchase link to craft a relevant, concise reply.
+* The reply is pre-loaded into the reply box for your review before sending.
+* **API endpoint**: `POST /api/ai/reply` — body: `{ messageContent, platform }`
 
 ## 5. Trend-to-Post (Social Listening)
-Spotted a trending topic in your Listening feed? Click **"Draft Post"** on any result. The AI creates a platform-native post that joins the conversation — including your workspace purchase link if relevant.
+Spotted a trending topic in your **Social Listening** feed? Click **"Draft Post"** on any result.
+* The AI reads the trend content and creates a platform-native post that joins the conversation — including your workspace purchase link if relevant.
+* **API endpoint**: `POST /api/ai/draft-from-trend` — body: `{ trendContent, platform }`
 
 ## 6. Product Post Generator (E-commerce)
-From the **E-commerce** section, select any synced product and click **"Generate Post"**. The AI uses the product title, description, price, and image URL — plus your brand guidelines — to write a ready-to-schedule promotional post.
+From the **E-commerce** section, select any synced product and click **"Generate Post"**.
+* The AI uses the product title, description, price, and image URL to write a ready-to-schedule promotional post.
+* Select the target platform and tone (Promotional / Conversational / Luxury) before generating.
+* **API endpoint**: `POST /api/ai/product-post` — body: `{ productData, platform, tone }`
 
 ## 7. AI Image Generation (Imagen 4.0)
-* **Prompt Example**: "A high-tech workspace with purple neon lighting, cinematic style, 8k resolution, photorealistic"
+* **Prompt Example**:
+  > "A professional product photo of @Image sitting on a warm wooden table, sunset lighting, high resolution."
 * **Sizes**: 1024×1024, 1792×1024 (landscape), 1024×1792 (portrait).
 * **Cost**: 2 AI credits per image.
-* Generated images can be downloaded, copied to clipboard, or saved directly to the Media Library.
+* **Style & Branding Consistency (@Image Reference)**:
+  * Users can select an existing photo from their Media Library to serve as a style, subject, or branding reference.
+  * Click the **"Use @Image in prompt"** button in the generator panel to insert the `@Image` token into the prompt.
+  * When the request is sent, **Gemini 2.5 Flash** first analyzes the reference image to extract detailed descriptive attributes (dimensions, text, logo placement, materials, colors, lighting).
+  * The system automatically replaces the `@Image` token in the prompt with this detailed description (or appends it if the token is omitted) before sending it to **Imagen 4.0**.
+  * This guarantees that generated visuals maintain high consistency with real-life product packaging or characters.
+* **Integration**: Generated images can be downloaded, copied to clipboard, or saved directly to your Media Library for immediate use in posts.
+* **API endpoint**: `POST /api/ai/image` — body: `{ prompt, size?, referenceImageUrl? }`
 
 ## 8. Smart Brand Guidelines
-Set **AI Guidelines** per workspace in **Workspace Settings → Branding**. The AI applies these rules to every post, reply, plan, and product post — ensuring a consistent brand voice. The workspace **Purchase URL** is automatically shortened and injected into every AI output.
+The AI is only as good as its instructions. Set **AI Guidelines** per workspace in **Workspace Settings → Branding**.
+* **Example guidelines**: "Never use the word 'hustle'. Always end with a question. Use British English spelling."
+* **Result**: The AI applies these rules to every post, reply, plan, and product post it drafts in this workspace — ensuring a consistent brand voice across all features.
+* **Purchase URL + Link Shortener**: Set a `Purchase URL` in workspace settings. The platform automatically shortens it via the built-in link shortener and injects the short link into every AI-generated post and review.
 
 ---
 
@@ -321,7 +354,7 @@ Set **AI Guidelines** per workspace in **Workspace Settings → Branding**. The 
 Your assets are your most valuable resources. The **Media Library** provides enterprise-grade storage and editing directly in your browser.
 
 ## 1. Cloud-Synced Storage
-* **Automatic Upload**: Drag and drop your images and videos. They are securely stored in the cloud (Cloudinary or AWS S3, depending on your deployment) and synced across your entire team.
+* **Automatic Upload**: Drag and drop your images and videos. They are securely stored in the cloud (AWS S3) and synced across your entire team.
 * **Workspace Isolation**: Media uploaded to "Workspace A" is invisible to "Workspace B," ensuring client confidentiality.
 
 ## 2. Organization & Search
@@ -398,36 +431,13 @@ Unlock the full potential of each social network with these platform-specific st
 
 # 14. E-commerce Integration
 
-SocialPulse connects directly to your online store so you can turn product listings into high-converting social posts in seconds.
+SocialPulse connects directly to your online store so you can turn product listings into high-converting social posts in seconds — without copy-pasting a single thing.
 
 ## 1. Supported Platforms
+Connect any combination of the following stores to a workspace:
 
 | Platform | Authentication |
-| :--- | :--- |
-| **Shopify** | API Key + Secret + Store URL |
-| **WooCommerce** | Consumer Key + Consumer Secret + Store URL |
-| **Amazon** | Seller ID + MWS Access Key + Secret Key |
-| **Takealot** | API Key + Seller ID |
-
-## 2. Connecting a Store
-1. Navigate to **Workspace Settings → E-commerce**.
-2. Click **"Connect Store"** and select your platform.
-3. Enter the required credentials. SocialPulse immediately runs an initial product sync.
-4. The store card shows connection status (`active` / `error`) and the last sync timestamp.
-
-## 3. Syncing Products
-* **Automatic**: Stores sync periodically in the background.
-* **Manual**: Click **"Sync Now"** on any store card for an immediate refresh.
-* Products are matched by `external_id` — existing records are updated, no duplicates are created.
-
-## 4. Browsing Your Product Catalogue
-Go to **E-commerce → Products** to browse all synced products. Search by keyword, paginate through results (20 per page), and see title, price, currency, category, and image for each product.
-
-## 5. Generating a Product Post
-1. Click **"Generate Post"** on any product card.
-2. Select the target platform and tone (Promotional / Conversational / Luxury).
-3. The AI reads the product's title, description, price, image URL, and your brand guidelines to write a ready-to-schedule post.
-4. The post is pre-loaded into the Content Studio with the product image attached.
+| :
 
 ---
 

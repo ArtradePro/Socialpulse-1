@@ -27,6 +27,9 @@ async function migrate() {
     await pool.query('ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS purchase_url TEXT');
     console.log('Checked purchase_url');
     
+    await pool.query('ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS product_info TEXT');
+    console.log('Checked product_info');
+    
     console.log('Database is up to date!');
   } catch (err) {
     console.error('Migration failed:', err.message);

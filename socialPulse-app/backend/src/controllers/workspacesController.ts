@@ -319,7 +319,7 @@ export const updateBranding = async (req: Request, res: Response): Promise<void>
     const role = (req as any).workspaceRole as string;
     if (!['owner', 'admin'].includes(role)) { res.status(403).json({ message: 'Admin or owner required' }); return; }
 
-    const { brandName, brandColor, brandLogoUrl, customDomain, aiGuidelines, purchaseUrl } = req.body;
+    const { brandName, brandColor, brandLogoUrl, customDomain, aiGuidelines, purchaseUrl, productInfo } = req.body;
     const updates: string[] = [];
     const values: any[] = [];
     let placeholderIdx = 1;
@@ -337,6 +337,7 @@ export const updateBranding = async (req: Request, res: Response): Promise<void>
     addUpdate('custom_domain',  customDomain);
     addUpdate('ai_guidelines',  aiGuidelines);
     addUpdate('purchase_url',   purchaseUrl);
+    addUpdate('product_info',   productInfo);
 
     if (updates.length === 0) { res.status(400).json({ message: 'No fields to update' }); return; }
 

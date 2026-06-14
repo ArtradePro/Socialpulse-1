@@ -58,11 +58,17 @@ From the **E-commerce** section, select any synced product and click **"Generate
 
 ## 7. AI Image Generation (Imagen 4.0)
 * **Prompt Example**:
-  > "A high-tech workspace with purple neon lighting, cinematic style, 8k resolution, photorealistic"
+  > "A professional product photo of @Image sitting on a warm wooden table, sunset lighting, high resolution."
 * **Sizes**: 1024×1024, 1792×1024 (landscape), 1024×1792 (portrait).
 * **Cost**: 2 AI credits per image.
+* **Style & Branding Consistency (@Image Reference)**:
+  * Users can select an existing photo from their Media Library to serve as a style, subject, or branding reference.
+  * Click the **"Use @Image in prompt"** button in the generator panel to insert the `@Image` token into the prompt.
+  * When the request is sent, **Gemini 2.5 Flash** first analyzes the reference image to extract detailed descriptive attributes (dimensions, text, logo placement, materials, colors, lighting).
+  * The system automatically replaces the `@Image` token in the prompt with this detailed description (or appends it if the token is omitted) before sending it to **Imagen 4.0**.
+  * This guarantees that generated visuals maintain high consistency with real-life product packaging or characters.
 * **Integration**: Generated images can be downloaded, copied to clipboard, or saved directly to your Media Library for immediate use in posts.
-* **API endpoint**: `POST /api/ai/image` — body: `{ prompt, size? }`
+* **API endpoint**: `POST /api/ai/image` — body: `{ prompt, size?, referenceImageUrl? }`
 
 ## 8. Smart Brand Guidelines
 The AI is only as good as its instructions. Set **AI Guidelines** per workspace in **Workspace Settings → Branding**.

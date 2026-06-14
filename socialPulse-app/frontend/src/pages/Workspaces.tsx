@@ -62,6 +62,7 @@ export const Workspaces: React.FC = () => {
     const [customDomain, setCustomDomain] = useState('');
     const [aiGuidelines, setAiGuidelines] = useState('');
     const [purchaseUrl, setPurchaseUrl] = useState('');
+    const [productInfo, setProductInfo] = useState('');
     const [savingBrand, setSavingBrand] = useState(false);
 
     // Create workspace modal
@@ -125,6 +126,7 @@ export const Workspaces: React.FC = () => {
         setCustomDomain((selected as any).custom_domain  ?? '');
         setAiGuidelines((selected as any).ai_guidelines ?? '');
         setPurchaseUrl((selected as any).purchase_url ?? '');
+        setProductInfo((selected as any).product_info ?? '');
     }, [selected]);
 
     // ── Create workspace ─────────────────────────────────────────────────────
@@ -199,6 +201,7 @@ export const Workspaces: React.FC = () => {
                 customDomain: customDomain || null,
                 aiGuidelines: aiGuidelines || null,
                 purchaseUrl:  purchaseUrl  || null,
+                productInfo:  productInfo  || null,
             }, { headers: { 'X-Workspace-Id': selected.id } });
             toast.success('Branding saved');
             loadDetail(selected);
@@ -399,6 +402,15 @@ export const Workspaces: React.FC = () => {
                                             <textarea value={aiGuidelines}
                                                 onChange={e => setAiGuidelines(e.target.value)}
                                                 placeholder="Always include a clear problem, a clear solution, and a clear action to buy. Never use emojis."
+                                                className="w-full h-32 resize-none px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Product/Service Background Info (Facts & Benefits)</label>
+                                            <p className="text-xs text-gray-500 mb-2">Detailed facts, advantages, and benefits of the product or service sold in this workspace (e.g. key ingredients, results timeframe, social proof points).</p>
+                                            <textarea value={productInfo}
+                                                onChange={e => setProductInfo(e.target.value)}
+                                                placeholder="Product Name: Fungus No More. Organic oil spray. Kills 99.9% of nail fungus in 2 weeks. Uses natural tea tree oil, clinically proven, prevents recurrence."
                                                 className="w-full h-32 resize-none px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                                         </div>
 

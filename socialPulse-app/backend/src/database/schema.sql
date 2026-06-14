@@ -401,6 +401,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
     custom_domain  VARCHAR(255) UNIQUE,
     ai_guidelines  TEXT,
     purchase_url   TEXT,
+    product_info   TEXT,
     created_at  TIMESTAMP DEFAULT NOW(),
     updated_at  TIMESTAMP DEFAULT NOW()
 );

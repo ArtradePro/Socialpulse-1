@@ -26,10 +26,10 @@ interface ContentGenerationOptions {
 
 export class AIService {
 
-    private static async getWorkspaceContext(workspaceId?: string): Promise<{ guidelines: string; purchaseUrl: string }> {
-        if (!workspaceId) return { guidelines: '', purchaseUrl: '' };
-        const { rows } = await db.query('SELECT ai_guidelines, purchase_url FROM workspaces WHERE id = $1', [workspaceId]);
-        if (rows.length === 0) return { guidelines: '', purchaseUrl: '' };
+    private static async getWorkspaceContext(workspaceId?: string): Promise<{ guidelines: string; purchaseUrl: string; productInfo: string }> {
+        if (!workspaceId) return { guidelines: '', purchaseUrl: '', productInfo: '' };
+        const { rows } = await db.query('SELECT ai_guidelines, purchase_url, product_info FROM workspaces WHERE id = $1', [workspaceId]);
+        if (rows.length === 0) return { guidelines: '', purchaseUrl: '', productInfo: '' };
 
         let purchaseUrl = rows[0].purchase_url || '';
         if (purchaseUrl && purchaseUrl.startsWith('http')) {
@@ -38,7 +38,8 @@ export class AIService {
 
         return {
             guidelines: rows[0].ai_guidelines || '',
-            purchaseUrl
+            purchaseUrl,
+            productInfo: rows[0].product_info || ''
         };
     }
 
@@ -48,7 +49,7 @@ export class AIService {
         options: ContentGenerationOptions
     ): Promise<{ content: string; hashtags: string[] }> {
 
-        const { guidelines: customGuidelines, purchaseUrl } = await this.getWorkspaceContext(workspaceId);
+        const { guidelines: customGuidelines, purchaseUrl, productInfo } = await this.getWorkspaceContext(workspaceId);
 
         const platformGuide: Record<string, string> = {
             twitter: 'Keep it under 280 characters. Be concise and engaging.',
@@ -80,6 +81,10 @@ export class AIService {
 
         const systemInstruction = `You are a professional social media content creator. 
         MANDATORY: Include this purchase link: ${purchaseUrl || '[Link]'}.
+        ${productInfo ? `PRODUCT/SERVICE BACKGROUND INFO (FACTS & BENEFITS):
+        ---
+        ${productInfo}
+        ---` : ''}
         ${customGuidelines ? `BRAND GUIDELINES: ${customGuidelines}` : ''}
         Return only JSON.`;
 
@@ -101,7 +106,7 @@ export class AIService {
         days: number = 7
     ): Promise<{ posts: { content: string; scheduled_offset_days: number; platform: string; type: string }[] }> {
         
-        const { guidelines, purchaseUrl } = await this.getWorkspaceContext(workspaceId);
+        const { guidelines, purchaseUrl, productInfo } = await this.getWorkspaceContext(workspaceId);
 
         const prompt = `
             Create a strategic ${days}-day social media "Magic Plan" for the following:
@@ -115,6 +120,7 @@ export class AIService {
             - If promotional, naturally mention this link: ${purchaseUrl || '[Link]'}.
             
             Platform Mix: Use a variety of platforms (twitter, linkedin, instagram, facebook).
+            ${productInfo ? `Product/Service Background: ${productInfo}` : ''}
             Brand Guidelines: ${guidelines || 'Professional and engaging'}
             
             Return JSON: 
@@ -146,7 +152,7 @@ export class AIService {
         messageContent: string,
         platform: string
     ): Promise<{ content: string }> {
-        const { guidelines, purchaseUrl } = await this.getWorkspaceContext(workspaceId);
+        const { guidelines, purchaseUrl, productInfo } = await this.getWorkspaceContext(workspaceId);
 
         const prompt = `
             Draft a helpful and engaging reply to this ${platform} message:
@@ -156,14 +162,19 @@ export class AIService {
             - Professional yet friendly tone.
             - If relevant, naturally mention this link: ${purchaseUrl || '[Link]'}.
             - Keep it concise (under 280 chars if Twitter).
+            ${productInfo ? `- Reference product information where appropriate: "${productInfo}"` : ''}
             
             Return JSON: {"content": "..."}
         `;
 
+        const systemInstruction = `You are a helpful customer support representative. 
+        ${guidelines ? `Brand Guidelines: ${guidelines}` : ''}
+        ${productInfo ? `Product Background Context: ${productInfo}` : ''}`;
+
         const result = await getAI().models.generateContent({
             model: 'gemini-2.5-flash',
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            config: { systemInstruction: guidelines, responseMimeType: 'application/json' }
+            config: { systemInstruction, responseMimeType: 'application/json' }
         });
 
         const resultText2 = result.text || '{}';
@@ -177,12 +188,23 @@ export class AIService {
         platform: string
     ): Promise<{ content: string; hashtags: string[] }> {
 
-        const { purchaseUrl } = await this.getWorkspaceContext(workspaceId);
+        const { guidelines, purchaseUrl, productInfo } = await this.getWorkspaceContext(workspaceId);
+
+        const prompt = `Convert this trend into a ${platform} social media post: "${trendContent}".
+        MANDATORY: Link: ${purchaseUrl || '[Link]'}
+        
+        Ensure you tie the trend back to our product background context if relevant.
+        Return JSON: {"content": "...", "hashtags": ["...", "..."]}`;
+
+        const systemInstruction = `You are a professional social media content creator.
+        ${guidelines ? `Brand Guidelines: ${guidelines}` : ''}
+        ${productInfo ? `Product Background Context: ${productInfo}` : ''}
+        Return only JSON.`;
 
         const result = await getAI().models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: [{ role: 'user', parts: [{ text: `Convert this trend into a ${platform} post: "${trendContent}". Link: ${purchaseUrl || '[Link]'}` }] }],
-            config: { responseMimeType: 'application/json' }
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: { systemInstruction, responseMimeType: 'application/json' }
         });
 
         const resultText3 = result.text || '{}';
@@ -200,11 +222,35 @@ export class AIService {
         remix: string;
     }> {
 
-        const { purchaseUrl } = await this.getWorkspaceContext(workspaceId);
+        const { guidelines, purchaseUrl, productInfo } = await this.getWorkspaceContext(workspaceId);
 
-        const prompt = `Review this ${platform} post: "${content}". 
-        Check for PAIN-SOLUTION-CTA and link: ${purchaseUrl || '[Link]'}. 
-        Return JSON: {"score": 0-100, "feedback": [...], "remix": "..."}`;
+        const prompt = `Review this ${platform} post draft:
+        ---
+        "${content}"
+        ---
+        
+        Perform a thorough Framework Analysis checking for:
+        1. Hook (Pain): Does it start with a compelling customer pain point?
+        2. Solution (Promise): Is there a clear offer or promise solving that pain?
+        3. Proof (Social Proof / Facts): Are the benefits and claims credible?
+        4. CTA: Is there a clear Call to Action containing the link: ${purchaseUrl || '[Link]'}?
+
+        ${productInfo ? `Product/Service Facts & Benefits to verify against:
+        ---
+        ${productInfo}
+        ---` : ''}
+
+        ${guidelines ? `Brand Style Guidelines to enforce:
+        ---
+        ${guidelines}
+        ---` : ''}
+
+        Return a JSON object containing:
+        - "score": A score from 0-100 based on copywriting strength and fact/branding accuracy.
+        - "feedback": An array of objects: [{"component": "Hook|Solution|Proof|CTA|Facts|Guidelines", "status": "pass|fail|warn", "message": "Feedback message details"}]
+        - "remix": An optimized, high-converting rewrite of the post incorporating correct facts, guidelines, and proper hook/CTA.
+        
+        Format: {"score": 85, "feedback": [{"component": "Hook", "status": "pass", "message": "..."}], "remix": "..."}`;
 
         const result = await getAI().models.generateContent({
             model: 'gemini-2.5-flash',
@@ -377,7 +423,7 @@ export class AIService {
         platform: string,
         tone: string = 'promotional'
     ): Promise<{ content: string; hashtags: string[] }> {
-        const { guidelines, purchaseUrl } = await this.getWorkspaceContext(workspaceId);
+        const { guidelines, purchaseUrl, productInfo } = await this.getWorkspaceContext(workspaceId);
 
         const prompt = `
             Create a highly converting ${tone} social media post for ${platform} promoting this product:
@@ -393,6 +439,7 @@ export class AIService {
 
         const systemInstruction = `You are an expert e-commerce copywriter. 
         MANDATORY: Use this direct product link: ${productData.productUrl}.
+        ${productInfo ? `Product Background Context: ${productInfo}` : ''}
         ${guidelines ? `BRAND GUIDELINES: ${guidelines}` : ''}
         Return only JSON.`;
 
@@ -414,7 +461,7 @@ export class AIService {
         objective: string,
         tone: string = 'conversion'
     ): Promise<{ adCopy: string; headline: string }> {
-        const { guidelines } = await this.getWorkspaceContext(workspaceId);
+        const { guidelines, productInfo } = await this.getWorkspaceContext(workspaceId);
 
         const prompt = `
             Create high-converting Meta paid ad creative content (Facebook/Instagram Ads) promoting this product:
@@ -431,6 +478,7 @@ export class AIService {
         `;
 
         const systemInstruction = `You are a world-class Facebook and Instagram direct-response ad copywriter.
+        ${productInfo ? `Product Background Context: ${productInfo}` : ''}
         ${guidelines ? `BRAND GUIDELINES: ${guidelines}` : ''}
         Return only JSON.`;
 
