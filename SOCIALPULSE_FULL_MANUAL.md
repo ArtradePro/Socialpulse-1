@@ -341,11 +341,15 @@ From the **E-commerce** section, select any synced product and click **"Generate
 * **Integration**: Generated images can be downloaded, copied to clipboard, or saved directly to your Media Library for immediate use in posts.
 * **API endpoint**: `POST /api/ai/image` — body: `{ prompt, size?, referenceImageUrl? }`
 
-## 8. Smart Brand Guidelines
-The AI is only as good as its instructions. Set **AI Guidelines** per workspace in **Workspace Settings → Branding**.
-* **Example guidelines**: "Never use the word 'hustle'. Always end with a question. Use British English spelling."
-* **Result**: The AI applies these rules to every post, reply, plan, and product post it drafts in this workspace — ensuring a consistent brand voice across all features.
-* **Purchase URL + Link Shortener**: Set a `Purchase URL` in workspace settings. The platform automatically shortens it via the built-in link shortener and injects the short link into every AI-generated post and review.
+## 8. Smart Brand Guidelines & Product Knowledge
+The AI is only as good as its instructions and knowledge. Configure these settings per workspace in **Workspace Settings → Branding**:
+* **AI Brand Guidelines**: Set tone, style, formatting rules, or restrictions.
+  * *Example*: "Never use the word 'hustle'. Always end with a question. Use British English spelling."
+  * *Result*: The AI applies these rules to every post, reply, plan, and product post it drafts in this workspace — ensuring a consistent brand voice.
+* **Product/Service Background Info (Facts & Benefits)**: Provide key product specifications, ingredients, timeframe, and unique selling points.
+  * *Example (Fungus No More)*: "Organic oil spray. Kills 99.9% of nail fungus in 2 weeks. Uses natural tea tree oil, clinically proven, prevents recurrence."
+  * *Result*: The AI pulls these facts to write highly accurate posts and campaigns. Additionally, the **AI Content Reviewer** uses this context to verify that drafts do not make false or unaligned claims.
+* **Purchase URL + Link Shortener**: Set a `Purchase URL` in workspace settings. The platform automatically shortens it via the built-in link shortener and injects the short link into every AI-generated post, ad copy, and review.
 
 ---
 
