@@ -29,8 +29,10 @@ import ecommerceRoutes    from './routes/ecommerce.routes';
 import automationRoutes   from './routes/automation.routes';
 import avatarRoutes       from './routes/avatar.routes';
 import salesPagesRoutes   from './routes/salesPages';
+import marketingRoutes    from './routes/marketing.routes';
 import adCampaignsRoutes  from './routes/adCampaigns';
 import crmRoutes          from './routes/crm';
+import webhookRoutes      from './routes/webhooks';
 import { LinkService } from './services/link.service';
 import { errorHandler, notFound } from './middleware/errorHandler';
 
@@ -106,9 +108,11 @@ app.use('/api/approvals',     approvalRoutes);
 app.use('/api/ecommerce',     ecommerceRoutes);
 app.use('/api/automations',    automationRoutes);
 app.use('/api/avatars',        avatarRoutes);
+app.use('/api/marketing',      marketingRoutes);
 app.use('/api/storefront',     salesPagesRoutes);
 app.use('/api/ads',            adCampaignsRoutes);
 app.use('/api/crm',            crmRoutes);
+app.use('/api/webhooks',       webhookRoutes);
 
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

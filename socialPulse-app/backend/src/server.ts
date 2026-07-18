@@ -12,6 +12,7 @@ import { initRssJob } from './jobs/rssJob';
 import { initListeningJob } from './jobs/listeningJob';
 import { initInboxJob } from './jobs/inboxJob';
 import { initAdPerformanceJob } from './jobs/adPerformance.job';
+import { initMarketingWorkers } from './jobs/marketing/workers';
 import { processQueue, processPendingScrapeTasks, checkScheduledTasks } from './services/automationService';
 
 const PORT = process.env.PORT || 5000;
@@ -40,6 +41,7 @@ const start = async (): Promise<void> => {
         initListeningJob();
         initInboxJob();
         initAdPerformanceJob();
+        initMarketingWorkers();
     } catch (err) {
         console.warn('Redis unavailable — continuing startup without queue features:', err);
     }

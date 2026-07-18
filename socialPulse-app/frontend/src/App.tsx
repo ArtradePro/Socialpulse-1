@@ -31,7 +31,7 @@ import { MagicPlan }    from './pages/MagicPlan';
 import { Storefront }   from './pages/Storefront';
 import { PublicStorefront } from './pages/PublicStorefront';
 import { Ads }          from './pages/Ads';
-
+import { Marketing }    from './pages/Marketing';
 import { ApprovalPortal } from './pages/ApprovalPortal';
 import AppLayout from './components/layout/AppLayout';
 import PrivateRoute from './components/common/PrivateRoute';
@@ -78,6 +78,7 @@ const App: React.FC = () => {
                         <Route path="magic-plan"   element={<MagicPlan />} />
                         <Route path="storefront"   element={<Storefront />} />
                         <Route path="ads"          element={<Ads />} />
+                        <Route path="marketing"    element={<Marketing />} />
                     </Route>
 
                     {/* NEW: Catch-all route. If path not found, go to login */}
