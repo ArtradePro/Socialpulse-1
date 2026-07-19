@@ -44,6 +44,12 @@ router.post('/contract-signed', async (req: Request, res: Response): Promise<voi
         return;
     }
 
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(tenantId)) {
+        res.status(400).json({ message: 'Invalid tenantId format (must be a valid UUID)' });
+        return;
+    }
+
     // Build the flat payload that AutomationEngineService will use for
     // template variable resolution (e.g. {{contract_amount}}, {{client_name}})
     const payload: Record<string, any> = {

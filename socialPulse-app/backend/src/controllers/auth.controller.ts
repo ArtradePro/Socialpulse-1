@@ -1,4 +1,4 @@
-﻿import { Request, Response } from 'express';
+import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
@@ -106,6 +106,7 @@ export const login = async (req: Request, res: Response) => {
             },
         });
     } catch (error) {
+        console.error('[login] error:', error);
         res.status(500).json({ message: 'Server error' });
     }
 };

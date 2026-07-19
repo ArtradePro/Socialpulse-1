@@ -28,6 +28,18 @@ export default async function globalSetup(): Promise<void> {
         const schema = readFileSync(join(__dirname, '../../database/schema.sql'), 'utf-8');
         await client.query(schema);
         console.log('✓ Test database schema applied');
+
+        // Apply migrations
+        const fs = require('fs');
+        const migrationsDir = join(__dirname, '../database/migrations');
+        if (fs.existsSync(migrationsDir)) {
+            const files = fs.readdirSync(migrationsDir).filter((f: string) => f.endsWith('.sql')).sort();
+            for (const file of files) {
+                const migrationSql = fs.readFileSync(join(migrationsDir, file), 'utf-8').replace(/^﻿/, '');
+                await client.query(migrationSql);
+                console.log(`✓ Test migration applied: ${file}`);
+            }
+        }
     } finally {
         client.release();
         await pool.end();

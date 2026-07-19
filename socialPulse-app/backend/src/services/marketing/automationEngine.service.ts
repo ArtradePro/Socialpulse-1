@@ -16,6 +16,12 @@ export class AutomationEngineService {
     }) {
         console.log(`[AutomationEngineService] Triggering event "${eventName}" for tenant: ${tenantId}`);
 
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(tenantId)) {
+            console.warn(`[AutomationEngineService] Skipping event "${eventName}" — invalid tenantId UUID: "${tenantId}"`);
+            return;
+        }
+
         // Find active automations matching this event
         const result = await db.query(
             `SELECT * FROM marketing_automations 
@@ -50,6 +56,12 @@ export class AutomationEngineService {
     static async evaluateAutomation(automationId: string, tenantId: string, payload: any) {
         console.log(`[AutomationEngineService] Evaluating automation rule: ${automationId}`);
         
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(tenantId) || !uuidRegex.test(automationId)) {
+            console.warn(`[AutomationEngineService] Skipping evaluation — invalid tenantId or automationId UUID`);
+            return;
+        }
+
         const automationResult = await db.query(
             `SELECT * FROM marketing_automations WHERE id = $1 AND tenant_id = $2`,
             [automationId, tenantId]
@@ -81,16 +93,22 @@ export class AutomationEngineService {
 
         // If contactId is provided, enrich from DB
         if (contactId) {
-            const contactResult = await db.query(
-                `SELECT * FROM marketing_contacts WHERE id = $1 AND tenant_id = $2`,
-                [contactId, tenantId]
-            );
-            const contact = contactResult.rows[0];
-            if (contact) {
-                email = email || contact.email;
-                phone = phone || contact.phone;
-                firstName = firstName || contact.first_name;
-                lastName = lastName || contact.last_name;
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            if (!uuidRegex.test(contactId)) {
+                console.warn(`[AutomationEngineService] Invalid contactId UUID: "${contactId}", ignoring database enrichment`);
+                contactId = undefined;
+            } else {
+                const contactResult = await db.query(
+                    `SELECT * FROM marketing_contacts WHERE id = $1 AND tenant_id = $2`,
+                    [contactId, tenantId]
+                );
+                const contact = contactResult.rows[0];
+                if (contact) {
+                    email = email || contact.email;
+                    phone = phone || contact.phone;
+                    firstName = firstName || contact.first_name;
+                    lastName = lastName || contact.last_name;
+                }
             }
         }
 
