@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "install": "cd socialPulse-app/backend && npm install",
-    "build": "cd socialPulse-app/backend && npx tsc --skipLibCheck",
-    "build:backend": "cd socialPulse-app/backend && npx tsc --skipLibCheck",
+    "build": "cd socialPulse-app/backend && npm install && npx tsc --skipLibCheck",
+    "build:backend": "cd socialPulse-app/backend && npm install && npx tsc --skipLibCheck",
     "start": "node socialPulse-app/backend/dist/server.js"
   },
   "dependencies": {
