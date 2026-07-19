@@ -82,6 +82,11 @@ export const login = async (req: Request, res: Response) => {
         }
 
         const user = result.rows[0];
+        
+        if (!user.password_hash || typeof user.password_hash !== 'string') {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
         const isValidPassword = await bcrypt.compare(password, user.password_hash);
 
         if (!isValidPassword) {
