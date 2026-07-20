@@ -108,6 +108,7 @@ CREATE INDEX IF NOT EXISTS idx_post_analytics_post_id   ON post_analytics(post_i
 CREATE INDEX IF NOT EXISTS idx_campaigns_user_id        ON campaigns(user_id);
 CREATE INDEX IF NOT EXISTS idx_templates_user_id        ON templates(user_id);
 CREATE INDEX IF NOT EXISTS idx_hashtag_sets_user_id     ON hashtag_sets(user_id);
+CREATE INDEX IF NOT EXISTS idx_marketing_automations_trigger ON marketing_automations(tenant_id, trigger_event, is_active);
 
 -- Auto-update updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()

@@ -92,6 +92,7 @@ export class AutomationEngineService {
         let lastName = payload.lastName || '';
 
         // If contactId is provided, enrich from DB
+        let contact: any = null;
         if (contactId) {
             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
             if (!uuidRegex.test(contactId)) {
@@ -102,14 +103,34 @@ export class AutomationEngineService {
                     `SELECT * FROM marketing_contacts WHERE id = $1 AND tenant_id = $2`,
                     [contactId, tenantId]
                 );
-                const contact = contactResult.rows[0];
-                if (contact) {
-                    email = email || contact.email;
-                    phone = phone || contact.phone;
-                    firstName = firstName || contact.first_name;
-                    lastName = lastName || contact.last_name;
-                }
+                contact = contactResult.rows[0];
             }
+        }
+
+        if (!contact && email) {
+            const contactResult = await db.query(
+                `SELECT * FROM marketing_contacts WHERE email = $1 AND tenant_id = $2`,
+                [email.toLowerCase().trim(), tenantId]
+            );
+            contact = contactResult.rows[0];
+        }
+
+        if (contact) {
+            contactId = contact.id;
+            email = email || contact.email;
+            phone = phone || contact.phone;
+            firstName = firstName || contact.first_name;
+            lastName = lastName || contact.last_name;
+        }
+
+        // Compliance check: skip dispatch if contact has unsubscribed
+        if (action === 'send_email' && contact && contact.is_subscribed_email === false) {
+            console.warn(`[AutomationEngineService] Skipping email automation ${automationId} for ${email} — contact is unsubscribed (is_subscribed_email = false)`);
+            return;
+        }
+        if (action === 'send_sms' && contact && contact.is_subscribed_sms === false) {
+            console.warn(`[AutomationEngineService] Skipping SMS automation ${automationId} for ${phone} — contact is unsubscribed (is_subscribed_sms = false)`);
+            return;
         }
 
         // Task 2: Dynamic template resolution — merge contact fields with every key

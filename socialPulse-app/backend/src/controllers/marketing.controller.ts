@@ -1,7 +1,20 @@
 import { Request, Response } from 'express';
+import { timingSafeEqual, createHash } from 'crypto';
 import { db } from '../config/database';
 import { CampaignService } from '../services/marketing/campaign.service';
 import { AutomationEngineService } from '../services/marketing/automationEngine.service';
+
+function isValidWebhookSecret(provided: string | undefined): boolean {
+    const expected = process.env.WEBHOOK_SECRET;
+    if (!expected || !provided) return false;
+    try {
+        const a = createHash('sha256').update(provided).digest();
+        const b = createHash('sha256').update(expected).digest();
+        return timingSafeEqual(a, b);
+    } catch {
+        return false;
+    }
+}
 
 // Contacts
 export const createContact = async (req: Request, res: Response): Promise<void> => {
@@ -284,7 +297,13 @@ export const getAnalyticsSummary = async (req: Request, res: Response): Promise<
 
 // Webhook Delivery Receipts
 export const handleDeliveryWebhook = async (req: Request, res: Response): Promise<void> => {
-    const { deliveryLogId, status, errorMessage } = req.body;
+    const providedSecret = (req.headers['x-webhook-secret'] || req.headers['authorization']) as string | undefined;
+    if (!isValidWebhookSecret(providedSecret?.replace(/^Bearer\s+/i, ''))) {
+        res.status(401).json({ message: 'Unauthorized: invalid webhook secret' });
+        return;
+    }
+
+    const { deliveryLogId, status, errorMessage, type } = req.body;
 
     if (!deliveryLogId || !status) {
         res.status(400).json({ message: 'deliveryLogId and status are required' });
@@ -305,8 +324,28 @@ export const handleDeliveryWebhook = async (req: Request, res: Response): Promis
             return;
         }
 
+        const logRecord = result.rows[0];
         console.log(`[WebhookListener] Updated delivery log ID ${deliveryLogId} to status "${status}"`);
-        res.json({ message: 'Delivery log updated successfully', log: result.rows[0] });
+
+        // Opt-out handling: if status indicates bounce or unsubscribe, set contact subscription flag to false
+        const normalizedStatus = String(status).toLowerCase();
+        if (['bounced', 'unsubscribe', 'unsubscribed', 'failed', 'complaint'].includes(normalizedStatus) && logRecord.contact_id) {
+            if (type === 'sms') {
+                await db.query(
+                    `UPDATE marketing_contacts SET is_subscribed_sms = false, updated_at = NOW() WHERE id = $1`,
+                    [logRecord.contact_id]
+                );
+                console.log(`[WebhookListener] Contact ${logRecord.contact_id} marked is_subscribed_sms = false due to status "${status}"`);
+            } else {
+                await db.query(
+                    `UPDATE marketing_contacts SET is_subscribed_email = false, updated_at = NOW() WHERE id = $1`,
+                    [logRecord.contact_id]
+                );
+                console.log(`[WebhookListener] Contact ${logRecord.contact_id} marked is_subscribed_email = false due to status "${status}"`);
+            }
+        }
+
+        res.json({ message: 'Delivery log updated successfully', log: logRecord });
     } catch (err: any) {
         console.error('[MarketingController] handleDeliveryWebhook error:', err);
         res.status(500).json({ message: 'Webhook processing failed' });

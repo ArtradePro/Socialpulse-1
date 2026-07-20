@@ -1,73 +1,100 @@
 import { Router, Request, Response } from 'express';
-import { timingSafeEqual, createHash } from 'crypto';
+import { createHmac, createHash, timingSafeEqual } from 'crypto';
 import { AutomationEngineService } from '../services/marketing/automationEngine.service';
 
 const router = Router();
 
 /**
- * Validates the x-webhook-secret header using a constant-time comparison to
- * prevent timing-based secret-guessing attacks.
+ * Validates incoming webhooks using either `x-webhook-secret` raw header or
+ * `X-Webhook-Signature` (HMAC SHA-256 over raw JSON payload).
  */
-function isValidSecret(provided: string | undefined): boolean {
-    const expected = process.env.WEBHOOK_SECRET;
-    if (!expected || !provided) return false;
-    try {
-        // Hash both sides so lengths always match (timingSafeEqual requires equal length)
-        const a = createHash('sha256').update(provided).digest();
-        const b = createHash('sha256').update(expected).digest();
-        return timingSafeEqual(a, b);
-    } catch {
-        return false;
+function isValidWebhookAuth(req: Request): boolean {
+    const secret = process.env.WEBHOOK_SECRET;
+    if (!secret) return false;
+
+    // 1. Check raw secret header
+    const providedSecret = (req.headers['x-webhook-secret'] || req.headers['authorization']) as string | undefined;
+    if (providedSecret) {
+        const token = providedSecret.replace(/^Bearer\s+/i, '');
+        try {
+            const a = createHash('sha256').update(token).digest();
+            const b = createHash('sha256').update(secret).digest();
+            if (timingSafeEqual(a, b)) return true;
+        } catch {}
     }
+
+    // 2. Check X-Webhook-Signature (HMAC SHA-256) header from Quote2ContractPro
+    const providedSig = req.headers['x-webhook-signature'] as string | undefined;
+    if (providedSig && req.body) {
+        try {
+            const payloadStr = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+            const expectedSig = createHmac('sha256', secret).update(payloadStr).digest('hex');
+            const a = Buffer.from(providedSig);
+            const b = Buffer.from(expectedSig);
+            if (a.length === b.length && timingSafeEqual(a, b)) return true;
+        } catch {}
+    }
+
+    if (process.env.NODE_ENV === 'development' && !providedSecret && !providedSig) {
+        console.warn('[Webhook] Development mode: Accepting unauthenticated webhook');
+        return true;
+    }
+
+    return false;
 }
 
 /**
  * POST /api/webhooks/contract-signed
  *
- * Called by Quote2ContractPro (or any external system) when a contract is signed.
- * Fires the `contract.signed` automation event so SocialPulse can enrol the
- * contact into any matching nurture sequence automatically.
- *
- * Required header:  x-webhook-secret: <WEBHOOK_SECRET>
- * Required body:    { tenantId, contractDetails, contactInfo }
+ * Handles contract signature webhooks from Quote2ContractPro.
+ * Fires `contract.signed` automation event in SocialPulse.
  */
 router.post('/contract-signed', async (req: Request, res: Response): Promise<void> => {
-    if (!isValidSecret(req.headers['x-webhook-secret'] as string | undefined)) {
-        res.status(401).json({ message: 'Unauthorized' });
+    if (!isValidWebhookAuth(req)) {
+        res.status(401).json({ message: 'Unauthorized webhook request' });
         return;
     }
 
-    const { tenantId, contractDetails, contactInfo } = req.body;
+    // Support both direct payloads and Q2C nested payload structure ({ event, timestamp, data })
+    const body = req.body || {};
+    const data = body.data || body;
+
+    const tenantId = data.tenantId || data.organizationId || body.tenantId || body.organizationId;
 
     if (!tenantId || typeof tenantId !== 'string') {
-        res.status(400).json({ message: 'tenantId is required' });
+        res.status(400).json({ message: 'tenantId or organizationId is required' });
         return;
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(tenantId)) {
-        res.status(400).json({ message: 'Invalid tenantId format (must be a valid UUID)' });
+    // Relaxed validation regex accepting UUID v4 and Prisma CUID formats
+    const validIdRegex = /^[0-9a-zA-Z_-]{8,64}$/i;
+    if (!validIdRegex.test(tenantId)) {
+        res.status(400).json({ message: 'Invalid tenantId format' });
         return;
     }
 
-    // Build the flat payload that AutomationEngineService will use for
-    // template variable resolution (e.g. {{contract_amount}}, {{client_name}})
+    const contactInfo = data.contactInfo || data.user || {
+        email: data.email || data.user?.email,
+        phone: data.phone || data.user?.phone,
+        firstName: data.firstName || data.user?.firstName || data.user?.name,
+        lastName: data.lastName || data.user?.lastName,
+    };
+
+    const contractDetails = data.contractDetails || data;
+
     const payload: Record<string, any> = {
-        // Contact identity — used for delivery and {{first_name}} etc.
-        email:       contactInfo?.email,
-        phone:       contactInfo?.phone,
-        firstName:   contactInfo?.firstName || contactInfo?.first_name,
-        lastName:    contactInfo?.lastName  || contactInfo?.last_name,
-        // Flatten contractDetails so every key becomes a template variable
+        email: contactInfo?.email,
+        phone: contactInfo?.phone,
+        firstName: contactInfo?.firstName || contactInfo?.first_name,
+        lastName: contactInfo?.lastName || contactInfo?.last_name,
         ...(contractDetails && typeof contractDetails === 'object' ? contractDetails : {}),
-        // Keep the raw objects available too for downstream inspection
         contactInfo,
         contractDetails,
     };
 
     try {
         await AutomationEngineService.triggerEvent('contract.signed', tenantId, payload);
-        res.status(200).json({ received: true });
+        res.status(200).json({ received: true, event: 'contract.signed' });
     } catch (err: any) {
         console.error('[Webhook] contract-signed processing error:', err);
         res.status(500).json({ message: 'Internal server error' });

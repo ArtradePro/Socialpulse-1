@@ -118,6 +118,11 @@ app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Serve frontend dist bundle if available
+import path from 'path';
+const frontendDist = path.resolve(__dirname, '../../frontend/dist');
+app.use(express.static(frontendDist));
+
 app.get('/l/:code', async (req, res) => {
     try {
         const { code } = req.params;
@@ -128,6 +133,16 @@ app.get('/l/:code', async (req, res) => {
         console.error('[Shortener] Redirect error:', err);
         res.status(500).send('Server error');
     }
+});
+
+// SPA catch-all fallback
+app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/health')) {
+        return next();
+    }
+    res.sendFile(path.join(frontendDist, 'index.html'), (err) => {
+        if (err) next();
+    });
 });
 
 app.use(notFound);

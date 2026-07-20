@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Megaphone, BarChart2, FileText, Trash2, X, Calendar, Loader2, ChevronRight, Wand2, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Megaphone, BarChart2, FileText, Trash2, X, Calendar, Loader2, ChevronRight, Wand2, Sparkles, Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 
@@ -137,20 +138,30 @@ export const Campaigns: React.FC = () => {
 
     const fmtDate = (iso: string | null) => iso ? new Date(iso).toLocaleDateString() : '—';
 
+    const navigate = useNavigate();
+
     return (
         <div className="max-w-6xl mx-auto space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Campaigns</h1>
-                    <p className="text-sm text-gray-500 mt-1">Group and track posts by marketing campaign</p>
+                    <h1 className="text-2xl font-bold text-gray-900">Social Media Campaigns</h1>
+                    <p className="text-sm text-gray-500 mt-1">Group and track posts by social media campaign</p>
                 </div>
-                <button
-                    onClick={() => setShowCreate(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity"
-                >
-                    <Plus className="w-4 h-4" /> New Campaign
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => navigate('/marketing')}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+                    >
+                        <Mail className="w-4 h-4" /> Email & SMS Campaigns
+                    </button>
+                    <button
+                        onClick={() => setShowCreate(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 transition-opacity"
+                    >
+                        <Plus className="w-4 h-4" /> New Campaign
+                    </button>
+                </div>
             </div>
 
             {/* Campaign list */}

@@ -51,4 +51,5 @@ CREATE TABLE IF NOT EXISTS marketing_delivery_logs (
 CREATE INDEX IF NOT EXISTS idx_mkt_contacts_tenant ON marketing_contacts(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_mkt_campaigns_tenant ON marketing_campaigns(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_mkt_automations_tenant ON marketing_automations(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_marketing_automations_trigger ON marketing_automations(tenant_id, trigger_event, is_active);
 CREATE INDEX IF NOT EXISTS idx_mkt_delivery_logs_campaign ON marketing_delivery_logs(campaign_id);
