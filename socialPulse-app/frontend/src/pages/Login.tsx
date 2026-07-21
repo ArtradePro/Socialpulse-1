@@ -1,16 +1,49 @@
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../hooks/useAuth';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { AppDispatch } from '../store/store';
+import { setUser } from '../store/authSlice';
 import { Button } from '../components/common/Button';
+import api from '../services/api';
 import logo from '../assets/logo.png';
 interface FormData { email: string; password: string }
 
 export const Login = () => {
   const { login, loading, error } = useAuth();
   const navigate = useNavigate();
+  const dispatch = useDispatch<AppDispatch>();
+  const [searchParams] = useSearchParams();
+  const [oauthError, setOauthError] = useState<string | null>(null);
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>();
 
+  // Handle Google OAuth redirect: /login?token=XXX or /login?error=google_failed
+  useEffect(() => {
+    const token = searchParams.get('token');
+    const errorParam = searchParams.get('error');
 
+    if (token) {
+      localStorage.setItem('accessToken', token);
+      // Fetch user profile then redirect to dashboard
+      api.get('/auth/profile').then(({ data }) => {
+        dispatch(setUser({
+          id: data.id,
+          email: data.email,
+          fullName: data.fullName || data.full_name,
+          avatar: data.avatar_url,
+          plan: data.plan ?? 'free',
+          aiCredits: data.ai_credits ?? 0,
+        }));
+        navigate('/dashboard', { replace: true });
+      }).catch(() => {
+        localStorage.removeItem('accessToken');
+        setOauthError('Google sign-in failed. Please try again.');
+      });
+    } else if (errorParam) {
+      setOauthError('Google sign-in failed. Please try again or use email/password.');
+    }
+  }, [searchParams, dispatch, navigate]);
 
   const onSubmit = async (data: FormData) => {
     const result = await login(data.email, data.password);
@@ -39,7 +72,7 @@ export const Login = () => {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
               {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password.message}</p>}
             </div>
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            {(error || oauthError) && <p className="text-sm text-red-500">{oauthError || error}</p>}
             <Button type="submit" loading={loading} className="w-full">Sign in</Button>
           </form>
 

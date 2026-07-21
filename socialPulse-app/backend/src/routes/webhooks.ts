@@ -35,8 +35,8 @@ function isValidWebhookAuth(req: Request): boolean {
         } catch {}
     }
 
-    if (process.env.NODE_ENV === 'development' && !providedSecret && !providedSig) {
-        console.warn('[Webhook] Development mode: Accepting unauthenticated webhook');
+    if (process.env.ALLOW_UNAUTHENTICATED_WEBHOOKS === 'true' && !providedSecret && !providedSig) {
+        console.warn('[Webhook] ALLOW_UNAUTHENTICATED_WEBHOOKS=true: Accepting unauthenticated webhook (dev only)');
         return true;
     }
 

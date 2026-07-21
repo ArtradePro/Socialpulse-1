@@ -1,7 +1,8 @@
 const { Pool } = require('pg');
+require('dotenv').config();
 
 const pool = new Pool({
-    connectionString: 'postgresql://postgres:QwaszX%21%40%231939@127.0.0.1:5432/socialpulse'
+    connectionString: process.env.DATABASE_URL || process.env.TEST_DATABASE_URL,
 });
 
 const tablesToFix = [

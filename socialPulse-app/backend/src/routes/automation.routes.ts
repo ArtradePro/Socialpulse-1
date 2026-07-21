@@ -15,9 +15,18 @@ import {
 
 const router = Router();
 
-// Cron tick route is accessible globally for background queue processing
-router.get('/cron/tick', runCronTick);
-router.post('/cron/tick', runCronTick);
+// Cron tick — require a shared secret so external callers cannot trigger automation runs
+const cronTickAuth = (req: import('express').Request, res: import('express').Response, next: import('express').NextFunction): void => {
+    const cronSecret = process.env.CRON_SECRET;
+    const provided = (req.headers['x-cron-secret'] as string) || req.query['secret'] as string;
+    if (!cronSecret || !provided || provided !== cronSecret) {
+        res.status(403).json({ message: 'Forbidden' });
+        return;
+    }
+    next();
+};
+router.get('/cron/tick', cronTickAuth, runCronTick);
+router.post('/cron/tick', cronTickAuth, runCronTick);
 
 // Workspace-scoped endpoints
 router.use(authenticate);
