@@ -120,7 +120,7 @@ app.get('/health', (_req, res) => {
 
 // Serve frontend dist bundle if available
 import path from 'path';
-const frontendDist = path.resolve(__dirname, '../../frontend/dist');
+const frontendDist = path.resolve(process.cwd(), '../frontend/dist');
 app.use(express.static(frontendDist));
 
 app.get('/l/:code', async (req, res) => {
