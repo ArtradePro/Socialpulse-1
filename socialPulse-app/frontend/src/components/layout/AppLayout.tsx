@@ -8,7 +8,7 @@ import {
     LayoutDashboard, PenSquare, Calendar, BarChart3, Settings,
     LogOut, Menu, X, HardDrive, CreditCard, Megaphone, Hash, FileText,
     Sparkles, Paintbrush, Rss, Radio, Inbox, Gift, Key, Building2,
-    ShoppingBag, MousePointer, Share2, Bell, Hand, Store, Target, Mail
+    ShoppingBag, MousePointer, Share2, Bell, Hand, Store, Target, Mail, Zap
 } from 'lucide-react';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { WorkspaceSwitcher } from '../common/WorkspaceSwitcher';
@@ -22,11 +22,18 @@ const navSections = [
             { path: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
             { path: '/studio',     icon: Sparkles,        label: 'Content Studio' },
             { path: '/scheduler',  icon: Calendar,        label: 'Scheduler' },
-            { path: '/analytics',  icon: BarChart3,       label: 'Analytics' },
             { path: '/campaigns',  icon: Megaphone,       label: 'Campaigns' },
             { path: '/magic-plan', icon: Sparkles,        label: 'Magic Plan' },
             { path: '/ads',        icon: Target,          label: 'Paid Ads' },
-            { path: '/marketing',    icon: Mail,            label: 'Email & SMS' },
+        ],
+    },
+    {
+        label: 'Marketing',
+        items: [
+            { path: '/marketing',              icon: Mail,        label: 'Email & SMS' },
+            { path: '/marketing/automations',  icon: Zap,         label: 'Automations' },
+            { path: '/analytics',              icon: BarChart3,   label: 'Analytics' },
+            { path: '/marketing/plans',        icon: CreditCard,  label: 'Plans' },
         ],
     },
     {

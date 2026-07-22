@@ -50,6 +50,7 @@ export const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:3001',
     'https://usesocialpulse.com',
+    'https://www.usesocialpulse.com',
     'https://silver-opossum-812035.hostingersite.com',
     process.env.CLIENT_URL,
     process.env.CLIENT_URL_ALT,

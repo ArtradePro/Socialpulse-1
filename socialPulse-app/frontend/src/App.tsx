@@ -32,6 +32,8 @@ import { Storefront }   from './pages/Storefront';
 import { PublicStorefront } from './pages/PublicStorefront';
 import { Ads }          from './pages/Ads';
 import { Marketing }    from './pages/Marketing';
+import { Automations }  from './pages/Automations';
+import { MarketingPlans } from './pages/MarketingPlans';
 import { ApprovalPortal } from './pages/ApprovalPortal';
 import AppLayout from './components/layout/AppLayout';
 import PrivateRoute from './components/common/PrivateRoute';
@@ -79,6 +81,8 @@ const App: React.FC = () => {
                         <Route path="storefront"   element={<Storefront />} />
                         <Route path="ads"          element={<Ads />} />
                         <Route path="marketing"    element={<Marketing />} />
+                        <Route path="marketing/automations" element={<Automations />} />
+                        <Route path="marketing/plans"       element={<MarketingPlans />} />
                     </Route>
 
                     {/* NEW: Catch-all route. If path not found, go to login */}

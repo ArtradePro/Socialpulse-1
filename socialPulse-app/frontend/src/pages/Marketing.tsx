@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
     Plus, Trash2, Mail, Smartphone, Send, Users, Upload, 
-    RefreshCw, BarChart2, Info, CheckCircle, AlertCircle, Calendar, Sparkles
+    RefreshCw, BarChart2, Info, CheckCircle, AlertCircle, Calendar, Sparkles, Zap, CreditCard
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -49,6 +50,7 @@ interface AnalyticsSummary {
 }
 
 export const Marketing: React.FC = () => {
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState<'contacts' | 'campaigns' | 'analytics'>('contacts');
     
     // Contacts state
@@ -298,6 +300,20 @@ export const Marketing: React.FC = () => {
                 </div>
 
                 <div className="flex gap-2">
+                    <button
+                        onClick={() => navigate('/marketing/automations')}
+                        className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium shadow-sm transition"
+                    >
+                        <Zap className="h-4 w-4" />
+                        Automations
+                    </button>
+                    <button
+                        onClick={() => navigate('/marketing/plans')}
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium shadow-sm transition"
+                    >
+                        <CreditCard className="h-4 w-4" />
+                        Plans
+                    </button>
                     {activeTab === 'contacts' && (
                         <>
                             <label className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer shadow-sm transition">
