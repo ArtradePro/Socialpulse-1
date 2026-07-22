@@ -80,18 +80,9 @@ const AppLayout: React.FC = () => {
     const navigate = useNavigate();
     const { activeId } = useAppSelector(state => state.workspace);
 
-    const [multiplayerActive, setMultiplayerActive] = useState(true);
+    const [multiplayerActive, setMultiplayerActive] = useState(false);
     const [isWsConnected, setIsWsConnected] = useState(false);
     const [remoteCursors, setRemoteCursors] = useState<Record<string, {
-        socketId: string;
-        fullName: string;
-        color: string;
-        x: number;
-        y: number;
-        avatar?: string;
-        lastSeen: number;
-    }>>({});
-    const [simulatedCursors, setSimulatedCursors] = useState<Record<string, {
         socketId: string;
         fullName: string;
         color: string;
@@ -165,7 +156,6 @@ const AppLayout: React.FC = () => {
         });
 
         socket.on('connect_error', (err) => {
-            console.warn('🔌 WebSocket connection error, using simulation fallback:', err);
             setIsWsConnected(false);
         });
 
@@ -214,64 +204,7 @@ const AppLayout: React.FC = () => {
         };
     }, [multiplayerActive, activeId, user]);
 
-    // Fallback simulation effect
-    useEffect(() => {
-        if (!multiplayerActive) {
-            setSimulatedCursors({});
-            return;
-        }
-        if (isWsConnected) {
-            setSimulatedCursors({});
-            return;
-        }
-
-        const mockUsers = [
-            { id: 'mock1', fullName: 'Sarah Jenkins', color: '#10B981' },
-            { id: 'mock2', fullName: 'Gemini Agent 🤖', color: '#8B5CF6' }
-        ];
-
-        const cursors: Record<string, {
-            socketId: string;
-            fullName: string;
-            color: string;
-            x: number;
-            y: number;
-            avatar?: string;
-            lastSeen: number;
-        }> = {};
-        mockUsers.forEach(mu => {
-            cursors[mu.id] = {
-                socketId: mu.id,
-                fullName: mu.fullName,
-                color: mu.color,
-                x: 50 + (Math.random() - 0.5) * 30,
-                y: 50 + (Math.random() - 0.5) * 30,
-                lastSeen: Date.now()
-            };
-        });
-        setSimulatedCursors(cursors);
-
-        const interval = setInterval(() => {
-            setSimulatedCursors(prev => {
-                const next = { ...prev };
-                for (const [id, cursor] of Object.entries(next)) {
-                    const dx = (Math.random() - 0.5) * 6;
-                    const dy = (Math.random() - 0.5) * 6;
-                    next[id] = {
-                        ...cursor,
-                        x: Math.max(5, Math.min(95, cursor.x + dx)),
-                        y: Math.max(5, Math.min(95, cursor.y + dy)),
-                        lastSeen: Date.now()
-                    };
-                }
-                return next;
-            });
-        }, 150);
-
-        return () => clearInterval(interval);
-    }, [multiplayerActive, isWsConnected]);
-
-    const displayCursors = isWsConnected ? remoteCursors : simulatedCursors;
+    const displayCursors = isWsConnected ? remoteCursors : {};
 
     useEffect(() => {
         const fetchProfile = async () => {
