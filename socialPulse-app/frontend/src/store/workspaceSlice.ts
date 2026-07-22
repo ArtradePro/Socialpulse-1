@@ -44,6 +44,14 @@ const workspaceSlice = createSlice({
     reducers: {
         setWorkspaces: (state, action: PayloadAction<Workspace[]>) => {
             state.workspaces = action.payload;
+            if (action.payload.length > 0) {
+                const exists = action.payload.some(w => w.id === state.activeId);
+                if (!state.activeId || !exists) {
+                    state.activeId = action.payload[0].id;
+                    state.currentWorkspace = action.payload[0];
+                    localStorage.setItem('activeWorkspaceId', action.payload[0].id);
+                }
+            }
         },
         switchWorkspace: (state, action: PayloadAction<string>) => {
             state.activeId = action.payload;

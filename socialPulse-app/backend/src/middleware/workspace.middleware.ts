@@ -22,12 +22,33 @@ export const resolveWorkspace = async (
     res: Response,
     next: NextFunction
 ): Promise<void> => {
-    const workspaceId = req.headers['x-workspace-id'] as string | undefined;
-    if (!workspaceId) { next(); return; }
+    let workspaceId = req.headers['x-workspace-id'] as string | undefined;
 
-    if (!req.user) { res.status(401).json({ message: 'Authentication required' }); return; }
+    if (!req.user) {
+        if (workspaceId) {
+            res.status(401).json({ message: 'Authentication required' });
+            return;
+        }
+        next();
+        return;
+    }
 
     try {
+        if (!workspaceId) {
+            // Auto-fallback to user's first active workspace if no header sent
+            const { rows: defaultWs } = await db.query(
+                `SELECT workspace_id, role FROM workspace_members
+                 WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1`,
+                [req.user.userId]
+            );
+            if (defaultWs.length > 0) {
+                req.workspaceId   = defaultWs[0].workspace_id;
+                req.workspaceRole = defaultWs[0].role;
+            }
+            next();
+            return;
+        }
+
         const { rows } = await db.query(
             `SELECT role FROM workspace_members
              WHERE workspace_id = $1 AND user_id = $2`,
@@ -36,8 +57,6 @@ export const resolveWorkspace = async (
         
         if (rows.length === 0) {
             console.warn(`[Workspace] User ${req.user.userId} attempted to access workspace ${workspaceId} but is not a member.`);
-            // Instead of blocking with 403, we fall back to personal context (no workspace)
-            // unless the route explicitly requires a workspace via requireWorkspace
             req.workspaceId = undefined;
             next();
             return;

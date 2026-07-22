@@ -9,7 +9,7 @@ export const listMessages = async (req: Request, res: Response): Promise<void> =
         const unreadOnly = req.query.unread === 'true';
         const platform   = req.query.platform as string | undefined;
 
-        let where = `WHERE user_id = $1 AND ${req.workspaceId ? 'workspace_id = $2' : 'workspace_id IS NULL'}`;
+        let where = `WHERE user_id = $1 AND (workspace_id = $2 OR ($2 IS NULL AND workspace_id IS NULL))`;
         const params: unknown[] = [req.user!.userId, (req as any).workspaceId || null];
         if (unreadOnly) where += ' AND is_read = false';
         if (platform)   { where += ` AND platform = $${params.length + 1}`; params.push(platform); }
@@ -22,7 +22,7 @@ export const listMessages = async (req: Request, res: Response): Promise<void> =
         );
 
         const { rows: counts } = await db.query(
-            `SELECT COUNT(*) FROM inbox_messages WHERE user_id = $1 AND ${req.workspaceId ? 'workspace_id = $2' : 'workspace_id IS NULL'} AND is_read = false`,
+            `SELECT COUNT(*) FROM inbox_messages WHERE user_id = $1 AND (workspace_id = $2 OR ($2 IS NULL AND workspace_id IS NULL)) AND is_read = false`,
             [req.user!.userId, (req as any).workspaceId || null]
         );
 
@@ -37,7 +37,7 @@ export const markRead = async (req: Request, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
         await db.query(
-            `UPDATE inbox_messages SET is_read = true WHERE id = $1 AND user_id = $2 AND ${req.workspaceId ? 'workspace_id = $3' : 'workspace_id IS NULL'}`,
+            `UPDATE inbox_messages SET is_read = true WHERE id = $1 AND user_id = $2 AND (workspace_id = $3 OR ($3 IS NULL AND workspace_id IS NULL))`,
             [id, req.user!.userId, (req as any).workspaceId || null]
         );
         res.status(204).send();
@@ -50,7 +50,7 @@ export const markRead = async (req: Request, res: Response): Promise<void> => {
 export const markAllRead = async (req: Request, res: Response): Promise<void> => {
     try {
         await db.query(
-            `UPDATE inbox_messages SET is_read = true WHERE user_id = $1 AND ${req.workspaceId ? 'workspace_id = $2' : 'workspace_id IS NULL'}`,
+            `UPDATE inbox_messages SET is_read = true WHERE user_id = $1 AND (workspace_id = $2 OR ($2 IS NULL AND workspace_id IS NULL))`,
             [req.user!.userId, (req as any).workspaceId || null]
         );
         res.status(204).send();
@@ -77,7 +77,7 @@ export async function fetchMentionsForUser(userId: string, workspaceId?: string)
  
     const { rows: accounts } = await db.query(
         `SELECT * FROM social_accounts 
-         WHERE user_id = $1 AND ${workspaceId ? 'workspace_id = $2' : 'workspace_id IS NULL'} AND is_active = true`,
+         WHERE user_id = $1 AND (workspace_id = $2 OR ($2 IS NULL AND workspace_id IS NULL)) AND is_active = true`,
         [userId, workspaceId || null]
     );
 
