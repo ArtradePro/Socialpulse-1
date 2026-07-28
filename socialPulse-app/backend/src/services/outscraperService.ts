@@ -11,6 +11,10 @@ export async function scrapeGoogleMaps(
   const apiKey = process.env.OUTSCRAPER_API_KEY;
 
   if (!apiKey || apiKey.includes("placeholder") || apiKey.includes("dummy")) {
+    if (process.env.SERPAPI_API_KEY) {
+      const { scrapeGoogleMapsSerpApi } = require('./serpapiService');
+      return scrapeGoogleMapsSerpApi(query, location, limit);
+    }
     console.warn("⚠️ No Outscraper API Key found in env. Running in Sandbox Simulation Mode.");
     return generateSandboxLeads(query, location, limit);
   }
