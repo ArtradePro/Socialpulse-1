@@ -41,7 +41,26 @@ export const app = express();
 configurePassport();
 app.use(passport.initialize());
 
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            connectSrc: [
+                "'self'", 
+                "https://api.usesocialpulse.com", 
+                "https://usesocialpulse.com",
+                "wss://api.usesocialpulse.com",
+                "wss://usesocialpulse.com",
+                "http://localhost:5000",
+                "ws://localhost:5000"
+            ],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+            imgSrc: ["'self'", "data:", "blob:", "https://res.cloudinary.com", "https://*.cloudinary.com"],
+        }
+    }
+}));
 // Trust one proxy layer (nginx → node). Prevents X-Forwarded-For spoofing.
 // If behind Cloudflare, change to: app.set('trust proxy', 2)
 app.set('trust proxy', 1);
