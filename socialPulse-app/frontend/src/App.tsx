@@ -34,6 +34,7 @@ import { Ads }          from './pages/Ads';
 import { Marketing }    from './pages/Marketing';
 import { Automations }  from './pages/Automations';
 import { MarketingPlans } from './pages/MarketingPlans';
+import { LeadScraper }  from './pages/LeadScraper';
 import { ApprovalPortal } from './pages/ApprovalPortal';
 import AppLayout from './components/layout/AppLayout';
 import PrivateRoute from './components/common/PrivateRoute';
@@ -81,6 +82,7 @@ const App: React.FC = () => {
                         <Route path="storefront"   element={<Storefront />} />
                         <Route path="ads"          element={<Ads />} />
                         <Route path="marketing"    element={<Marketing />} />
+                        <Route path="marketing/scraper"     element={<LeadScraper />} />
                         <Route path="marketing/automations" element={<Automations />} />
                         <Route path="marketing/plans"       element={<MarketingPlans />} />
                     </Route>
