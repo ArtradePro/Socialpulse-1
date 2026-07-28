@@ -539,7 +539,7 @@ export const LeadScraper: React.FC = () => {
                                     </div>
                                 ) : (
                                     <div className="relative border-l-2 border-purple-100 pl-6 ml-3 space-y-5">
-                                        {workflows[0].steps.map((step, idx) => (
+                                        {(typeof workflows[0].steps === 'string' ? JSON.parse(workflows[0].steps) : (workflows[0].steps || [])).map((step: any, idx: number) => (
                                             <div key={step.id} className="relative">
                                                 {/* Bullet number */}
                                                 <span className="absolute -left-[35px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-purple-600 text-[10px] font-black text-white">
