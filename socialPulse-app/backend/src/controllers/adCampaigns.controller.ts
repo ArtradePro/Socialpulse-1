@@ -74,7 +74,7 @@ export const createAdCampaign = async (req: Request, res: Response): Promise<voi
                 objective,
                 budget_type,
                 budget_amount,
-                platforms || ['facebook', 'instagram'],
+                platforms || ['facebook', 'instagram', 'tiktok'],
                 target_url,
                 ad_copy || null,
                 media_url || null,

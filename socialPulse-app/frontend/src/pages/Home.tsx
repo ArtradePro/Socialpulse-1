@@ -162,6 +162,8 @@ export const Home: React.FC = () => {
             &copy; {new Date().getFullYear()} SocialPulse Inc. All rights reserved.
           </p>
           <div className="flex gap-6 text-sm text-slate-400">
+            <Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
+            <Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
             <Link to="/login" className="hover:text-white transition-colors">Login</Link>
             <Link to="/register" className="hover:text-white transition-colors">Sign Up</Link>
           </div>

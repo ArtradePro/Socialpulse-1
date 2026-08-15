@@ -106,6 +106,11 @@ export const Login = () => {
             Don't have an account?{' '}
             <Link to="/register" className="font-medium text-indigo-600 hover:underline">Sign up</Link>
           </p>
+          <div className="mt-6 border-t border-gray-100 pt-4 flex justify-center items-center gap-4 text-xs text-gray-400">
+            <Link to="/terms" className="hover:text-gray-600 transition">Terms of Service</Link>
+            <span>•</span>
+            <Link to="/privacy" className="hover:text-gray-600 transition">Privacy Policy</Link>
+          </div>
         </div>
       </div>
     </div>

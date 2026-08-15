@@ -40,7 +40,7 @@ export const Ads: React.FC = () => {
     const [objective, setObjective] = useState<'TRAFFIC' | 'LEADS' | 'SALES'>('SALES');
     const [budgetType, setBudgetType] = useState<'DAILY' | 'LIFETIME'>('DAILY');
     const [budgetAmount, setBudgetAmount] = useState('20');
-    const [platforms, setPlatforms] = useState<string[]>(['facebook', 'instagram']);
+    const [platforms, setPlatforms] = useState<string[]>(['facebook', 'instagram', 'tiktok']);
     const [targetUrl, setTargetUrl] = useState('');
     const [adCopy, setAdCopy] = useState('');
     const [headline, setHeadline] = useState('');
@@ -166,7 +166,8 @@ export const Ads: React.FC = () => {
             // Auto-activate for the simulation
             await adService.updateCampaign(camp.id, { status: 'ACTIVE' });
             
-            toast.success('Campaign launched on Facebook & Instagram!');
+            const networkNames = platforms.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(', ');
+            toast.success(`Campaign launched on ${networkNames || 'selected platforms'}!`);
             setShowWizard(false);
             resetWizard();
             await fetchData();
@@ -863,7 +864,7 @@ export const Ads: React.FC = () => {
                                     <div className="border-t border-gray-100 pt-4">
                                         <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Publishing Networks</label>
                                         <div className="flex gap-4 text-xs font-bold">
-                                            {['facebook', 'instagram'].map(plat => (
+                                            {['facebook', 'instagram', 'tiktok'].map(plat => (
                                                 <label key={plat} className="flex items-center gap-2 uppercase">
                                                     <input
                                                         type="checkbox"
@@ -1026,7 +1027,7 @@ export const Ads: React.FC = () => {
 
                                             {/* Ad primary text copy */}
                                             <div className="px-3 pb-2 text-xs leading-relaxed">
-                                                {adCopy || 'Write compelling ad copy in step 3 to preview your Facebook/Instagram sponsored post details...'}
+                                                {adCopy || 'Write compelling ad copy in step 3 to preview your Facebook/Instagram/TikTok sponsored post details...'}
                                             </div>
 
                                             {/* Ad media */}

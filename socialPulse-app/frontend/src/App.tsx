@@ -36,6 +36,8 @@ import { Automations }  from './pages/Automations';
 import { MarketingPlans } from './pages/MarketingPlans';
 import { LeadScraper }  from './pages/LeadScraper';
 import { ApprovalPortal } from './pages/ApprovalPortal';
+import { Terms }          from './pages/Terms';
+import { Privacy }        from './pages/Privacy';
 import AppLayout from './components/layout/AppLayout';
 import PrivateRoute from './components/common/PrivateRoute';
 import { BrandProvider } from './contexts/BrandContext';
@@ -50,6 +52,8 @@ const App: React.FC = () => {
                     {/* Public Routes */}
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
+                    <Route path="/terms" element={<Terms />} />
+                    <Route path="/privacy" element={<Privacy />} />
                     <Route path="/team-invite/:token" element={<AcceptInvite />} />
                     <Route path="/approve/:token" element={<ApprovalPortal />} />
                     <Route path="/s/:slug" element={<PublicStorefront />} />
