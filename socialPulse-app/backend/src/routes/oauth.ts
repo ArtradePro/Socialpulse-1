@@ -12,6 +12,7 @@ import {
     instagramConnect, instagramCallback,
     linkedinConnect,  linkedinCallback,
     facebookConnect,  facebookCallback,
+    tiktokConnect,    tiktokCallback,
 } from '../controllers/oauth.controller';
 
 const router = Router();
@@ -41,5 +42,9 @@ router.get('/linkedin/callback', linkedinCallback);
 // Facebook
 router.get('/facebook/connect',  authenticateQuery, facebookConnect);
 router.get('/facebook/callback', facebookCallback);
+
+// TikTok
+router.get('/tiktok/connect',    authenticateQuery, tiktokConnect);
+router.get('/tiktok/callback',   tiktokCallback);
 
 export default router;

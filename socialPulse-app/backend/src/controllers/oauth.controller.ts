@@ -408,3 +408,93 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
         res.redirect(`${FRONTEND_URL}/settings?error=facebook_auth_failed`);
     }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TIKTOK (OAuth 2.0 with PKCE)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const tiktokConnect = (req: Request, res: Response): void => {
+    const userId        = (req as any).user.userId;
+    const codeVerifier  = twitterCodeVerifier(); // PKCE verifier
+    const codeChallenge = twitterCodeChallenge(codeVerifier);
+    const state         = mkState(userId, codeVerifier);
+    const redirect      = `${BACKEND_URL}/api/oauth/tiktok/callback`;
+
+    const clientKey = process.env.TIKTOK_CLIENT_KEY || process.env.TIKTOK_CLIENT_ID || '';
+
+    const params = new URLSearchParams({
+        client_key:            clientKey,
+        scope:                 'user.info.basic,video.publish,video.upload',
+        response_type:         'code',
+        redirect_uri:          redirect,
+        state,
+        code_challenge:        codeChallenge,
+        code_challenge_method: 'S256',
+    });
+
+    res.redirect(`https://www.tiktok.com/v2/auth/authorize/?${params}`);
+};
+
+export const tiktokCallback = async (req: Request, res: Response): Promise<void> => {
+    const { code, state } = req.query as { code?: string; state?: string };
+    const stateData = state ? consumeState(state) : null;
+
+    if (!stateData || !code) {
+        res.redirect(`${FRONTEND_URL}/settings?error=invalid_state`);
+        return;
+    }
+
+    try {
+        const clientKey    = process.env.TIKTOK_CLIENT_KEY || process.env.TIKTOK_CLIENT_ID || '';
+        const clientSecret = process.env.TIKTOK_CLIENT_SECRET || '';
+        const redirect     = `${BACKEND_URL}/api/oauth/tiktok/callback`;
+
+        // Exchange code for token
+        const tokenRes = await axios.post(
+            'https://open.tiktokapis.com/v2/oauth/token/',
+            new URLSearchParams({
+                client_key:     clientKey,
+                client_secret:  clientSecret,
+                code:           code,
+                grant_type:     'authorization_code',
+                redirect_uri:   redirect,
+                code_verifier:  stateData.codeVerifier || '',
+            }).toString(),
+            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+        );
+
+        const data = tokenRes.data?.data || tokenRes.data;
+        const accessToken   = data.access_token;
+        const refreshToken  = data.refresh_token ?? null;
+        const expiresIn     = data.expires_in ?? 86400;
+        const openId        = data.open_id;
+
+        // Fetch user info from TikTok
+        const userRes = await axios.get('https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+
+        const userInfo = userRes.data?.data?.user || {};
+        const username = userInfo.display_name || openId || 'TikTok Creator';
+        const profileImage = userInfo.avatar_url || null;
+
+        const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+        await upsertAccount(
+            stateData.userId,
+            'tiktok',
+            openId || userInfo.union_id || username,
+            username,
+            accessToken,
+            refreshToken,
+            expiresAt,
+            profileImage,
+            0
+        );
+
+        res.redirect(`${FRONTEND_URL}/settings?connected=tiktok`);
+    } catch (err: any) {
+        console.error('[TikTok OAuth Error]:', err.response?.data ?? err.message);
+        res.redirect(`${FRONTEND_URL}/settings?error=tiktok_auth_failed`);
+    }
+};

@@ -101,4 +101,18 @@ router.post('/contract-signed', async (req: Request, res: Response): Promise<voi
     }
 });
 
+/**
+ * GET/POST /api/webhooks/tiktok
+ * Handles TikTok event subscriptions & webhook challenge verification.
+ */
+router.all('/tiktok', (req: Request, res: Response): void => {
+    console.log('[TikTok Webhook] Event received:', req.body);
+    const challenge = req.query.challenge || req.body?.challenge;
+    if (challenge) {
+        res.status(200).send(challenge);
+        return;
+    }
+    res.status(200).json({ received: true, timestamp: new Date().toISOString() });
+});
+
 export default router;
