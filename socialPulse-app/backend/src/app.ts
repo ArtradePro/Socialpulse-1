@@ -155,6 +155,19 @@ app.get('/l/:code', async (req, res) => {
     }
 });
 
+// Public legal pages for TikTok / Meta / Google Ads verification & crawlers
+app.get(['/terms', '/terms/'], (_req, res) => {
+    res.sendFile(path.join(frontendDist, 'terms.html'), (err) => {
+        if (err) res.sendFile(path.join(frontendDist, 'index.html'));
+    });
+});
+
+app.get(['/privacy', '/privacy/'], (_req, res) => {
+    res.sendFile(path.join(frontendDist, 'privacy.html'), (err) => {
+        if (err) res.sendFile(path.join(frontendDist, 'index.html'));
+    });
+});
+
 // SPA catch-all fallback
 app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/health')) {
