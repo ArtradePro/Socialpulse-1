@@ -155,6 +155,15 @@ app.get('/l/:code', async (req, res) => {
     }
 });
 
+// TikTok Domain Signature Verification Endpoint
+app.get('/tiktokSPeuDMslyQzrG2do18LFBXIooga5xWGk.txt', (_req, res) => {
+    res.type('text/plain').send('tiktokSPeuDMslyQzrG2do18LFBXIooga5xWGk');
+});
+
+app.get('/tiktok:token.txt', (req, res) => {
+    res.type('text/plain').send(`tiktok${req.params.token}`);
+});
+
 // Public legal pages for TikTok / Meta / Google Ads verification & crawlers
 app.get(['/terms', '/terms/'], (_req, res) => {
     res.sendFile(path.join(frontendDist, 'terms.html'), (err) => {
