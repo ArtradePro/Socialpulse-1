@@ -418,7 +418,7 @@ export const tiktokConnect = (req: Request, res: Response): void => {
     const codeVerifier  = twitterCodeVerifier(); // PKCE verifier
     const codeChallenge = twitterCodeChallenge(codeVerifier);
     const state         = mkState(userId, codeVerifier);
-    const redirect      = `${BACKEND_URL}/api/oauth/tiktok/callback`;
+    const redirect      = process.env.TIKTOK_REDIRECT_URI || 'https://api.usesocialpulse.com/api/oauth/tiktok/callback';
 
     const clientKey = process.env.TIKTOK_CLIENT_KEY || process.env.TIKTOK_CLIENT_ID || '';
 
@@ -447,7 +447,7 @@ export const tiktokCallback = async (req: Request, res: Response): Promise<void>
     try {
         const clientKey    = process.env.TIKTOK_CLIENT_KEY || process.env.TIKTOK_CLIENT_ID || '';
         const clientSecret = process.env.TIKTOK_CLIENT_SECRET || '';
-        const redirect     = `${BACKEND_URL}/api/oauth/tiktok/callback`;
+        const redirect     = process.env.TIKTOK_REDIRECT_URI || 'https://api.usesocialpulse.com/api/oauth/tiktok/callback';
 
         // Exchange code for token
         const tokenRes = await axios.post(
