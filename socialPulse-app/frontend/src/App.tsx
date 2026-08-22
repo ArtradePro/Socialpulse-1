@@ -1,46 +1,60 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { store } from './store/store';
 import { Toaster } from 'react-hot-toast';
+import { Loader2 } from 'lucide-react';
 
+// Public Critical Routes (Eagerly loaded for instant first paint)
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { Home } from './pages/Home';
-import { Dashboard } from './pages/Dashboard';
-import { ContentStudio } from './pages/ContentStudio';
-import { Scheduler } from './pages/Scheduler';
-import Analytics from "./pages/Analytics";
-import { Settings } from './pages/Settings';
-import MediaLibraryPage from './pages/MediaLibrary';
-import Billing           from './pages/Billing';
-import { Campaigns }    from './pages/Campaigns';
-import HashtagSets      from './pages/HashtagSets';
-import Templates       from './pages/Templates';
-import AcceptInvite    from './pages/AcceptInvite';
-import { RssFeeds }       from './pages/RssFeeds';
-import { ApiKeys }        from './pages/ApiKeys';
-import { ImageGenerator } from './pages/ImageGenerator';
-import { SocialListening } from './pages/SocialListening';
-import { UnifiedInbox }   from './pages/UnifiedInbox';
-import { Referrals }      from './pages/Referrals';
-import { ImageEditor }   from './pages/ImageEditor';
-import { Workspaces }   from './pages/Workspaces';
-import { Ecommerce }    from './pages/Ecommerce';
-import { MagicPlan }    from './pages/MagicPlan';
-import { Storefront }   from './pages/Storefront';
-import { PublicStorefront } from './pages/PublicStorefront';
-import { Ads }          from './pages/Ads';
-import { Marketing }    from './pages/Marketing';
-import { Automations }  from './pages/Automations';
-import { MarketingPlans } from './pages/MarketingPlans';
-import { LeadScraper }  from './pages/LeadScraper';
-import { ApprovalPortal } from './pages/ApprovalPortal';
-import { Terms }          from './pages/Terms';
-import { Privacy }        from './pages/Privacy';
+import { Terms } from './pages/Terms';
+import { Privacy } from './pages/Privacy';
 import AppLayout from './components/layout/AppLayout';
 import PrivateRoute from './components/common/PrivateRoute';
 import { BrandProvider } from './contexts/BrandContext';
+
+// Dynamic Lazy Imports for Dashboard Subpages
+const Dashboard        = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const ContentStudio    = lazy(() => import('./pages/ContentStudio').then(m => ({ default: m.ContentStudio })));
+const Scheduler        = lazy(() => import('./pages/Scheduler').then(m => ({ default: m.Scheduler })));
+const Analytics        = lazy(() => import('./pages/Analytics'));
+const Settings         = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
+const MediaLibraryPage = lazy(() => import('./pages/MediaLibrary'));
+const Billing          = lazy(() => import('./pages/Billing'));
+const Campaigns        = lazy(() => import('./pages/Campaigns').then(m => ({ default: m.Campaigns })));
+const HashtagSets      = lazy(() => import('./pages/HashtagSets'));
+const Templates        = lazy(() => import('./pages/Templates'));
+const AcceptInvite     = lazy(() => import('./pages/AcceptInvite'));
+const RssFeeds         = lazy(() => import('./pages/RssFeeds').then(m => ({ default: m.RssFeeds })));
+const ApiKeys          = lazy(() => import('./pages/ApiKeys').then(m => ({ default: m.ApiKeys })));
+const ImageGenerator   = lazy(() => import('./pages/ImageGenerator').then(m => ({ default: m.ImageGenerator })));
+const SocialListening  = lazy(() => import('./pages/SocialListening').then(m => ({ default: m.SocialListening })));
+const UnifiedInbox     = lazy(() => import('./pages/UnifiedInbox').then(m => ({ default: m.UnifiedInbox })));
+const Referrals        = lazy(() => import('./pages/Referrals').then(m => ({ default: m.Referrals })));
+const ImageEditor      = lazy(() => import('./pages/ImageEditor').then(m => ({ default: m.ImageEditor })));
+const Workspaces       = lazy(() => import('./pages/Workspaces').then(m => ({ default: m.Workspaces })));
+const Ecommerce        = lazy(() => import('./pages/Ecommerce').then(m => ({ default: m.Ecommerce })));
+const MagicPlan        = lazy(() => import('./pages/MagicPlan').then(m => ({ default: m.MagicPlan })));
+const Storefront       = lazy(() => import('./pages/Storefront').then(m => ({ default: m.Storefront })));
+const PublicStorefront = lazy(() => import('./pages/PublicStorefront').then(m => ({ default: m.PublicStorefront })));
+const Ads              = lazy(() => import('./pages/Ads').then(m => ({ default: m.Ads })));
+const Marketing        = lazy(() => import('./pages/Marketing').then(m => ({ default: m.Marketing })));
+const Automations      = lazy(() => import('./pages/Automations').then(m => ({ default: m.Automations })));
+const MarketingPlans   = lazy(() => import('./pages/MarketingPlans').then(m => ({ default: m.MarketingPlans })));
+const LeadScraper      = lazy(() => import('./pages/LeadScraper').then(m => ({ default: m.LeadScraper })));
+const ApprovalPortal   = lazy(() => import('./pages/ApprovalPortal').then(m => ({ default: m.ApprovalPortal })));
+
+// Branded Page Loading Spinner
+const PageLoader: React.FC = () => (
+    <div className="flex h-screen w-full items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+            <p className="text-xs font-semibold text-slate-500 tracking-wide uppercase">Loading SocialPulse...</p>
+        </div>
+    </div>
+);
 
 const App: React.FC = () => {
     return (
@@ -48,52 +62,54 @@ const App: React.FC = () => {
             <BrandProvider>
             <Router>
                 <Toaster position="top-right" />
-                <Routes>
-                    {/* Public Routes */}
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/register" element={<Register />} />
-                    <Route path="/terms" element={<Terms />} />
-                    <Route path="/privacy" element={<Privacy />} />
-                    <Route path="/team-invite/:token" element={<AcceptInvite />} />
-                    <Route path="/approve/:token" element={<ApprovalPortal />} />
-                    <Route path="/s/:slug" element={<PublicStorefront />} />
+                <Suspense fallback={<PageLoader />}>
+                    <Routes>
+                        {/* Public Routes */}
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/register" element={<Register />} />
+                        <Route path="/terms" element={<Terms />} />
+                        <Route path="/privacy" element={<Privacy />} />
+                        <Route path="/team-invite/:token" element={<AcceptInvite />} />
+                        <Route path="/approve/:token" element={<ApprovalPortal />} />
+                        <Route path="/s/:slug" element={<PublicStorefront />} />
 
-                    <Route path="/" element={<Home />} />
+                        <Route path="/" element={<Home />} />
 
-                    {/* Private Dashboard Routes */}
-                    <Route element={<PrivateRoute><AppLayout /></PrivateRoute>}>
-                        <Route path="dashboard"  element={<Dashboard />} />
-                        <Route path="studio"     element={<ContentStudio />} />
-                        <Route path="scheduler"  element={<Scheduler />} />
-                        <Route path="analytics"  element={<Analytics />} />
-                        <Route path="campaigns"      element={<Campaigns />} />
-                        <Route path="hashtag-sets"   element={<HashtagSets />} />
-                        <Route path="templates"      element={<Templates />} />
-                        <Route path="template"       element={<Navigate to="/templates" replace />} />
-                        <Route path="settings"   element={<Settings />} />
-                        <Route path="media"      element={<MediaLibraryPage />} />
-                        <Route path="billing"    element={<Billing />} />
-                        <Route path="rss"        element={<RssFeeds />} />
-                        <Route path="api-keys"   element={<ApiKeys />} />
-                        <Route path="image-gen"  element={<ImageGenerator />} />
-                        <Route path="listening"  element={<SocialListening />} />
-                        <Route path="inbox"      element={<UnifiedInbox />} />
-                        <Route path="referrals"    element={<Referrals />} />
-                        <Route path="image-editor" element={<ImageEditor />} />
-                        <Route path="workspaces"   element={<Workspaces />} />
-                        <Route path="ecommerce"    element={<Ecommerce />} />
-                        <Route path="magic-plan"   element={<MagicPlan />} />
-                        <Route path="storefront"   element={<Storefront />} />
-                        <Route path="ads"          element={<Ads />} />
-                        <Route path="marketing"    element={<Marketing />} />
-                        <Route path="marketing/scraper"     element={<LeadScraper />} />
-                        <Route path="marketing/automations" element={<Automations />} />
-                        <Route path="marketing/plans"       element={<MarketingPlans />} />
-                    </Route>
+                        {/* Private Dashboard Routes */}
+                        <Route element={<PrivateRoute><AppLayout /></PrivateRoute>}>
+                            <Route path="dashboard"  element={<Dashboard />} />
+                            <Route path="studio"     element={<ContentStudio />} />
+                            <Route path="scheduler"  element={<Scheduler />} />
+                            <Route path="analytics"  element={<Analytics />} />
+                            <Route path="campaigns"      element={<Campaigns />} />
+                            <Route path="hashtag-sets"   element={<HashtagSets />} />
+                            <Route path="templates"      element={<Templates />} />
+                            <Route path="template"       element={<Navigate to="/templates" replace />} />
+                            <Route path="settings"   element={<Settings />} />
+                            <Route path="media"      element={<MediaLibraryPage />} />
+                            <Route path="billing"    element={<Billing />} />
+                            <Route path="rss"        element={<RssFeeds />} />
+                            <Route path="api-keys"   element={<ApiKeys />} />
+                            <Route path="image-gen"  element={<ImageGenerator />} />
+                            <Route path="listening"  element={<SocialListening />} />
+                            <Route path="inbox"      element={<UnifiedInbox />} />
+                            <Route path="referrals"    element={<Referrals />} />
+                            <Route path="image-editor" element={<ImageEditor />} />
+                            <Route path="workspaces"   element={<Workspaces />} />
+                            <Route path="ecommerce"    element={<Ecommerce />} />
+                            <Route path="magic-plan"   element={<MagicPlan />} />
+                            <Route path="storefront"   element={<Storefront />} />
+                            <Route path="ads"          element={<Ads />} />
+                            <Route path="marketing"    element={<Marketing />} />
+                            <Route path="marketing/scraper"     element={<LeadScraper />} />
+                            <Route path="marketing/automations" element={<Automations />} />
+                            <Route path="marketing/plans"       element={<MarketingPlans />} />
+                        </Route>
 
-                    {/* NEW: Catch-all route. If path not found, go to login */}
-                    <Route path="*" element={<Navigate to="/login" replace />} />
-                </Routes>
+                        {/* Catch-all route */}
+                        <Route path="*" element={<Navigate to="/login" replace />} />
+                    </Routes>
+                </Suspense>
             </Router>
             </BrandProvider>
         </Provider>

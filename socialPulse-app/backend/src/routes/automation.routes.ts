@@ -10,7 +10,8 @@ import {
     toggleWorkflow,
     getActivityLogs,
     getMetrics,
-    runCronTick
+    runCronTick,
+    retryQueueItem
 } from '../controllers/automationController';
 
 const router = Router();
@@ -39,6 +40,7 @@ router.get('/leads', getScrapedLeads);
 router.get('/workflows', getWorkflows);
 router.post('/workflows', upsertWorkflow);
 router.patch('/workflows/:id/toggle', toggleWorkflow);
+router.post('/queue/:id/retry', retryQueueItem);
 router.get('/logs', getActivityLogs);
 router.get('/metrics', getMetrics);
 

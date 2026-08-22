@@ -229,3 +229,29 @@ export const runCronTick = async (req: Request, res: Response): Promise<void> =>
         res.status(500).json({ message: 'Cron execution failed', error: error.message });
     }
 };
+
+// Retry a failed queue item
+export const retryQueueItem = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const workspaceId = req.workspaceId;
+
+        const result = await db.query(
+            `UPDATE automation_queue
+             SET status = 'PENDING', execute_at = NOW(), updated_at = NOW()
+             WHERE id = $1 AND workspace_id = $2
+             RETURNING *`,
+            [id, workspaceId]
+        );
+
+        if (result.rows.length === 0) {
+            res.status(404).json({ message: 'Queue item not found' });
+            return;
+        }
+
+        res.json({ message: 'Queue item reset to PENDING', item: result.rows[0] });
+    } catch (error) {
+        console.error('[AutomationController] retryQueueItem error:', error);
+        res.status(500).json({ message: 'Failed to retry queue item' });
+    }
+};
