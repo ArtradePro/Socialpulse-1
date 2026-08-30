@@ -3,16 +3,33 @@ import nodemailer from 'nodemailer';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '../../config/env';
 
+export interface EmailDeliveryResult {
+    provider: 'sendgrid' | 'smtp' | 'simulated';
+    status: 'LIVE_PROVIDER' | 'SIMULATED';
+    messageId: string;
+}
+
+function maskEmail(email: string): string {
+    const parts = email.split('@');
+    if (parts.length !== 2) return '***';
+    const name = parts[0];
+    const domain = parts[1];
+    const maskedName = name.length > 2 ? `${name[0]}***${name[name.length - 1]}` : '***';
+    return `${maskedName}@${domain}`;
+}
+
 export class EmailProviderService {
     /**
      * Send email via SendGrid SDK, with Nodemailer SMTP fallback,
      * attaching RFC 8058 List-Unsubscribe headers & compliant unsubscribe footers.
-     * @returns The provider's message identifier
+     * Fails closed in production if no valid provider succeeds.
      */
-    static async send(to: string, subject: string, body: string): Promise<string> {
-        const from = env.email.from || 'SocialPulse <no-reply@usesocialpulse.com>';
-        const clientUrl = env.clientUrl || 'https://usesocialpulse.com';
+    static async send(to: string, subject: string, body: string): Promise<EmailDeliveryResult> {
+        const from = process.env.EMAIL_FROM || env.email.from || 'SocialPulse <no-reply@usesocialpulse.com>';
+        const clientUrl = process.env.CLIENT_URL || env.clientUrl || 'https://usesocialpulse.com';
         const unsubscribeUrl = `${clientUrl}/unsubscribe?email=${encodeURIComponent(to)}`;
+        const isProduction = process.env.NODE_ENV === 'production';
+        const maskedTo = maskEmail(to);
 
         // RFC 8058 headers for one-click unsubscribe
         const headers = {
@@ -32,10 +49,10 @@ export class EmailProviderService {
         }
 
         // Priority 1: SendGrid SDK
-        const sgKey = env.email.sendgridApiKey || process.env.SENDGRID_API_KEY;
-        if (sgKey && sgKey.trim().startsWith('SG.')) {
+        const sgKey = process.env.SENDGRID_API_KEY?.trim();
+        if (sgKey && sgKey.startsWith('SG.')) {
             try {
-                sgMail.setApiKey(sgKey.trim());
+                sgMail.setApiKey(sgKey);
                 const [response] = await sgMail.send({
                     to,
                     from,
@@ -44,24 +61,30 @@ export class EmailProviderService {
                     headers,
                 });
                 const messageId = (response.headers && response.headers['x-message-id']) || `sg-${uuidv4()}`;
-                console.log(`[EmailProviderService] ✓ Email sent via SendGrid to ${to}. Message ID: ${messageId}`);
-                return messageId as string;
-            } catch (err: any) {
-                console.error(`[EmailProviderService] SendGrid dispatch failed: ${err.message}`, err.response?.body);
+                console.log(`[EmailProviderService] EMAIL_DISPATCHED_SENDGRID (Message ID: ${messageId})`);
+                return {
+                    provider: 'sendgrid',
+                    status: 'LIVE_PROVIDER',
+                    messageId: messageId as string,
+                };
+            } catch {
+                console.error('[EmailProviderService] SENDGRID_DELIVERY_FAILED');
                 // Fall through to SMTP
             }
+        } else if (sgKey) {
+            console.warn('[EmailProviderService] Invalid SendGrid key format. Falling through to SMTP.');
         }
 
         // Priority 2: Nodemailer SMTP
-        const smtpPass = env.email.smtp.pass || process.env.SMTP_PASS;
+        const smtpPass = process.env.SMTP_PASS?.trim();
         if (smtpPass) {
             try {
                 const transporter = nodemailer.createTransport({
-                    host: env.email.smtp.host,
-                    port: env.email.smtp.port,
-                    secure: env.email.smtp.secure,
+                    host: process.env.SMTP_HOST || env.email.smtp.host,
+                    port: parseInt(process.env.SMTP_PORT || String(env.email.smtp.port) || '587'),
+                    secure: process.env.SMTP_SECURE === 'true' || env.email.smtp.secure,
                     auth: {
-                        user: env.email.smtp.user,
+                        user: process.env.SMTP_USER || env.email.smtp.user,
                         pass: smtpPass,
                     },
                 });
@@ -72,16 +95,30 @@ export class EmailProviderService {
                     html: htmlContent,
                     headers,
                 });
-                console.log(`[EmailProviderService] ✓ Email sent via SMTP to ${to}. Message ID: ${info.messageId}`);
-                return info.messageId;
-            } catch (smtpErr: any) {
-                console.error(`[EmailProviderService] SMTP fallback failed: ${smtpErr.message}`);
+                console.log(`[EmailProviderService] EMAIL_DISPATCHED_SMTP (Message ID: ${info.messageId})`);
+                return {
+                    provider: 'smtp',
+                    status: 'LIVE_PROVIDER',
+                    messageId: info.messageId,
+                };
+            } catch {
+                console.error('[EmailProviderService] SMTP_DELIVERY_FAILED');
             }
         }
 
-        // Priority 3: Fallback (Console / Dev stub)
-        const mockMessageId = `mock-${uuidv4()}`;
-        console.log(`[EmailProviderService] ⚠️ Dev Fallback: Simulated email to ${to} (Message ID: ${mockMessageId})`);
-        return mockMessageId;
+        // Simulation is ONLY permitted when NODE_ENV !== 'production' AND ALLOW_SIMULATED_DELIVERY === 'true'
+        const allowSimulation = !isProduction && process.env.ALLOW_SIMULATED_DELIVERY === 'true';
+        if (allowSimulation) {
+            const mockMessageId = `mock-${uuidv4()}`;
+            console.log(`[EmailProviderService] EMAIL_SIMULATED_NON_PRODUCTION (Message ID: ${mockMessageId})`);
+            return {
+                provider: 'simulated',
+                status: 'SIMULATED',
+                messageId: mockMessageId,
+            };
+        }
+
+        // Without explicit simulation opt-in, fail closed in all environments
+        throw new Error('PROVIDER_DELIVERY_FAILED');
     }
 }

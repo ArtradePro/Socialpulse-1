@@ -34,37 +34,47 @@ export const initMarketingWorkers = () => {
         'message-delivery-queue',
         async (job) => {
             const { campaignId, contactId, deliveryLogId, type, to, subject, body } = job.data;
-            console.log(`[Queue Worker] Delivering ${type} message to: ${to} (log ID: ${deliveryLogId})`);
+            console.log(`[Queue Worker] Delivering ${type} message (log ID: ${deliveryLogId})`);
             
             try {
-                let messageId = '';
+                let deliveryResult: { provider: string; status: 'LIVE_PROVIDER' | 'SIMULATED'; messageId: string };
                 if (type === 'email') {
-                    messageId = await EmailProviderService.send(to, subject || 'No Subject', body);
+                    deliveryResult = await EmailProviderService.send(to, subject || 'No Subject', body);
                 } else if (type === 'sms') {
-                    messageId = await SmsProviderService.send(to, body);
+                    deliveryResult = await SmsProviderService.send(to, body);
                 } else {
                     throw new Error(`Unsupported message delivery type: ${type}`);
                 }
 
-                // Update log status to delivered (webhooks can transition to opened/clicked/etc.)
+                // Delivery Status Truth:
+                // Only mark 'delivered' when a real configured live provider accepted the dispatch.
+                // For an explicitly permitted non-production simulation, retain database status 'sent' with marker 'SIMULATED_NON_PRODUCTION' — NEVER 'delivered'.
+                const isLive = deliveryResult.status === 'LIVE_PROVIDER';
+                const logStatus = isLive ? 'delivered' : 'sent';
+                const errorMessage = isLive ? null : 'SIMULATED_NON_PRODUCTION';
+
                 await db.query(
-                    `UPDATE marketing_delivery_logs 
-                     SET status = 'delivered', updated_at = NOW() 
-                     WHERE id = $1`,
-                    [deliveryLogId]
+                    `UPDATE marketing_delivery_logs
+                     SET status = $1, error_message = $2, updated_at = NOW()
+                     WHERE id = $3`,
+                    [
+                        logStatus,
+                        errorMessage,
+                        deliveryLogId
+                    ]
                 );
 
-                console.log(`[Queue Worker] Successful delivery to ${to}. Log ID: ${deliveryLogId}`);
-                return { success: true, messageId };
+                console.log(`[Queue Worker] Delivery processed for log ID: ${deliveryLogId} (status: ${logStatus})`);
+                return { success: true, status: deliveryResult.status, messageId: deliveryResult.messageId };
             } catch (err: any) {
-                console.error(`[Queue Worker] Delivery failed to ${to}:`, err);
+                // Provider and worker failures must store a generic code, never leaking PII or raw provider messages
+                console.error(`[Queue Worker] Delivery failed for log ID ${deliveryLogId}`);
                 
-                // Update log status to failed with error message
                 await db.query(
-                    `UPDATE marketing_delivery_logs 
-                     SET status = 'failed', error_message = $1, updated_at = NOW() 
+                    `UPDATE marketing_delivery_logs
+                     SET status = 'failed', error_message = $1, updated_at = NOW()
                      WHERE id = $2`,
-                    [err.message || 'Unknown delivery failure', deliveryLogId]
+                    ['PROVIDER_DELIVERY_FAILED', deliveryLogId]
                 );
 
                 throw err;
@@ -115,15 +125,15 @@ export const initMarketingWorkers = () => {
     );
 
     // Register log listeners
-    campaignWorker.on('failed', (job, err) => {
-        console.error(`[Queue Worker] Job failed in campaign-dispatch-queue:`, err);
+    campaignWorker.on('failed', () => {
+        console.error('[Queue Worker] Job failed in campaign-dispatch-queue');
     });
 
     // Task 3: Graceful Failure — on permanent delivery failure, ensure the DB log
     // record is marked 'failed'. The job processor already does this in its catch
     // block, but this handler catches cases where the DB update itself threw.
-    deliveryWorker.on('failed', async (job, err) => {
-        console.error(`[Queue Worker] Job failed in message-delivery-queue:`, err);
+    deliveryWorker.on('failed', async (job) => {
+        console.error('[Queue Worker] Job failed in message-delivery-queue');
         const deliveryLogId = job?.data?.deliveryLogId;
         if (deliveryLogId) {
             try {
@@ -131,19 +141,19 @@ export const initMarketingWorkers = () => {
                     `UPDATE marketing_delivery_logs
                      SET status = 'failed', error_message = $1, updated_at = NOW()
                      WHERE id = $2 AND status != 'failed'`,
-                    [err.message || 'Unknown failure', deliveryLogId]
+                    ['PROVIDER_DELIVERY_FAILED', deliveryLogId]
                 );
-            } catch (dbErr) {
-                console.error(`[Queue Worker] Could not write failure status to DB for log ${deliveryLogId}:`, dbErr);
+            } catch {
+                console.error('[Queue Worker] DB_STATUS_UPDATE_FAILED');
             }
         }
     });
 
     // Task 3: Graceful Failure — write an automation-level failure record so failed
     // automation jobs are visible in the database, not only in the BullMQ failed set.
-    automationWorker.on('failed', async (job, err) => {
-        console.error(`[Queue Worker] Job failed in automation-trigger-queue:`, err);
-        const { automationId, tenantId, payload } = job?.data ?? {};
+    automationWorker.on('failed', async (job) => {
+        console.error('[Queue Worker] Job failed in automation-trigger-queue');
+        const { automationId, payload } = job?.data ?? {};
         if (!automationId) return;
         try {
             await db.query(
@@ -151,11 +161,11 @@ export const initMarketingWorkers = () => {
                  VALUES (null, $1, 'failed', $2)`,
                 [
                     payload?.contactId ?? null,
-                    `Automation ${automationId} failed: ${err.message || 'Unknown error'}`,
+                    'AUTOMATION_EXECUTION_FAILED',
                 ]
             );
-        } catch (dbErr) {
-            console.error(`[Queue Worker] Could not write automation failure record to DB:`, dbErr);
+        } catch {
+            console.error('[Queue Worker] DB_AUTOMATION_LOG_FAILED');
         }
     });
 

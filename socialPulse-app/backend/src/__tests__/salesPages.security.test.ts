@@ -42,7 +42,7 @@ describeIfDb('SalesPages & Storefront Security Tests (Phase SP-1B / SP-1B-R1)', 
 
     beforeEach(async () => {
         jest.clearAllMocks();
-        delete process.env.NODE_ENV;
+        process.env.NODE_ENV = 'test';
         process.env.CLIENT_URL = 'https://usesocialpulse.com';
 
         // Clean tables

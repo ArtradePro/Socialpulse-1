@@ -29,8 +29,24 @@ const APP_URL = process.env.APP_URL ?? 'http://localhost:5173';
 
 // ─── Send helper ─────────────────────────────────────────────────────────────
 
+function maskEmail(email: string): string {
+    const parts = email.split('@');
+    if (parts.length !== 2) return '***';
+    const name = parts[0];
+    const domain = parts[1];
+    const maskedName = name.length > 2 ? `${name[0]}***${name[name.length - 1]}` : '***';
+    return `${maskedName}@${domain}`;
+}
+
 async function send(to: string, subject: string, html: string): Promise<void> {
+    // In test environment, do not initiate real network requests or background logging
+    if (process.env.NODE_ENV === 'test') {
+        return;
+    }
+
     const FROM = process.env.EMAIL_FROM ?? 'SocialPulse <no-reply@socialpulse.app>';
+    const isProduction = process.env.NODE_ENV === 'production';
+    const maskedTo = maskEmail(to);
 
     // Priority 1: SendGrid
     const sgKey = process.env.SENDGRID_API_KEY?.trim();
@@ -39,35 +55,34 @@ async function send(to: string, subject: string, html: string): Promise<void> {
             const sgMail = require('@sendgrid/mail');
             sgMail.setApiKey(sgKey);
             await sgMail.send({ to, from: FROM, subject, html });
-            console.log(`[Email] Sent via SendGrid to ${to}`);
             return;
-        } catch (sgError: any) {
-            console.error(`[Email] SendGrid failed: ${sgError.message}`);
-            if (sgError.response?.body) console.error(JSON.stringify(sgError.response.body));
+        } catch {
+            console.error('[Email] SENDGRID_DELIVERY_FAILED');
             // Fall through to SMTP
         }
     } else if (sgKey) {
-        console.warn(`[Email] Invalid SendGrid key format (missing SG. prefix). Falling back to SMTP.`);
+        console.warn('[Email] Invalid SendGrid key format. Falling back to SMTP.');
     }
 
     // Priority 2: SMTP
-    if (process.env.SMTP_PASS) {
+    const smtpPass = process.env.SMTP_PASS?.trim();
+    if (smtpPass) {
         try {
             await getTransporter().sendMail({ from: FROM, to, subject, html });
-            console.log(`[Email] Sent via SMTP to ${to}`);
             return;
-        } catch (smtpError: any) {
-            console.error(`[Email] SMTP fallback failed: ${smtpError.message}`);
+        } catch {
+            console.error('[Email] SMTP_DELIVERY_FAILED');
         }
     }
 
-    // Priority 3: Console (Development/Last Resort)
-    console.log(`[Email] [FALLBACK] Mock send to ${to}: "${subject}"`);
-    if (process.env.NODE_ENV === 'development') {
-        console.log('--- HTML CONTENT START ---');
-        console.log(html);
-        console.log('--- HTML CONTENT END ---');
+    // Simulation is ONLY permitted when NODE_ENV !== 'production' AND ALLOW_SIMULATED_DELIVERY === 'true'
+    const allowSimulation = !isProduction && process.env.ALLOW_SIMULATED_DELIVERY === 'true';
+    if (allowSimulation) {
+        return;
     }
+
+    // Without explicit simulation opt-in, fail closed in all environments
+    throw new Error('PROVIDER_DELIVERY_FAILED');
 }
 
 // ─── Templates ───────────────────────────────────────────────────────────────

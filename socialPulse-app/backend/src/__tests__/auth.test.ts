@@ -5,6 +5,7 @@ dotenv.config({ path: join(__dirname, '../../.env.test') });
 import type { PoolClient } from 'pg';
 import { getTestPool, closeTestPool, cleanDb } from './helpers/db';
 import { request, registerAndLogin, bearer } from './helpers/request';
+import { pool } from '../config/database';
 
 const describeIfDb = process.env.TEST_DATABASE_URL ? describe : describe.skip;
 
@@ -13,8 +14,8 @@ describeIfDb('Auth endpoints', () => {
 
     beforeAll(async () => {
         process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
-        const pool = getTestPool();
-        dbClient = await pool.connect();
+        const testPool = getTestPool();
+        dbClient = await testPool.connect();
     });
 
     beforeEach(async () => {
@@ -23,6 +24,7 @@ describeIfDb('Auth endpoints', () => {
 
     afterAll(async () => {
         dbClient.release();
+        await pool.end();
         await closeTestPool();
     });
 
@@ -41,6 +43,29 @@ describeIfDb('Auth endpoints', () => {
                 fullName: 'Alice Smith',
                 plan:     'free',
             });
+        });
+
+        it('completes registration successfully even when welcome-email service throws an error', async () => {
+            const { EmailService } = require('../services/email.service');
+            const spyEmail = jest.spyOn(EmailService, 'sendWelcome').mockRejectedValueOnce(new Error('SMTP connection timed out'));
+
+            try {
+                const res = await request.post('/api/auth/register').send({
+                    email:    'welcome_fail_user@example.com',
+                    password: 'Password123!',
+                    fullName: 'Bob Failure Test',
+                });
+
+                expect(res.status).toBe(201);
+                expect(res.body).toHaveProperty('token');
+                expect(res.body.user.email).toBe('welcome_fail_user@example.com');
+
+                // Verify user was successfully persisted in the database
+                const dbRes = await dbClient.query('SELECT id, email FROM users WHERE email = $1', ['welcome_fail_user@example.com']);
+                expect(dbRes.rows.length).toBe(1);
+            } finally {
+                spyEmail.mockRestore();
+            }
         });
 
         it('rejects duplicate email with 409', async () => {

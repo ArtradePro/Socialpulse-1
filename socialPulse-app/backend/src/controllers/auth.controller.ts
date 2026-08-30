@@ -47,6 +47,17 @@ export const register = async (req: Request, res: Response) => {
             { expiresIn: '7d' }
         );
 
+        // Await post-registration tasks safely without unmanaged background promises
+        // Failures in welcome email or referral credit must never undo registration
+        const postRegTasks: Promise<any>[] = [
+            EmailService.sendWelcome(user.email, user.full_name),
+        ];
+        if (referralCode) {
+            postRegTasks.push(applyReferralCode(user.id, referralCode));
+        }
+
+        await Promise.allSettled(postRegTasks);
+
         res.status(201).json({
             message: 'Account created successfully',
             token,
@@ -58,10 +69,6 @@ export const register = async (req: Request, res: Response) => {
                 aiCredits: user.ai_credits,
             },
         });
-
-        // Fire-and-forget welcome email and referral credit
-        EmailService.sendWelcome(user.email, user.full_name).catch(console.error);
-        if (referralCode) applyReferralCode(user.id, referralCode).catch(console.error);
     } catch (error) {
         console.error('[register] error:', error);
         res.status(500).json({ message: 'Server error' });
