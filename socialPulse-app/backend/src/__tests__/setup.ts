@@ -8,6 +8,16 @@ if (process.env.TEST_DATABASE_URL) {
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 }
 
+// Synthetic encryption test keys for test runner isolation
+if (!process.env.ACTIVE_ENCRYPTION_KEY_ID) {
+    process.env.ACTIVE_ENCRYPTION_KEY_ID = 'k1';
+}
+if (!process.env.ENCRYPTION_KEYS_JSON) {
+    process.env.ENCRYPTION_KEYS_JSON = JSON.stringify({
+        k1: Buffer.from('TEST_KEY_32_BYTES_NUMBER_ONE!!__').toString('base64'),
+    });
+}
+
 // Mock Bull queue globally for integration tests to prevent connecting to a real Redis instance
 jest.mock('bull', () => {
     return jest.fn().mockImplementation((queueName) => {

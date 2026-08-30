@@ -1,5 +1,17 @@
 import { Request, Response } from 'express';
 import { db, pool } from '../config/database';
+import { encryptSecret, decryptSecretWithDualRead, getSalesPageStripeKeyAAD } from '../utils/crypto';
+
+function sanitizeSalesPageRow(row: any): any {
+    if (!row) return row;
+    const { stripe_secret_key, ...rest } = row;
+    return {
+        ...rest,
+        has_stripe_credentials: Boolean(
+            stripe_secret_key && typeof stripe_secret_key === 'string' && stripe_secret_key.trim().length > 0
+        )
+    };
+}
 
 const slugify = (text: string): string => {
     return text
@@ -28,7 +40,7 @@ export const listSalesPages = async (req: Request, res: Response): Promise<void>
              ORDER BY sp.created_at DESC`,
             [req.workspaceId]
         );
-        res.json(rows);
+        res.json(rows.map(sanitizeSalesPageRow));
     } catch (err) {
         console.error('[SalesPages] listSalesPages error:', err);
         res.status(500).json({ message: 'Failed to load sales pages' });
@@ -54,7 +66,7 @@ export const getSalesPage = async (req: Request, res: Response): Promise<void> =
             res.status(404).json({ message: 'Sales page not found' });
             return;
         }
-        res.json(rows[0]);
+        res.json(sanitizeSalesPageRow(rows[0]));
     } catch (err) {
         console.error('[SalesPages] getSalesPage error:', err);
         res.status(500).json({ message: 'Failed to load sales page' });
@@ -64,7 +76,7 @@ export const getSalesPage = async (req: Request, res: Response): Promise<void> =
 // Create sales page
 export const createSalesPage = async (req: Request, res: Response): Promise<void> => {
     try {
-                const { 
+        const {
             title, product_id, theme, headline, description, features, price, currency, image_url, cta_text,
             stripe_secret_key, paypal_client_id, use_live_payments, meta_pixel_id, gtm_id,
             is_ab_test, variant_theme, variant_headline, variant_description, variant_price
@@ -76,6 +88,26 @@ export const createSalesPage = async (req: Request, res: Response): Promise<void
         if (!title || !headline || !price) {
             res.status(400).json({ message: 'Title, headline, and price are required' });
             return;
+        }
+
+        let encryptedStripeKey: string | null = null;
+        if (stripe_secret_key !== undefined) {
+            if (stripe_secret_key === null || typeof stripe_secret_key !== 'string') {
+                res.status(400).json({ message: 'Invalid Stripe credential format' });
+                return;
+            }
+            const trimmed = stripe_secret_key.trim();
+            if (trimmed.length === 0 || trimmed.startsWith('enc:')) {
+                res.status(400).json({ message: 'Invalid Stripe credential format' });
+                return;
+            }
+            try {
+                const aad = getSalesPageStripeKeyAAD(req.workspaceId);
+                encryptedStripeKey = encryptSecret(trimmed, aad);
+            } catch {
+                res.status(500).json({ message: 'Failed to secure credentials' });
+                return;
+            }
         }
 
         let slug = slugify(title);
@@ -105,7 +137,7 @@ export const createSalesPage = async (req: Request, res: Response): Promise<void
                 currency || 'USD',
                 image_url || null,
                 cta_text || 'Buy Now',
-                stripe_secret_key || null,
+                encryptedStripeKey,
                 paypal_client_id || null,
                 use_live_payments || false,
                 meta_pixel_id || null,
@@ -117,7 +149,7 @@ export const createSalesPage = async (req: Request, res: Response): Promise<void
                 variant_price !== undefined ? variant_price : null
             ]
         );
-        res.status(201).json(rows[0]);
+        res.status(201).json(sanitizeSalesPageRow(rows[0]));
     } catch (err) {
         console.error('[SalesPages] createSalesPage error:', err);
         res.status(500).json({ message: 'Failed to create sales page' });
@@ -138,6 +170,33 @@ export const updateSalesPage = async (req: Request, res: Response): Promise<void
             return;
         }
 
+        let shouldUpdateStripeKey = false;
+        let encryptedStripeKey: string | null = null;
+
+        // SP-1D-R1: Prevent implicit credential deletion.
+        // Omitted stripe_secret_key (undefined) preserves the existing value.
+        // Null, empty, or whitespace-only inputs are strictly rejected with HTTP 400.
+        // Explicit credential removal requires a future dedicated endpoint with elevated authorization.
+        if (stripe_secret_key !== undefined) {
+            if (stripe_secret_key === null || typeof stripe_secret_key !== 'string') {
+                res.status(400).json({ message: 'Invalid Stripe credential format' });
+                return;
+            }
+            const trimmed = stripe_secret_key.trim();
+            if (trimmed.length === 0 || trimmed.startsWith('enc:')) {
+                res.status(400).json({ message: 'Invalid Stripe credential format' });
+                return;
+            }
+            try {
+                const aad = getSalesPageStripeKeyAAD(req.workspaceId);
+                encryptedStripeKey = encryptSecret(trimmed, aad);
+                shouldUpdateStripeKey = true;
+            } catch {
+                res.status(500).json({ message: 'Failed to secure credentials' });
+                return;
+            }
+        }
+
         const { rows } = await db.query(
             `UPDATE sales_pages
              SET title = COALESCE($1, title),
@@ -149,18 +208,18 @@ export const updateSalesPage = async (req: Request, res: Response): Promise<void
                  currency = COALESCE($7, currency),
                  image_url = COALESCE($8, image_url),
                  cta_text = COALESCE($9, cta_text),
-                 stripe_secret_key = COALESCE($10, stripe_secret_key),
-                 paypal_client_id = COALESCE($11, paypal_client_id),
-                 use_live_payments = COALESCE($12, use_live_payments),
-                 meta_pixel_id = COALESCE($13, meta_pixel_id),
-                 gtm_id = COALESCE($14, gtm_id),
-                 is_ab_test = COALESCE($15, is_ab_test),
-                 variant_theme = COALESCE($16, variant_theme),
-                 variant_headline = COALESCE($17, variant_headline),
-                 variant_description = COALESCE($18, variant_description),
-                 variant_price = COALESCE($19, variant_price),
+                 stripe_secret_key = CASE WHEN $10 = true THEN $11 ELSE stripe_secret_key END,
+                 paypal_client_id = COALESCE($12, paypal_client_id),
+                 use_live_payments = COALESCE($13, use_live_payments),
+                 meta_pixel_id = COALESCE($14, meta_pixel_id),
+                 gtm_id = COALESCE($15, gtm_id),
+                 is_ab_test = COALESCE($16, is_ab_test),
+                 variant_theme = COALESCE($17, variant_theme),
+                 variant_headline = COALESCE($18, variant_headline),
+                 variant_description = COALESCE($19, variant_description),
+                 variant_price = COALESCE($20, variant_price),
                  updated_at = NOW()
-              WHERE id = $20 AND workspace_id = $21
+              WHERE id = $21 AND workspace_id = $22
               RETURNING *`,
             [
                 title ?? null,
@@ -172,7 +231,8 @@ export const updateSalesPage = async (req: Request, res: Response): Promise<void
                 currency ?? null,
                 image_url ?? null,
                 cta_text ?? null,
-                stripe_secret_key ?? null,
+                shouldUpdateStripeKey,
+                encryptedStripeKey,
                 paypal_client_id ?? null,
                 use_live_payments !== undefined ? use_live_payments : null,
                 meta_pixel_id ?? null,
@@ -191,7 +251,7 @@ export const updateSalesPage = async (req: Request, res: Response): Promise<void
             res.status(404).json({ message: 'Sales page not found' });
             return;
         }
-        res.json(rows[0]);
+        res.json(sanitizeSalesPageRow(rows[0]));
     } catch (err) {
         console.error('[SalesPages] updateSalesPage error:', err);
         res.status(500).json({ message: 'Failed to update sales page' });
@@ -401,6 +461,17 @@ export const createCheckoutOrder = async (req: Request, res: Response): Promise<
             return;
         }
 
+        // Decrypt Stripe Secret Key with Dual-Read and Canonical AAD
+        let rawStripeKey: string;
+        try {
+            const aad = getSalesPageStripeKeyAAD(page.workspace_id);
+            rawStripeKey = decryptSecretWithDualRead(page.stripe_secret_key, aad);
+        } catch {
+            console.error('[SalesPages] Failed to decrypt Stripe credentials');
+            res.status(500).json({ message: 'Storefront payment gateway configuration error' });
+            return;
+        }
+
         // CASE 1: Initiate Stripe Checkout Session (no session_id provided)
         if (!stripe_session_id) {
             if (!customer_email || typeof customer_email !== 'string' || !customer_email.includes('@')) {
@@ -433,7 +504,7 @@ export const createCheckoutOrder = async (req: Request, res: Response): Promise<
             }
 
             const Stripe = require('stripe');
-            const stripeInstance = new Stripe(page.stripe_secret_key);
+            const stripeInstance = new Stripe(rawStripeKey);
 
             const session = await stripeInstance.checkout.sessions.create({
                 payment_method_types: ['card'],
@@ -468,7 +539,7 @@ export const createCheckoutOrder = async (req: Request, res: Response): Promise<
 
         // CASE 2: Verify and Complete Order via Stripe Session ID
         const Stripe = require('stripe');
-        const stripeInstance = new Stripe(page.stripe_secret_key);
+        const stripeInstance = new Stripe(rawStripeKey);
         let session: any;
 
         try {
