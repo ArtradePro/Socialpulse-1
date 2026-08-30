@@ -99,44 +99,32 @@ export const PublicStorefront: React.FC = () => {
                 const query = new URLSearchParams(window.location.search);
                 const checkoutStatus = query.get('checkout_status');
                 const sessionId = query.get('session_id');
-                const qEmail = query.get('email');
-                const qName = query.get('name');
-                const qAmount = query.get('amount');
                 const qVariant = query.get('variant') || 'A';
 
-                if (checkoutStatus === 'success' && sessionId && qEmail && qName && qAmount) {
-                    const parsedName = decodeURIComponent(qName);
-                    const parsedEmail = decodeURIComponent(qEmail);
-                    const parsedAmount = parseFloat(qAmount);
-
-                    setCustomerName(parsedName);
-                    setCustomerEmail(parsedEmail);
+                if (checkoutStatus === 'success' && sessionId) {
                     setCheckingOut(true);
                     setShowCheckout(true);
                     
                     try {
                         await storefrontService.processCheckout({
                             sales_page_id: res.id,
-                            customer_name: parsedName,
-                            customer_email: parsedEmail,
-                            amount: parsedAmount,
-                            currency: res.currency,
                             variant_used: qVariant,
                             stripe_session_id: sessionId
                         });
                         setCheckoutSuccess(true);
-                        toast.success('Payment completed successfully!');
+                        toast.success('Payment verified and order confirmed!');
                         
-                        // Fire Purchase tracking events
+                        // Fire Purchase tracking events with server-approved price
+                        const verifiedPrice = res.active_price !== undefined && res.active_price !== null ? res.active_price : res.price;
                         if (res.meta_pixel_id) {
-                            window.fbq?.('track', 'Purchase', { value: parsedAmount, currency: res.currency });
+                            window.fbq?.('track', 'Purchase', { value: verifiedPrice, currency: res.currency });
                         }
                         if (res.gtm_id) {
-                            window.dataLayer?.push({ event: 'purchase', value: parsedAmount, currency: res.currency });
-                            window.gtag?.('event', 'purchase', { value: parsedAmount, currency: res.currency });
+                            window.dataLayer?.push({ event: 'purchase', value: verifiedPrice, currency: res.currency });
+                            window.gtag?.('event', 'purchase', { value: verifiedPrice, currency: res.currency });
                         }
-                    } catch (err) {
-                        toast.error('Failed to log payment order. Please contact support.');
+                    } catch (err: any) {
+                        toast.error(err.response?.data?.message || 'Failed to verify payment order. Please contact support.');
                     } finally {
                         setCheckingOut(false);
                     }

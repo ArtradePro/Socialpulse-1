@@ -98,10 +98,10 @@ export const storefrontService = {
     
     processCheckout: async (checkoutData: {
         sales_page_id: string;
-        customer_name: string;
-        customer_email: string;
-        amount: number;
-        currency: string;
+        customer_name?: string;
+        customer_email?: string;
+        amount?: number;
+        currency?: string;
         variant_used?: string;
         stripe_session_id?: string;
     }) => {
