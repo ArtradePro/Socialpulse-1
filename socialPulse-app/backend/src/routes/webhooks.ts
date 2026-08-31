@@ -62,13 +62,12 @@ router.post('/contract-signed', async (req: Request, res: Response): Promise<voi
     const tenantId = data.tenantId || data.organizationId || body.tenantId || body.organizationId;
 
     if (!tenantId || typeof tenantId !== 'string') {
-        res.status(400).json({ message: 'tenantId or organizationId is required' });
+        res.status(400).json({ message: 'tenantId is required' });
         return;
     }
 
-    // Relaxed validation regex accepting UUID v4 and Prisma CUID formats
-    const validIdRegex = /^[0-9a-zA-Z_-]{8,64}$/i;
-    if (!validIdRegex.test(tenantId)) {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(tenantId)) {
         res.status(400).json({ message: 'Invalid tenantId format' });
         return;
     }
