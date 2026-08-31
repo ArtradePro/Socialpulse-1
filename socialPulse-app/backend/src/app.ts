@@ -34,6 +34,7 @@ import adCampaignsRoutes  from './routes/adCampaigns';
 import crmRoutes          from './routes/crm';
 import webhookRoutes      from './routes/webhooks';
 import integrationsRoutes from './routes/integrations.routes';
+import claimsRoutes       from './routes/claims.routes';
 import { LinkService } from './services/link.service';
 import { errorHandler, notFound } from './middleware/errorHandler';
 
@@ -140,6 +141,7 @@ app.use('/api/ads',            adCampaignsRoutes);
 app.use('/api/crm',            crmRoutes);
 app.use('/api/webhooks',       webhookRoutes);
 app.use('/api/integrations',   integrationsRoutes);
+app.use('/api/claims',         claimsRoutes);
 
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

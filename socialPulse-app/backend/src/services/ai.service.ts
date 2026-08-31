@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { db } from '../config/database';
 import { LinkService } from './link.service';
+import { ClaimsGuardService } from './marketing/claimsGuard.service';
 import axios from 'axios';
 
 let _ai: any = null;
@@ -26,10 +27,20 @@ interface ContentGenerationOptions {
 
 export class AIService {
 
-    private static async getWorkspaceContext(workspaceId?: string): Promise<{ guidelines: string; purchaseUrl: string; productInfo: string }> {
-        if (!workspaceId) return { guidelines: '', purchaseUrl: '', productInfo: '' };
-        const { rows } = await db.query('SELECT ai_guidelines, purchase_url, product_info FROM workspaces WHERE id = $1', [workspaceId]);
-        if (rows.length === 0) return { guidelines: '', purchaseUrl: '', productInfo: '' };
+    private static async getWorkspaceContext(workspaceId?: string): Promise<{
+        guidelines: string;
+        purchaseUrl: string;
+        productInfo: string;
+        isFNM: boolean;
+        claims: string[];
+    }> {
+        if (!workspaceId) return { guidelines: '', purchaseUrl: '', productInfo: '', isFNM: false, claims: [] };
+        const { rows } = await db.query('SELECT name, brand_type, ai_guidelines, purchase_url, product_info FROM workspaces WHERE id = $1', [workspaceId]);
+        if (rows.length === 0) return { guidelines: '', purchaseUrl: '', productInfo: '', isFNM: false, claims: [] };
+
+        const isFNM = ClaimsGuardService.isFungusNoMore(rows[0]);
+        const approvedClaims = await ClaimsGuardService.getApprovedClaims(workspaceId);
+        const claimsList = approvedClaims.map(c => c.claim_text);
 
         let purchaseUrl = rows[0].purchase_url || '';
         if (purchaseUrl && purchaseUrl.startsWith('http')) {
@@ -39,7 +50,9 @@ export class AIService {
         return {
             guidelines: rows[0].ai_guidelines || '',
             purchaseUrl,
-            productInfo: rows[0].product_info || ''
+            productInfo: rows[0].product_info || '',
+            isFNM,
+            claims: claimsList
         };
     }
 
@@ -47,9 +60,9 @@ export class AIService {
         userId: string,
         workspaceId: string | undefined,
         options: ContentGenerationOptions
-    ): Promise<{ content: string; hashtags: string[] }> {
+    ): Promise<{ content: string; hashtags: string[]; disclaimers?: string[] }> {
 
-        const { guidelines: customGuidelines, purchaseUrl, productInfo } = await this.getWorkspaceContext(workspaceId);
+        const { guidelines: customGuidelines, purchaseUrl, productInfo, isFNM, claims } = await this.getWorkspaceContext(workspaceId);
 
         const platformGuide: Record<string, string> = {
             twitter: 'Keep it under 280 characters. Be concise and engaging.',
@@ -79,11 +92,23 @@ export class AIService {
             Return a JSON object: {"content": "...", "hashtags": ["...", "..."]}
         `;
 
+        const brandGovernanceInstructions = [
+            isFNM
+                ? 'OFFICIAL BRAND: Fungus No More™. You may use the registered trademark slogan "Love The Skin You\'re In."'
+                : 'CRITICAL BRAND RULE: You are STRICTLY PROHIBITED from using the trademark slogan "Love The Skin You\'re In." as it belongs exclusively to Fungus No More™.',
+            'COMPLIANCE: Do not fabricate unverified medical or health cures, synthetic testimonials, or fictitious product outcomes.',
+            claims.length > 0 ? `APPROVED CLAIMS (Adhere strictly to these factual benefits):\n${claims.map(c => `- ${c}`).join('\n')}` : ''
+        ].filter(Boolean).join('\n');
+
         const systemInstruction = `You are a professional social media content creator. 
         MANDATORY: Include this purchase link: ${purchaseUrl || '[Link]'}.
         ${productInfo ? `PRODUCT/SERVICE BACKGROUND INFO (FACTS & BENEFITS):
         ---
         ${productInfo}
+        ---` : ''}
+        ${brandGovernanceInstructions ? `BRAND GOVERNANCE & COMPLIANCE RULES:
+        ---
+        ${brandGovernanceInstructions}
         ---` : ''}
         ${customGuidelines ? `BRAND GUIDELINES: ${customGuidelines}` : ''}
         Return only JSON.`;
@@ -95,7 +120,24 @@ export class AIService {
         });
 
         const resultText = result.text || '{}';
-        return JSON.parse(resultText.replace(/```json\n?|\n?```/g, '').trim());
+        const parsed = JSON.parse(resultText.replace(/```json\n?|\n?```/g, '').trim());
+
+        // Post-generation validation & disclaimers
+        let disclaimers: string[] = [];
+        if (workspaceId && parsed.content) {
+            const validation = await ClaimsGuardService.validateContent(workspaceId, parsed.content);
+            if (!validation.valid && !isFNM) {
+                // Strip slogan violation if present
+                parsed.content = parsed.content.replace(/love\s+the\s+skin\s+you(?:'|’|\s+a)?re?\s+in/gi, '').trim();
+            }
+            disclaimers = validation.disclaimers;
+        }
+
+        return {
+            content: parsed.content || '',
+            hashtags: parsed.hashtags || [],
+            ...(disclaimers.length > 0 ? { disclaimers } : {})
+        };
     }
 
     static async generateMagicPlan(
