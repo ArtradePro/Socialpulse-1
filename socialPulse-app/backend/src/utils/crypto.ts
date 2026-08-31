@@ -115,6 +115,21 @@ export function getSalesPageStripeKeyAAD(workspaceId: string): string {
 }
 
 /**
+ * Generates canonical AAD for any integration credential bound to a workspace.
+ */
+export function getIntegrationKeyAAD(namespace: string, workspaceId: string, keyName: string): string {
+    if (!workspaceId || typeof workspaceId !== 'string') {
+        throw new Error('ENCRYPTION_FAILED');
+    }
+    const trimmed = workspaceId.trim();
+    if (!UUID_REGEX.test(trimmed)) {
+        throw new Error('ENCRYPTION_FAILED');
+    }
+    const normalizedWsId = trimmed.toLowerCase();
+    return `socialpulse:v1:${namespace}:${normalizedWsId}:${keyName}`;
+}
+
+/**
  * Checks if a string is formatted as a versioned ciphertext envelope.
  */
 export function isEncryptedEnvelope(value: string | null | undefined): boolean {

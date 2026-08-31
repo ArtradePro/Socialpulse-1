@@ -35,6 +35,8 @@ import crmRoutes          from './routes/crm';
 import webhookRoutes      from './routes/webhooks';
 import integrationsRoutes from './routes/integrations.routes';
 import claimsRoutes       from './routes/claims.routes';
+import omnisendRoutes    from './routes/omnisend.routes';
+import q2cRoutes          from './routes/q2c.routes';
 import { LinkService } from './services/link.service';
 import { errorHandler, notFound } from './middleware/errorHandler';
 
@@ -142,6 +144,8 @@ app.use('/api/crm',            crmRoutes);
 app.use('/api/webhooks',       webhookRoutes);
 app.use('/api/integrations',   integrationsRoutes);
 app.use('/api/claims',         claimsRoutes);
+app.use('/api/marketing/omnisend', omnisendRoutes);
+app.use('/api/integrations/q2c', q2cRoutes);
 
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
