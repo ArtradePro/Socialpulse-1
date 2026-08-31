@@ -33,6 +33,7 @@ import marketingRoutes    from './routes/marketing.routes';
 import adCampaignsRoutes  from './routes/adCampaigns';
 import crmRoutes          from './routes/crm';
 import webhookRoutes      from './routes/webhooks';
+import integrationsRoutes from './routes/integrations.routes';
 import { LinkService } from './services/link.service';
 import { errorHandler, notFound } from './middleware/errorHandler';
 
@@ -102,7 +103,12 @@ if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'development') {
     }));
 }
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+    limit: '10mb',
+    verify: (req: any, _res, buf) => {
+        req.rawBody = buf.toString('utf8');
+    }
+}));
 app.use(express.urlencoded({ extended: true }));
 
 app.use('/api/auth',          authRoutes);
@@ -133,6 +139,7 @@ app.use('/api/storefront',     salesPagesRoutes);
 app.use('/api/ads',            adCampaignsRoutes);
 app.use('/api/crm',            crmRoutes);
 app.use('/api/webhooks',       webhookRoutes);
+app.use('/api/integrations',   integrationsRoutes);
 
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

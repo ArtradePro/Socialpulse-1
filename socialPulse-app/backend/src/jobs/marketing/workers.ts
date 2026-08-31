@@ -4,6 +4,7 @@ import { CampaignService } from '../../services/marketing/campaign.service';
 import { EmailProviderService } from '../../services/marketing/emailProvider.service';
 import { SmsProviderService } from '../../services/marketing/smsProvider.service';
 import { AutomationEngineService } from '../../services/marketing/automationEngine.service';
+import { SuppressionService } from '../../services/marketing/suppression.service';
 import { db } from '../../config/database';
 
 let campaignWorker: Worker;
@@ -33,10 +34,26 @@ export const initMarketingWorkers = () => {
     deliveryWorker = new Worker(
         'message-delivery-queue',
         async (job) => {
-            const { campaignId, contactId, deliveryLogId, type, to, subject, body } = job.data;
+            const { campaignId, contactId, deliveryLogId, type, to, subject, body, workspaceId } = job.data;
             console.log(`[Queue Worker] Delivering ${type} message (log ID: ${deliveryLogId})`);
             
             try {
+                // POPIA / Consent Check: verify suppression status before sending
+                if (workspaceId && to) {
+                    const channel = type === 'email' ? 'EMAIL' : type === 'sms' ? 'SMS' : 'WHATSAPP';
+                    const isSuppressed = await SuppressionService.isSuppressed(workspaceId, channel as any, to);
+                    if (isSuppressed) {
+                        console.log(`[Queue Worker] Recipient suppressed for ${channel} (log ID: ${deliveryLogId})`);
+                        await db.query(
+                            `UPDATE marketing_delivery_logs
+                             SET status = 'suppressed', error_message = 'RECIPIENT_SUPPRESSED', updated_at = NOW()
+                             WHERE id = $1`,
+                            [deliveryLogId]
+                        );
+                        return { success: false, status: 'SUPPRESSED', reason: 'RECIPIENT_SUPPRESSED' };
+                    }
+                }
+
                 let deliveryResult: { provider: string; status: 'LIVE_PROVIDER' | 'SIMULATED'; messageId: string };
                 if (type === 'email') {
                     deliveryResult = await EmailProviderService.send(to, subject || 'No Subject', body);
