@@ -37,7 +37,8 @@ export function computeFileChecksum(content: string): string {
     return crypto.createHash('sha256').update(content, 'utf8').digest('hex');
 }
 
-export async function checkMigrationStatus(): Promise<MigrationPreflightReport> {
+export async function checkMigrationStatus(customPool?: any): Promise<MigrationPreflightReport> {
+    const activePool = customPool || pool;
     const migrationsDir = join(__dirname, '../migrations');
     const files = existsSync(migrationsDir)
         ? readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort()
@@ -78,7 +79,7 @@ export async function checkMigrationStatus(): Promise<MigrationPreflightReport> 
     let hasStripeUniqueIndex = false;
     const migrations: MigrationFileEntry[] = [];
 
-    const client = await pool.connect();
+    const client = await activePool.connect();
     try {
         // Check if schema_migrations table exists (strictly read-only SELECT)
         const ledgerCheck = await client.query(`

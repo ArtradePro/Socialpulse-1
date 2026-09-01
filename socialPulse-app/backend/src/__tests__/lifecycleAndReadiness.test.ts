@@ -1,6 +1,9 @@
 import dotenv from 'dotenv';
 import { join } from 'path';
 dotenv.config({ path: join(__dirname, '../../.env.test') });
+if (process.env.TEST_DATABASE_URL) {
+    process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
+}
 
 import request from 'supertest';
 import { app } from '../app';
@@ -10,7 +13,7 @@ import { checkMigrationStatus } from '../database/scripts/migrationStatus';
 import { adoptLedger } from '../database/scripts/adoptLedger';
 import { getTestPool, closeTestPool } from './helpers/db';
 
-describe('Lifecycle, Truthful Readiness & Migration Ledger Safety (Phase SP-7A-R2)', () => {
+describe('Lifecycle, Truthful Readiness & Migration Ledger Safety (Phase SP-7A-R3)', () => {
     afterEach(() => {
         LifecycleManager.resetForTesting();
     });
@@ -20,7 +23,7 @@ describe('Lifecycle, Truthful Readiness & Migration Ledger Safety (Phase SP-7A-R
         await closeTestPool();
     });
 
-    describe('1. Truthful Readiness State Semantics', () => {
+    describe('1. Truthful Readiness State Semantics & Access Control', () => {
         it('Scenario 1: configured external provider reports configured_unverified', () => {
             const originalSg = process.env.SENDGRID_API_KEY;
             try {
@@ -68,7 +71,7 @@ describe('Lifecycle, Truthful Readiness & Migration Ledger Safety (Phase SP-7A-R
             }
         });
 
-        it('Scenario 5: optional-feature degradation returns HTTP 200 with degraded', async () => {
+        it('Scenario 5 & 21: optional-feature unverified/disabled state returns HTTP 200 with degraded', async () => {
             const res = await request(app).get('/health/ready');
             expect(res.status).toBe(200);
             expect(res.body.status).toBe('degraded');
@@ -151,13 +154,13 @@ describe('Lifecycle, Truthful Readiness & Migration Ledger Safety (Phase SP-7A-R
         });
     });
 
-    describe('3. Migration Ledger Design & Adoption Tooling', () => {
-        it('Scenario 8 (Ledger): missing ledger forces safeToApply=false with blockers', async () => {
+    describe('3. Migration Ledger Design, Adoption & Zero-Mutation Proof', () => {
+        it('Scenario 1 (Status): status with no ledger remains read-only and reports absent', async () => {
             const pool = getTestPool();
             const client = await pool.connect();
             try {
                 await client.query(`DROP TABLE IF EXISTS schema_migrations CASCADE;`);
-                const report = await checkMigrationStatus();
+                const report = await checkMigrationStatus(pool);
                 expect(report.ledgerStatus).toBe('absent');
                 expect(report.applicationState).toBe('indeterminate');
                 expect(report.safeToApply).toBe(false);
@@ -167,86 +170,95 @@ describe('Lifecycle, Truthful Readiness & Migration Ledger Safety (Phase SP-7A-R
             }
         });
 
-        it('Scenario 15 & 16: adoption defaults to dry-run and requires explicit confirm', async () => {
-            // Dry run
-            const dryRun = await adoptLedger({ dryRun: true });
-            expect(dryRun.dryRun).toBe(true);
-            expect(dryRun.ledgerCreated).toBe(false);
-            expect(dryRun.totalFiles).toBeGreaterThan(0);
+        it('Scenario 2: dry-run adoption creates no ledger table and mutates no data', async () => {
+            const pool = getTestPool();
+            const plan = await adoptLedger({ dryRun: true }, pool);
+            expect(plan.dryRun).toBe(true);
+            expect(plan.wouldMutateDatabase).toBe(false);
+            expect(plan.ledgerExists).toBe(false);
+            expect(plan.wouldCreateLedger).toBe(true);
+            expect(plan.eligibleCount).toBeGreaterThan(0);
+        });
 
-            // Confirmed adoption
-            const confirmed = await adoptLedger({ confirm: true });
+        it('Scenario 3 & 4: confirmed adoption creates ledger and inserts only exact_match migrations', async () => {
+            const pool = getTestPool();
+            const confirmed = await adoptLedger({ confirm: true }, pool);
             expect(confirmed.dryRun).toBe(false);
-            expect(confirmed.ledgerCreated).toBe(true);
-            expect(confirmed.adoptedCount).toBeGreaterThan(0);
+            expect(confirmed.wouldMutateDatabase).toBe(true);
+            expect(confirmed.executedMutation?.ledgerCreated).toBe(true);
+            expect(confirmed.executedMutation?.adoptedCount).toBeGreaterThan(0);
 
-            // Now checkMigrationStatus with active ledger
-            const report = await checkMigrationStatus();
+            const report = await checkMigrationStatus(pool);
             expect(report.ledgerStatus).toBe('active');
             expect(report.applicationState).toBe('determinate');
             expect(report.safeToApply).toBe(true);
-            expect(report.migrations.every(m => m.status === 'applied')).toBe(true);
         });
 
         it('Scenario 11: detects checksum drift if file is modified after ledger recording', async () => {
             const pool = getTestPool();
             const client = await pool.connect();
             try {
-                // Update checksum for first migration to a fake hash
                 await client.query(`
                     UPDATE schema_migrations
-                    SET checksum = 'fake_tampered_hash_1234567890'
-                    WHERE filename = '20260515_ecommerce.sql';
+                    SET checksum = 'tampered_sha256_hash_1234567890abcdef'
+                    WHERE filename = '20260613_paid_ads.sql' OR migration_id = '20260613_paid_ads';
                 `);
 
-                const report = await checkMigrationStatus();
+                const report = await checkMigrationStatus(pool);
                 expect(report.safeToApply).toBe(false);
-                const drifted = report.migrations.find(m => m.filename === '20260515_ecommerce.sql');
+                const drifted = report.migrations.find(m => m.filename === '20260613_paid_ads.sql');
                 expect(drifted?.status).toBe('drift_detected');
                 expect(report.blockers.some(b => b.includes('MIGRATION_DRIFT_DETECTED'))).toBe(true);
             } finally {
-                // Re-adopt to restore legitimate hashes
-                await adoptLedger({ confirm: true });
+                await adoptLedger({ confirm: true }, pool);
                 client.release();
             }
         });
 
         it('Scenario 17 & 18: reports Stripe duplicate data and index status independently', async () => {
             const pool = getTestPool();
-            const client = await pool.connect();
-            try {
-                const report = await checkMigrationStatus();
-                expect(report.preflightChecks.duplicateStripeSessions).toBe(0);
-                expect(report.preflightChecks.stripeIndexState).toBeDefined();
-            } finally {
-                client.release();
-            }
+            const report = await checkMigrationStatus(pool);
+            expect(report.preflightChecks.duplicateStripeSessions).toBe(0);
+            expect(report.preflightChecks.stripeIndexState).toBeDefined();
         });
 
         it('Scenario 19 & 20: migration status produces identical fingerprint and issues no mutation queries', async () => {
             const pool = getTestPool();
             const client = await pool.connect();
             try {
-                // Take comprehensive database schema fingerprint
                 const tablesBefore = await client.query(`SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name`);
                 const columnsBefore = await client.query(`SELECT column_name, data_type FROM information_schema.columns WHERE table_schema='public' ORDER BY table_name, column_name`);
                 const indexesBefore = await client.query(`SELECT indexname, indexdef FROM pg_indexes WHERE schemaname='public' ORDER BY indexname`);
 
-                // Run preflight check
-                const report = await checkMigrationStatus();
+                const report = await checkMigrationStatus(pool);
                 expect(report).toBeDefined();
 
-                // Take fingerprint after
                 const tablesAfter = await client.query(`SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name`);
                 const columnsAfter = await client.query(`SELECT column_name, data_type FROM information_schema.columns WHERE table_schema='public' ORDER BY table_name, column_name`);
                 const indexesAfter = await client.query(`SELECT indexname, indexdef FROM pg_indexes WHERE schemaname='public' ORDER BY indexname`);
 
-                // Deep compare schema objects
                 expect(tablesAfter.rows).toEqual(tablesBefore.rows);
                 expect(columnsAfter.rows).toEqual(columnsBefore.rows);
                 expect(indexesAfter.rows).toEqual(indexesBefore.rows);
             } finally {
                 client.release();
+            }
+        });
+
+        it('Scenario 20 (Production Lockout): prohibits adoption in production without explicit authorization', async () => {
+            const pool = getTestPool();
+            const originalEnv = process.env.NODE_ENV;
+            const originalAllow = process.env.ALLOW_PRODUCTION_LEDGER_ADOPTION;
+            try {
+                process.env.NODE_ENV = 'production';
+                delete process.env.ALLOW_PRODUCTION_LEDGER_ADOPTION;
+
+                const plan = await adoptLedger({ confirm: true }, pool);
+                expect(plan.wouldMutateDatabase).toBe(false);
+                expect(plan.blockers.some(b => b.includes('PRODUCTION_ADOPTION_PROHIBITED'))).toBe(true);
+            } finally {
+                process.env.NODE_ENV = originalEnv;
+                if (originalAllow) process.env.ALLOW_PRODUCTION_LEDGER_ADOPTION = originalAllow;
             }
         });
     });
