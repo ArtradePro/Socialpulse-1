@@ -41,3 +41,7 @@ export const connectDB = async (): Promise<void> => {
   client.release();
   console.log('PostgreSQL connected');
 };
+
+export const closeDB = async (): Promise<void> => {
+  await pool.end();
+};
