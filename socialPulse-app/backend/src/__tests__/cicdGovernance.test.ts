@@ -255,4 +255,36 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(composeProdContent).not.toContain(':latest');
         });
     });
+
+    describe('6. Restricted Self-Hosted Runner Channel & Isolation (SP-8C-4A Controls 26-30)', () => {
+        it('Control 26: Staging deployment workflow targets restricted staging runner labels', () => {
+            expect(deployContent).toContain('socialpulse-staging');
+            expect(deployContent).toContain('self-hosted');
+            expect(deployContent).toContain('linux');
+        });
+
+        it('Control 27: Production deployment cannot target the staging runner', () => {
+            expect(deployContent).toContain('socialpulse-production');
+            expect(deployContent).toMatch(/inputs\.environment == 'staging'.*socialpulse-staging.*socialpulse-production/);
+        });
+
+        it('Control 28: General CI and PR workflows cannot target self-hosted runners', () => {
+            expect(ciContent).not.toContain('self-hosted');
+            expect(ciContent).not.toContain('socialpulse-staging');
+            expect(ciContent).not.toContain('socialpulse-production');
+            expect(ciContent).toContain('runs-on: ubuntu-latest');
+        });
+
+        it('Control 29: Release image publication cannot target self-hosted runners', () => {
+            expect(releaseContent).not.toContain('self-hosted');
+            expect(releaseContent).not.toContain('socialpulse-staging');
+            expect(releaseContent).toContain('runs-on: ubuntu-latest');
+        });
+
+        it('Control 30: Staging deployment executes local docker compose without SSH dependency', () => {
+            expect(deployContent).toContain('docker pull "$BACKEND_REF"');
+            expect(deployContent).toContain('docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build');
+            expect(deployContent).not.toContain('appleboy/ssh-action');
+        });
+    });
 });
