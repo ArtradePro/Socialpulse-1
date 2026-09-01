@@ -255,7 +255,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         });
     });
 
-    describe('6. Restricted Self-Hosted Runner Channel & Isolation (SP-8C-4A-R1 Controls 25-33)', () => {
+    describe('6. Restricted Self-Hosted Runner Channel, Manifest Binding & Rollback (SP-8C-4D Controls 25-38)', () => {
         it('Control 25: Staging deployment workflow explicitly targets dedicated staging runner labels', () => {
             expect(deployContent).toContain('runs-on: [self-hosted, linux, socialpulse-staging]');
         });
@@ -286,9 +286,10 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(deployContent).not.toContain(':latest');
         });
 
-        it('Control 31: Staging deployment establishes configuration provenance via exact commit checkout', () => {
-            expect(deployContent).toContain('Checkout Authorized Release Configuration Provenance');
-            expect(deployContent).toContain('uses: actions/checkout@v4');
+        it('Control 31: Privileged self-hosted action is pinned to an immutable 40-character commit SHA', () => {
+            expect(deployContent).toMatch(/uses:\s*actions\/checkout@[0-9a-fA-F]{40}/);
+            expect(deployContent).not.toMatch(/uses:\s*actions\/checkout@v[0-9]+/);
+            expect(deployContent).toContain('11bd71901bbe5b1630ceea73d27597364c9af683');
             expect(deployContent).toContain('ref: ${{ inputs.commit_sha }}');
         });
 
@@ -301,6 +302,39 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         it('Control 33: No SSH action or database migration command exists in deployment path', () => {
             expect(deployContent).not.toContain('appleboy/ssh-action');
             expect(deployContent).not.toContain('migrate.ts');
+        });
+
+        it('Control 34: Cryptographic release manifest download, SHA-256 verification and field binding are enforced', () => {
+            expect(deployContent).toContain('Download & Cryptographically Verify Release Manifest');
+            expect(deployContent).toContain('gh run download "${{ inputs.release_run_id }}"');
+            expect(deployContent).toContain('sha256sum "$MANIFEST_FILE"');
+            expect(deployContent).toContain('Manifest SHA-256 checksum mismatch');
+            expect(deployContent).toContain('m.repository !== \'ArtradePro/Socialpulse-1\'');
+        });
+
+        it('Control 35: Pre-deployment state captures prior immutable image IDs', () => {
+            expect(deployContent).toContain('Capturing pre-deployment container state');
+            expect(deployContent).toContain('docker inspect --format=\'{{.Config.Image}}\' socialpulse-backend');
+            expect(deployContent).toContain('docker inspect --format=\'{{.Config.Image}}\' socialpulse-frontend');
+        });
+
+        it('Control 36: Fail-safe rollback restores previous immutable images upon readiness failure', () => {
+            expect(deployContent).toContain('INITIATING FAIL-SAFE ROLLBACK');
+            expect(deployContent).toContain('export SOCIALPULSE_BACKEND_IMAGE="$PREV_BACKEND"');
+            expect(deployContent).toContain('export SOCIALPULSE_FRONTEND_IMAGE="$PREV_FRONTEND"');
+        });
+
+        it('Control 37: Persistent runner workspace hygiene and manifest cleanup runs unconditionally', () => {
+            expect(deployContent).toContain('Persistent Runner Workspace & Manifest Cleanup');
+            expect(deployContent).toContain('if: always()');
+            expect(deployContent).toContain('rm -rf "/tmp/manifest-${{ inputs.release_id }}"');
+            expect(deployContent).toContain('find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +');
+        });
+
+        it('Control 38: Minimum least-privilege token permissions are declared', () => {
+            expect(deployContent).toContain('permissions:');
+            expect(deployContent).toContain('contents: read');
+            expect(deployContent).toContain('actions: read');
         });
     });
 });

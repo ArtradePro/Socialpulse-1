@@ -18,15 +18,23 @@ on:
         required: true
         type: string
       release_id:
-        description: 'Release identifier label (e.g. rel-20260901-01)'
+        description: 'Release identifier label (e.g. sp-8b-staging-release-01)'
+        required: true
+        type: string
+      release_run_id:
+        description: 'Workflow run ID of the release image publication run (e.g. 33556885396)'
+        required: true
+        type: string
+      manifest_sha256:
+        description: 'Exact SHA-256 checksum of the release manifest artifact (e.g. d1b64d19...)'
         required: true
         type: string
       backend_digest:
-        description: 'Exact backend image digest (e.g. sha256:4f39e359...)'
+        description: 'Exact backend image digest (e.g. sha256:f2f9105c...)'
         required: true
         type: string
       frontend_digest:
-        description: 'Exact frontend image digest (e.g. sha256:9e62b146...)'
+        description: 'Exact frontend image digest (e.g. sha256:39bf3da1...)'
         required: true
         type: string
       authorization_reference:
@@ -38,6 +46,10 @@ on:
         required: true
         type: boolean
         default: false
+
+permissions:
+  contents: read
+  actions: read
 
 concurrency:
   group: deployment-${{ inputs.environment }}
@@ -91,12 +103,94 @@ jobs:
             exit 1
           fi
 
+          # 6. Checksum format validation (64-hex)
+          if ! [[ "${{ inputs.manifest_sha256 }}" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            echo "ERROR: Manifest SHA-256 must be exactly 64 hexadecimal characters."
+            exit 1
+          fi
+
           echo "Validation passed for release '${{ inputs.release_id }}' on environment '${{ inputs.environment }}'."
 
       - name: Checkout Authorized Release Configuration Provenance
-        uses: actions/checkout@v4
+        # Pinned immutably to official commit SHA for actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.commit_sha }}
+          persist-credentials: false
+          clean: true
+
+      - name: Verify Configuration & Git Provenance
+        run: |
+          set -euo pipefail
+          CURRENT_HEAD=$(git rev-parse HEAD)
+          if [ "$CURRENT_HEAD" != "${{ inputs.commit_sha }}" ]; then
+            echo "ERROR: Checked out HEAD ($CURRENT_HEAD) does not match authorized commit (${{ inputs.commit_sha }})."
+            exit 1
+          fi
+          echo "Configuration provenance verified at commit $CURRENT_HEAD."
+
+      - name: Download & Cryptographically Verify Release Manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "=== DOWNLOADING & VALIDATING RELEASE MANIFEST ==="
+          MANIFEST_DIR="/tmp/manifest-${{ inputs.release_id }}"
+          rm -rf "$MANIFEST_DIR"
+          mkdir -p "$MANIFEST_DIR"
+
+          # Download manifest artifact from the authorized release run
+          gh run download "${{ inputs.release_run_id }}" --name "release-manifest-${{ inputs.release_id }}" --dir "$MANIFEST_DIR"
+
+          MANIFEST_FILE="$MANIFEST_DIR/release-manifest.json"
+          if [ ! -f "$MANIFEST_FILE" ]; then
+            echo "ERROR: Release manifest file not found in artifact."
+            exit 1
+          fi
+
+          # Compute SHA-256 and compare against authorized input
+          COMPUTED_SHA256=$(sha256sum "$MANIFEST_FILE" | awk '{print $1}')
+          echo "Computed Manifest SHA-256: $COMPUTED_SHA256"
+          echo "Expected Manifest SHA-256: ${{ inputs.manifest_sha256 }}"
+
+          if [ "$COMPUTED_SHA256" != "${{ inputs.manifest_sha256 }}" ]; then
+            echo "ERROR: Manifest SHA-256 checksum mismatch! Aborting."
+            exit 1
+          fi
+
+          # Safely parse and validate manifest contents
+          node -e "
+            const fs = require('fs');
+            const m = JSON.parse(fs.readFileSync('$MANIFEST_FILE', 'utf8'));
+
+            if (m.repository !== 'ArtradePro/Socialpulse-1') {
+              console.error('ERROR: Manifest repository mismatch:', m.repository);
+              process.exit(1);
+            }
+            if (m.releaseId !== '${{ inputs.release_id }}') {
+              console.error('ERROR: Manifest releaseId mismatch:', m.releaseId);
+              process.exit(1);
+            }
+            if (m.environment !== '${{ inputs.environment }}') {
+              console.error('ERROR: Manifest environment mismatch:', m.environment);
+              process.exit(1);
+            }
+            if (m.sourceCommit !== '${{ inputs.commit_sha }}') {
+              console.error('ERROR: Manifest sourceCommit mismatch:', m.sourceCommit);
+              process.exit(1);
+            }
+            if (m.images.backend.digest !== '${{ inputs.backend_digest }}') {
+              console.error('ERROR: Manifest backend digest mismatch:', m.images.backend.digest);
+              process.exit(1);
+            }
+            if (m.images.frontend.digest !== '${{ inputs.frontend_digest }}') {
+              console.error('ERROR: Manifest frontend digest mismatch:', m.images.frontend.digest);
+              process.exit(1);
+            }
+            console.log('Manifest fields successfully verified against release authorization.');
+          "
+
+          echo "=== RELEASE MANIFEST CRYPTOGRAPHICALLY BOUND & VERIFIED ==="
 
       - name: Deploy to Local Target Host via Docker Compose
         run: |
@@ -108,21 +202,24 @@ jobs:
           echo "Authorization: ${{ inputs.authorization_reference }}"
           echo "Commit SHA: ${{ inputs.commit_sha }}"
 
-          # Build full content-addressable image references
+          # 1. Capture and validate pre-deployment state for rollback
+          echo "Capturing pre-deployment container state..."
+          PREV_BACKEND=$(docker inspect --format='{{.Config.Image}}' socialpulse-backend 2>/dev/null || true)
+          PREV_FRONTEND=$(docker inspect --format='{{.Config.Image}}' socialpulse-frontend 2>/dev/null || true)
+          echo "Prior backend image: ${PREV_BACKEND:-none}"
+          echo "Prior frontend image: ${PREV_FRONTEND:-none}"
+
+          # Build full content-addressable image references from verified inputs
           BACKEND_REF="artradepro/socialpulse-backend@${{ inputs.backend_digest }}"
           FRONTEND_REF="artradepro/socialpulse-frontend@${{ inputs.frontend_digest }}"
 
           export SOCIALPULSE_BACKEND_IMAGE="$BACKEND_REF"
           export SOCIALPULSE_FRONTEND_IMAGE="$FRONTEND_REF"
 
-          # 1. Pull verified immutable digests locally
+          # 2. Pull verified immutable digests locally
           echo "Pulling verified digests..."
           docker pull "$BACKEND_REF"
           docker pull "$FRONTEND_REF"
-
-          # 2. Record pre-deployment container state
-          echo "Pre-deployment container state:"
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
 
           # 3. Rolling update of application services with explicit immutable digests
           echo "Restarting application containers..."
@@ -145,10 +242,30 @@ jobs:
 
           if [ "$READY" -ne 1 ]; then
             echo "ERROR: Application failed readiness validation on /health/ready after 30 seconds."
+            echo "=== INITIATING FAIL-SAFE ROLLBACK ==="
+            if [ -n "$PREV_BACKEND" ] && [ -n "$PREV_FRONTEND" ] && [ "$PREV_BACKEND" != "none" ] && [ "$PREV_FRONTEND" != "none" ]; then
+              echo "Rolling back to previous images: $PREV_BACKEND and $PREV_FRONTEND..."
+              export SOCIALPULSE_BACKEND_IMAGE="$PREV_BACKEND"
+              export SOCIALPULSE_FRONTEND_IMAGE="$PREV_FRONTEND"
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build server client || true
+              wget -qO- --timeout=5 http://localhost:5000/health/ready || true
+            else
+              echo "No valid previous state available for automatic rollback."
+            fi
             exit 1
           fi
 
           echo "=== DEPLOYMENT COMPLETED SUCCESSFULLY ==="
+
+      - name: Persistent Runner Workspace & Manifest Cleanup
+        if: always()
+        run: |
+          echo "=== RUNNING POST-DEPLOYMENT HYGIENE & CLEANUP ==="
+          rm -rf "/tmp/manifest-${{ inputs.release_id }}" || true
+          if [ -n "$GITHUB_WORKSPACE" ] && [ -d "$GITHUB_WORKSPACE" ]; then
+            find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true
+          fi
+          echo "Runner workspace and temporary files cleaned."
 
       - name: Output Deployment Audit Summary
         run: |
@@ -159,5 +276,6 @@ jobs:
           echo "Commit SHA: ${{ inputs.commit_sha }}"
           echo "Backend Digest: ${{ inputs.backend_digest }}"
           echo "Frontend Digest: ${{ inputs.frontend_digest }}"
+          echo "Manifest SHA-256: ${{ inputs.manifest_sha256 }}"
           echo "Deployed At: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           echo "Triggered By: ${{ github.actor }}"
