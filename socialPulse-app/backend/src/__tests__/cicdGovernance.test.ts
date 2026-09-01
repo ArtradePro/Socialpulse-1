@@ -313,7 +313,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         });
 
         it('Control 35: Pre-deployment state captures prior immutable image IDs', () => {
-            expect(deployContent).toContain('Capturing pre-deployment container state');
+            expect(deployContent).toContain('Capturing and validating pre-deployment container state');
             expect(deployContent).toContain('docker inspect --format=\'{{.Config.Image}}\' socialpulse-backend');
             expect(deployContent).toContain('docker inspect --format=\'{{.Config.Image}}\' socialpulse-frontend');
         });
@@ -335,6 +335,42 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(deployContent).toContain('permissions:');
             expect(deployContent).toContain('contents: read');
             expect(deployContent).toContain('actions: read');
+        });
+
+        it('Control 39: Preflight tool and environment availability check exists', () => {
+            expect(deployContent).toContain('Preflight Tool & Environment Availability Check');
+            expect(deployContent).toContain('for tool in gh node sha256sum git docker wget; do');
+            expect(deployContent).toContain('docker compose version');
+        });
+
+        it('Control 40: Release workflow run and artifact metadata are authenticated before download', () => {
+            expect(deployContent).toContain('Authenticate Release Workflow Run & Artifact Metadata');
+            expect(deployContent).toContain('run.repository.full_name !== \'ArtradePro/Socialpulse-1\'');
+            expect(deployContent).toContain('!run.path.endsWith(\'release-images.yml\')');
+            expect(deployContent).toContain('run.status !== \'completed\' || run.conclusion !== \'success\'');
+            expect(deployContent).toContain('run.event !== \'workflow_dispatch\'');
+            expect(deployContent).toContain('run.head_sha !== \'${{ inputs.commit_sha }}\'');
+            expect(deployContent).toContain('Manifest artifact is expired');
+        });
+
+        it('Control 41: Pre-deployment state requires non-empty immutable image references present in local Docker cache', () => {
+            expect(deployContent).toContain('Previous container state is missing. A first deployment must be separately authorized');
+            expect(deployContent).toContain('@sha256:[0-9a-fA-F]{64}$');
+            expect(deployContent).toContain('docker image inspect "$PREV_BACKEND"');
+            expect(deployContent).toContain('docker image inspect "$PREV_FRONTEND"');
+        });
+
+        it('Control 42: Mutation boundary defines trap-based rollback on any error', () => {
+            expect(deployContent).toContain('trap rollback ERR');
+            expect(deployContent).toContain('=== MUTATION BOUNDARY BEGINS ===');
+            expect(deployContent).toContain('trap - ERR');
+        });
+
+        it('Control 43: Workspace cleanup rejects root/home/opt paths and safely bounds deletion', () => {
+            expect(deployContent).toContain('"$GITHUB_WORKSPACE" != "/"');
+            expect(deployContent).toContain('"$GITHUB_WORKSPACE" != "$HOME"');
+            expect(deployContent).toContain('"$GITHUB_WORKSPACE" != "/opt"');
+            expect(deployContent).toContain('Runner workspace and temporary files safely cleaned');
         });
     });
 });

@@ -111,6 +111,72 @@ jobs:
 
           echo "Validation passed for release '${{ inputs.release_id }}' on environment '${{ inputs.environment }}'."
 
+      - name: Preflight Tool & Environment Availability Check
+        run: |
+          echo "=== PREFLIGHT TOOL AVAILABILITY CHECK ==="
+          for tool in gh node sha256sum git docker wget; do
+            if ! command -v "$tool" &>/dev/null; then
+              echo "ERROR: Required tool '$tool' is not available on runner. Aborting."
+              exit 1
+            fi
+          done
+          if ! docker compose version &>/dev/null; then
+            echo "ERROR: Docker Compose is not available on runner. Aborting."
+            exit 1
+          fi
+          echo "All required deployment tools are available."
+
+      - name: Authenticate Release Workflow Run & Artifact Metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "=== AUTHENTICATING RELEASE RUN & ARTIFACT METADATA ==="
+
+          # Query and verify workflow run metadata
+          RUN_JSON=$(gh api "/repos/ArtradePro/Socialpulse-1/actions/runs/${{ inputs.release_run_id }}")
+          node -e "
+            const run = JSON.parse(process.argv[1]);
+            if (run.repository.full_name !== 'ArtradePro/Socialpulse-1') {
+              console.error('ERROR: Run repository mismatch:', run.repository.full_name);
+              process.exit(1);
+            }
+            if (!run.path.endsWith('release-images.yml')) {
+              console.error('ERROR: Run is not from release-images.yml:', run.path);
+              process.exit(1);
+            }
+            if (run.status !== 'completed' || run.conclusion !== 'success') {
+              console.error('ERROR: Release run did not complete successfully:', run.status, run.conclusion);
+              process.exit(1);
+            }
+            if (run.event !== 'workflow_dispatch') {
+              console.error('ERROR: Release run was not triggered via manual workflow_dispatch:', run.event);
+              process.exit(1);
+            }
+            if (run.head_sha !== '${{ inputs.commit_sha }}') {
+              console.error('ERROR: Release run head SHA mismatch:', run.head_sha);
+              process.exit(1);
+            }
+            console.log('Release run metadata authenticated successfully.');
+          " "$RUN_JSON"
+
+          # Query and verify artifact metadata
+          ARTIFACTS_JSON=$(gh api "/repos/ArtradePro/Socialpulse-1/actions/runs/${{ inputs.release_run_id }}/artifacts")
+          node -e "
+            const data = JSON.parse(process.argv[1]);
+            const targetName = 'release-manifest-${{ inputs.release_id }}';
+            const matched = (data.artifacts || []).filter(a => a.name === targetName);
+            if (matched.length !== 1) {
+              console.error('ERROR: Expected exactly 1 artifact named', targetName, 'found:', matched.length);
+              process.exit(1);
+            }
+            if (matched[0].expired) {
+              console.error('ERROR: Manifest artifact is expired.');
+              process.exit(1);
+            }
+            console.log('Manifest artifact authenticated and unexpired.');
+          " "$ARTIFACTS_JSON"
+
       - name: Checkout Authorized Release Configuration Provenance
         # Pinned immutably to official commit SHA for actions/checkout v4.2.2
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -202,14 +268,48 @@ jobs:
           echo "Authorization: ${{ inputs.authorization_reference }}"
           echo "Commit SHA: ${{ inputs.commit_sha }}"
 
-          # 1. Capture and validate pre-deployment state for rollback
-          echo "Capturing pre-deployment container state..."
+          # 1. Capture and strictly validate pre-deployment state for rollback
+          echo "Capturing and validating pre-deployment container state..."
           PREV_BACKEND=$(docker inspect --format='{{.Config.Image}}' socialpulse-backend 2>/dev/null || true)
           PREV_FRONTEND=$(docker inspect --format='{{.Config.Image}}' socialpulse-frontend 2>/dev/null || true)
-          echo "Prior backend image: ${PREV_BACKEND:-none}"
-          echo "Prior frontend image: ${PREV_FRONTEND:-none}"
 
-          # Build full content-addressable image references from verified inputs
+          if [ -z "$PREV_BACKEND" ] || [ -z "$PREV_FRONTEND" ]; then
+            echo "ERROR: Previous container state is missing. A first deployment must be separately authorized."
+            exit 1
+          fi
+
+          if ! [[ "$PREV_BACKEND" =~ @sha256:[0-9a-fA-F]{64}$ ]] && ! [[ "$PREV_BACKEND" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            echo "ERROR: Previous backend image reference '$PREV_BACKEND' is not an immutable digest."
+            exit 1
+          fi
+
+          if ! [[ "$PREV_FRONTEND" =~ @sha256:[0-9a-fA-F]{64}$ ]] && ! [[ "$PREV_FRONTEND" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            echo "ERROR: Previous frontend image reference '$PREV_FRONTEND' is not an immutable digest."
+            exit 1
+          fi
+
+          if ! docker image inspect "$PREV_BACKEND" &>/dev/null || ! docker image inspect "$PREV_FRONTEND" &>/dev/null; then
+            echo "ERROR: Previous rollback images are not available in local Docker cache."
+            exit 1
+          fi
+
+          echo "Rollback state verified. Prior backend: $PREV_BACKEND, Prior frontend: $PREV_FRONTEND."
+
+          # Define fail-safe rollback handler for mutation boundary
+          rollback() {
+            echo "=== INITIATING FAIL-SAFE ROLLBACK ON MUTATION FAILURE ==="
+            export SOCIALPULSE_BACKEND_IMAGE="$PREV_BACKEND"
+            export SOCIALPULSE_FRONTEND_IMAGE="$PREV_FRONTEND"
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build server client || true
+            sleep 5
+            wget -qO- --timeout=5 http://localhost:5000/health/ready || true
+            echo "Rollback completed. Release failed."
+            exit 1
+          }
+
+          trap rollback ERR
+
+          # === MUTATION BOUNDARY BEGINS ===
           BACKEND_REF="artradepro/socialpulse-backend@${{ inputs.backend_digest }}"
           FRONTEND_REF="artradepro/socialpulse-frontend@${{ inputs.frontend_digest }}"
 
@@ -242,19 +342,10 @@ jobs:
 
           if [ "$READY" -ne 1 ]; then
             echo "ERROR: Application failed readiness validation on /health/ready after 30 seconds."
-            echo "=== INITIATING FAIL-SAFE ROLLBACK ==="
-            if [ -n "$PREV_BACKEND" ] && [ -n "$PREV_FRONTEND" ] && [ "$PREV_BACKEND" != "none" ] && [ "$PREV_FRONTEND" != "none" ]; then
-              echo "Rolling back to previous images: $PREV_BACKEND and $PREV_FRONTEND..."
-              export SOCIALPULSE_BACKEND_IMAGE="$PREV_BACKEND"
-              export SOCIALPULSE_FRONTEND_IMAGE="$PREV_FRONTEND"
-              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build server client || true
-              wget -qO- --timeout=5 http://localhost:5000/health/ready || true
-            else
-              echo "No valid previous state available for automatic rollback."
-            fi
-            exit 1
+            rollback
           fi
 
+          trap - ERR
           echo "=== DEPLOYMENT COMPLETED SUCCESSFULLY ==="
 
       - name: Persistent Runner Workspace & Manifest Cleanup
@@ -262,10 +353,10 @@ jobs:
         run: |
           echo "=== RUNNING POST-DEPLOYMENT HYGIENE & CLEANUP ==="
           rm -rf "/tmp/manifest-${{ inputs.release_id }}" || true
-          if [ -n "$GITHUB_WORKSPACE" ] && [ -d "$GITHUB_WORKSPACE" ]; then
+          if [ -n "$GITHUB_WORKSPACE" ] && [ -d "$GITHUB_WORKSPACE" ] && [ "$GITHUB_WORKSPACE" != "/" ] && [ "$GITHUB_WORKSPACE" != "$HOME" ] && [ "$GITHUB_WORKSPACE" != "/opt" ]; then
             find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true
           fi
-          echo "Runner workspace and temporary files cleaned."
+          echo "Runner workspace and temporary files safely cleaned."
 
       - name: Output Deployment Audit Summary
         run: |
