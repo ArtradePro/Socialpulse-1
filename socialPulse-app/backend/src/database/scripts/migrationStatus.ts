@@ -90,18 +90,24 @@ export async function checkMigrationStatus(customPool?: any): Promise<MigrationP
         `);
         hasLedgerTable = Boolean(ledgerCheck.rows[0]?.exists);
 
-        // Preflight Stripe uniqueness check (strictly read-only SELECT)
+        // Check for sales_orders / orders Stripe session idempotency preflight
         const ordersTableCheck = await client.query(`
             SELECT EXISTS (
                 SELECT 1 FROM information_schema.tables
-                WHERE table_schema = 'public' AND table_name = 'orders'
+                WHERE table_schema = 'public' AND table_name IN ('sales_orders', 'orders')
             );
         `);
 
         if (ordersTableCheck.rows[0]?.exists) {
+            const hasSalesOrders = (await client.query(`
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_name = 'sales_orders';
+            `)).rows.length > 0;
+            const targetTable = hasSalesOrders ? 'sales_orders' : 'orders';
+
             const dupCheck = await client.query(`
                 SELECT stripe_session_id, COUNT(*)
-                FROM orders
+                FROM ${targetTable}
                 WHERE stripe_session_id IS NOT NULL
                 GROUP BY stripe_session_id
                 HAVING COUNT(*) > 1;
@@ -109,16 +115,28 @@ export async function checkMigrationStatus(customPool?: any): Promise<MigrationP
             duplicateStripeSessions = dupCheck.rows.length;
 
             const indexCheck = await client.query(`
-                SELECT EXISTS (
-                    SELECT 1 FROM pg_indexes
-                    WHERE tablename = 'orders' AND indexname LIKE '%stripe_session%'
-                );
+                SELECT
+                    ix.indisunique AS is_unique,
+                    ix.indisvalid AS is_valid,
+                    ix.indisready AS is_ready,
+                    pg_get_expr(ix.indpred, ix.indrelid) AS predicate
+                FROM pg_class t
+                JOIN pg_index ix ON t.oid = ix.indrelid
+                JOIN pg_class i ON i.oid = ix.indexrelid
+                JOIN pg_namespace n ON n.oid = t.relnamespace
+                WHERE n.nspname = 'public' AND t.relname = '${targetTable}'
+                  AND (i.relname LIKE '%stripe_session%' OR pg_get_indexdef(ix.indexrelid) LIKE '%stripe_session%');
             `);
-            hasStripeUniqueIndex = Boolean(indexCheck.rows[0]?.exists);
+
+            hasStripeUniqueIndex = indexCheck.rows.length > 0 &&
+                Boolean(indexCheck.rows[0].is_unique) &&
+                Boolean(indexCheck.rows[0].is_valid) &&
+                Boolean(indexCheck.rows[0].is_ready) &&
+                Boolean(indexCheck.rows[0].predicate?.includes('IS NOT NULL'));
         }
 
         if (duplicateStripeSessions > 0) {
-            blockers.push(`DUPLICATE_STRIPE_SESSIONS_FOUND: ${duplicateStripeSessions} duplicate session(s) in orders table`);
+            blockers.push(`DUPLICATE_STRIPE_SESSIONS_FOUND: ${duplicateStripeSessions} duplicate session(s) found in sales_orders table`);
         }
 
         if (hasLedgerTable) {
