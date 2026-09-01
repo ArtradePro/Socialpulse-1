@@ -1,9 +1,17 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+export type ReadinessState =
+    | 'ready'
+    | 'configured_unverified'
+    | 'disabled'
+    | 'degraded'
+    | 'misconfigured'
+    | 'unavailable';
+
 export interface FeatureStatus {
     enabled: boolean;
-    status: 'ready' | 'disabled' | 'misconfigured' | 'unavailable';
+    status: ReadinessState;
     reason?: string;
 }
 
@@ -119,7 +127,7 @@ export class EnvironmentConfig {
     }
 
     /**
-     * Inspects features and returns safe, redacted diagnostic readiness states.
+     * Inspects features and returns safe, truthful, redacted diagnostic readiness states.
      */
     public static getDiagnostics(): EnvironmentDiagnostic {
         const hasDb = Boolean(process.env.DATABASE_URL || process.env.TEST_DATABASE_URL || process.env.DB_HOST);
@@ -153,38 +161,38 @@ export class EnvironmentConfig {
                 },
                 evergreen: {
                     enabled: hasEvergreen,
-                    status: hasEvergreen ? 'ready' : 'disabled',
-                    reason: hasEvergreen ? undefined : 'EVERGREEN_INTEGRATION_SECRET not configured'
+                    status: hasEvergreen ? 'configured_unverified' : 'disabled',
+                    reason: hasEvergreen ? 'Secret present (connectivity unverified)' : 'EVERGREEN_INTEGRATION_SECRET not configured'
                 },
                 quote2contract: {
                     enabled: hasQ2C,
-                    status: hasQ2C ? 'ready' : 'disabled',
-                    reason: hasQ2C ? undefined : 'Q2C_WEBHOOK_SECRET not configured'
+                    status: hasQ2C ? 'configured_unverified' : 'disabled',
+                    reason: hasQ2C ? 'Webhook secret present (connectivity unverified)' : 'Q2C_WEBHOOK_SECRET not configured'
                 },
                 stripe: {
                     enabled: hasStripe,
-                    status: hasStripe ? 'ready' : 'disabled',
-                    reason: hasStripe ? undefined : 'STRIPE_SECRET_KEY not configured'
+                    status: hasStripe ? 'configured_unverified' : 'disabled',
+                    reason: hasStripe ? 'Stripe secret key present (connectivity unverified)' : 'STRIPE_SECRET_KEY not configured'
                 },
                 omnisend: {
-                    enabled: true,
-                    status: 'ready',
-                    reason: 'Per-workspace API keys used'
+                    enabled: false,
+                    status: 'disabled',
+                    reason: 'Per-workspace API keys required (no global key)'
                 },
                 sendgrid: {
                     enabled: hasSendGrid,
-                    status: hasSendGrid ? 'ready' : (this.isProduction() ? 'disabled' : 'ready'),
-                    reason: hasSendGrid ? undefined : (this.isProduction() ? 'SENDGRID_API_KEY missing' : 'Simulated non-production')
+                    status: hasSendGrid ? 'configured_unverified' : 'disabled',
+                    reason: hasSendGrid ? 'SendGrid key present (connectivity unverified)' : 'SENDGRID_API_KEY not configured'
                 },
                 twilio: {
                     enabled: hasTwilio,
-                    status: hasTwilio ? 'ready' : (this.isProduction() ? 'disabled' : 'ready'),
-                    reason: hasTwilio ? undefined : (this.isProduction() ? 'TWILIO credentials missing' : 'Simulated non-production')
+                    status: hasTwilio ? 'configured_unverified' : 'disabled',
+                    reason: hasTwilio ? 'Twilio credentials present (connectivity unverified)' : 'TWILIO credentials not configured'
                 },
                 gemini: {
                     enabled: hasGemini,
-                    status: hasGemini ? 'ready' : 'ready',
-                    reason: hasGemini ? undefined : 'Template fallback engine active'
+                    status: hasGemini ? 'configured_unverified' : 'disabled',
+                    reason: hasGemini ? 'Gemini key present (connectivity unverified)' : 'GEMINI_API_KEY not configured (fallback template active)'
                 }
             }
         };
