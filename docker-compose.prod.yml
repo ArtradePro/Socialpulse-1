@@ -5,7 +5,8 @@
 #   1. Copy .env.example → .env and fill in all secrets
 #   2. Place SSL cert/key at ./nginx/ssl/cert.pem and ./nginx/ssl/key.pem
 #      (or adjust the nginx volume mount to point at /etc/letsencrypt)
-#   3. Run migrations once: docker-compose run --rm migrate
+#   3. Ensure SOCIALPULSE_BACKEND_IMAGE and SOCIALPULSE_FRONTEND_IMAGE are set to verified immutable digests/tags
+#   4. Run migrations via authorized workflow: docker-compose run --rm migrate
 
 version: '3.8'
 
@@ -33,9 +34,7 @@ services:
       retries: 5
 
   server:
-    build:
-      context: ./socialPulse-app/backend
-      target: production
+    image: ${SOCIALPULSE_BACKEND_IMAGE:?SOCIALPULSE_BACKEND_IMAGE environment variable is strictly required}
     restart: unless-stopped
     volumes: []                   # no source mounts in production
     environment:
@@ -99,25 +98,21 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:5000/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5000/health/live || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
 
   client:
-    build:
-      context: ./socialPulse-app/frontend
-      target: production
+    image: ${SOCIALPULSE_FRONTEND_IMAGE:?SOCIALPULSE_FRONTEND_IMAGE environment variable is strictly required}
     restart: unless-stopped
     volumes: []
 
-  # One-shot migration runner — run manually or as part of deploy pipeline:
+  # One-shot migration runner — executed via authorized migration workflow:
   #   docker-compose -f docker-compose.yml -f docker-compose.prod.yml run --rm migrate
   migrate:
-    build:
-      context: ./socialPulse-app/backend
-      target: builder
-    command: ["npx", "ts-node", "src/database/migrate.ts"]
+    image: ${SOCIALPULSE_BACKEND_IMAGE:?SOCIALPULSE_BACKEND_IMAGE environment variable is strictly required}
+    command: ["node", "dist/database/migrate.js"]
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/socialpulse
     depends_on:

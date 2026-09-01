@@ -596,6 +596,18 @@ export async function adoptLedger(options: { dryRun?: boolean; confirm?: boolean
     // UNCONDITIONAL PRODUCTION LOCKOUT - No environment variable bypass permitted
     if (!isDryRun && process.env.NODE_ENV === 'production') {
         blockers.push('PRODUCTION_ADOPTION_UNCONDITIONALLY_PROHIBITED: Confirmed migration adoption is strictly prohibited in production');
+        return {
+            timestamp: new Date().toISOString(),
+            dryRun: false,
+            ledgerExists: false,
+            wouldCreateLedger: false,
+            totalDiscovered: files.length,
+            eligibleCount: 0,
+            refusedCount: files.length,
+            migrations: [],
+            blockers,
+            wouldMutateDatabase: false
+        };
     }
 
     const activePool = customPool || pool;
