@@ -147,8 +147,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
     describe('3. Environment Allowlist & Fail-Closed Guards (Controls 8-9, 21-23)', () => {
         it('Control 8 & 9: Environment input is strictly allowlisted; arbitrary environments rejected', () => {
             expect(deployContent).toContain('staging');
-            expect(deployContent).toContain('production');
-            expect(deployContent).toContain('Allowed: staging, production');
+            expect(deployContent).toContain('Allowed: staging');
             expect(migrateContent).toContain('Allowed: staging, production');
         });
 
@@ -256,35 +255,52 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         });
     });
 
-    describe('6. Restricted Self-Hosted Runner Channel & Isolation (SP-8C-4A Controls 26-30)', () => {
-        it('Control 26: Staging deployment workflow targets restricted staging runner labels', () => {
-            expect(deployContent).toContain('socialpulse-staging');
-            expect(deployContent).toContain('self-hosted');
-            expect(deployContent).toContain('linux');
+    describe('6. Restricted Self-Hosted Runner Channel & Isolation (SP-8C-4A-R1 Controls 25-33)', () => {
+        it('Control 25: Staging deployment workflow explicitly targets dedicated staging runner labels', () => {
+            expect(deployContent).toContain('runs-on: [self-hosted, linux, socialpulse-staging]');
         });
 
-        it('Control 27: Production deployment cannot target the staging runner', () => {
-            expect(deployContent).toContain('socialpulse-production');
-            expect(deployContent).toMatch(/inputs\.environment == 'staging'.*socialpulse-staging.*socialpulse-production/);
+        it('Control 26: Production deployment cannot target the staging runner and fails closed', () => {
+            expect(deployContent).toContain('Production deployment is strictly prohibited on the staging runner');
         });
 
-        it('Control 28: General CI and PR workflows cannot target self-hosted runners', () => {
+        it('Control 27: Staging deployment requires its protected GitHub Environment and approval gate', () => {
+            expect(deployContent).toContain('environment: ${{ inputs.environment }}');
+        });
+
+        it('Control 28: General CI and PR workflows remain GitHub-hosted and cannot target self-hosted runners', () => {
             expect(ciContent).not.toContain('self-hosted');
             expect(ciContent).not.toContain('socialpulse-staging');
-            expect(ciContent).not.toContain('socialpulse-production');
             expect(ciContent).toContain('runs-on: ubuntu-latest');
         });
 
-        it('Control 29: Release image publication cannot target self-hosted runners', () => {
+        it('Control 29: Release image publication remains GitHub-hosted and cannot target self-hosted runners', () => {
             expect(releaseContent).not.toContain('self-hosted');
             expect(releaseContent).not.toContain('socialpulse-staging');
             expect(releaseContent).toContain('runs-on: ubuntu-latest');
         });
 
-        it('Control 30: Staging deployment executes local docker compose without SSH dependency', () => {
-            expect(deployContent).toContain('docker pull "$BACKEND_REF"');
-            expect(deployContent).toContain('docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build');
+        it('Control 30: Staging deployment validates immutable OCI digests and rejects mutable tags', () => {
+            expect(deployContent).toContain('^[0-9a-fA-F]{40}$');
+            expect(deployContent).toContain('^sha256:[0-9a-fA-F]{64}$');
+            expect(deployContent).not.toContain(':latest');
+        });
+
+        it('Control 31: Staging deployment establishes configuration provenance via exact commit checkout', () => {
+            expect(deployContent).toContain('Checkout Authorized Release Configuration Provenance');
+            expect(deployContent).toContain('uses: actions/checkout@v4');
+            expect(deployContent).toContain('ref: ${{ inputs.commit_sha }}');
+        });
+
+        it('Control 32: Bounded /health/ready polling causes fail-closed exit on readiness failure', () => {
+            expect(deployContent).toContain('http://localhost:5000/health/ready');
+            expect(deployContent).toContain('grep -q \'"ready":true\'');
+            expect(deployContent).toContain('Application failed readiness validation on /health/ready after 30 seconds');
+        });
+
+        it('Control 33: No SSH action or database migration command exists in deployment path', () => {
             expect(deployContent).not.toContain('appleboy/ssh-action');
+            expect(deployContent).not.toContain('migrate.ts');
         });
     });
 });

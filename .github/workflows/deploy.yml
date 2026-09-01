@@ -46,8 +46,8 @@ concurrency:
 jobs:
   deploy:
     name: Deploy Immutable Release (${{ inputs.environment }})
-    # Route staging strictly to dedicated staging runner, and production to production runner
-    runs-on: ${{ inputs.environment == 'staging' && fromJSON('["self-hosted", "linux", "socialpulse-staging"]') || fromJSON('["self-hosted", "linux", "socialpulse-production"]') }}
+    # Explicitly target the dedicated staging runner; production cannot run on staging runner
+    runs-on: [self-hosted, linux, socialpulse-staging]
     environment: ${{ inputs.environment }}
 
     steps:
@@ -67,9 +67,14 @@ jobs:
             exit 1
           fi
 
-          # 3. Environment allowlist enforcement
-          if [ "${{ inputs.environment }}" != "staging" ] && [ "${{ inputs.environment }}" != "production" ]; then
-            echo "ERROR: Environment '${{ inputs.environment }}' is not permit-listed. Allowed: staging, production."
+          # 3. Environment allowlist enforcement (Fail-closed on production on staging runner)
+          if [ "${{ inputs.environment }}" = "production" ]; then
+            echo "ERROR: Production deployment is strictly prohibited on the staging runner. A separate production deployment channel is required."
+            exit 1
+          fi
+
+          if [ "${{ inputs.environment }}" != "staging" ]; then
+            echo "ERROR: Environment '${{ inputs.environment }}' is not permit-listed for this runner. Allowed: staging."
             exit 1
           fi
 
@@ -88,15 +93,20 @@ jobs:
 
           echo "Validation passed for release '${{ inputs.release_id }}' on environment '${{ inputs.environment }}'."
 
+      - name: Checkout Authorized Release Configuration Provenance
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+
       - name: Deploy to Local Target Host via Docker Compose
         run: |
           set -euo pipefail
-          cd /opt/socialpulse
 
           echo "=== INITIATING CONTROLLED LOCAL DEPLOYMENT ==="
           echo "Release ID: ${{ inputs.release_id }}"
           echo "Environment: ${{ inputs.environment }}"
           echo "Authorization: ${{ inputs.authorization_reference }}"
+          echo "Commit SHA: ${{ inputs.commit_sha }}"
 
           # Build full content-addressable image references
           BACKEND_REF="artradepro/socialpulse-backend@${{ inputs.backend_digest }}"
@@ -110,18 +120,33 @@ jobs:
           docker pull "$BACKEND_REF"
           docker pull "$FRONTEND_REF"
 
-          # 2. Record current running containers
-          echo "Current running containers:"
+          # 2. Record pre-deployment container state
+          echo "Pre-deployment container state:"
           docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
 
           # 3. Rolling update of application services with explicit immutable digests
           echo "Restarting application containers..."
           docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build server client
 
-          # 4. Post-deployment live readiness probe
-          echo "Running post-deployment health validation..."
-          sleep 5
-          wget -qO- http://localhost:5000/health/live || (echo "Health check failed!" && exit 1)
+          # 4. Bounded post-deployment readiness validation (polling /health/ready)
+          echo "Running bounded post-deployment readiness validation..."
+          READY=0
+          for attempt in {1..6}; do
+            echo "Readiness probe attempt $attempt of 6..."
+            if response=$(wget -qO- --timeout=5 http://localhost:5000/health/ready 2>/dev/null); then
+              if echo "$response" | grep -q '"ready":true'; then
+                echo "Readiness probe passed: $response"
+                READY=1
+                break
+              fi
+            fi
+            sleep 5
+          done
+
+          if [ "$READY" -ne 1 ]; then
+            echo "ERROR: Application failed readiness validation on /health/ready after 30 seconds."
+            exit 1
+          fi
 
           echo "=== DEPLOYMENT COMPLETED SUCCESSFULLY ==="
 
