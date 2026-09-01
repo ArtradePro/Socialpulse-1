@@ -1,0 +1,83 @@
+name: Database Migrations
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target database environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      commit_sha:
+        description: 'Exact 40-character commit SHA matching the authorized migration SQL'
+        required: true
+        type: string
+      backup_confirmed:
+        description: 'I confirm a full verified database backup was taken immediately prior to this operation'
+        required: true
+        type: boolean
+        default: false
+      confirm_execution:
+        description: 'I confirm authorization to execute pending transactional migrations'
+        required: true
+        type: boolean
+        default: false
+
+concurrency:
+  group: migration-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Execute Transactional Database Migrations (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Validate Preconditions & Confirmations
+        run: |
+          echo "=== VALIDATING MIGRATION AUTHORIZATION ==="
+          if [ "${{ inputs.confirm_execution }}" != "true" ]; then
+            echo "ERROR: Migration execution not confirmed. Aborting."
+            exit 1
+          fi
+          if [ "${{ inputs.backup_confirmed }}" != "true" ]; then
+            echo "ERROR: Database backup confirmation required prior to migration execution."
+            exit 1
+          fi
+          if ! [[ "${{ inputs.commit_sha }}" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "ERROR: Invalid commit SHA format."
+            exit 1
+          fi
+
+      - name: Checkout Authorized Commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+
+      - name: Run Migration Preflight and Execution on Target Host
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd /opt/socialpulse
+
+            echo "=== RUNNING PRE-MIGRATION STATUS INSPECTION ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm migrate npx ts-node src/database/scripts/migrationStatus.ts
+
+            echo "=== EXECUTING TRANSACTIONAL MIGRATIONS ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm migrate npx ts-node src/database/migrate.ts
+
+            echo "=== VERIFYING POST-MIGRATION LEDGER STATE ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm migrate npx ts-node src/database/scripts/migrationStatus.ts
+
+            echo "=== MIGRATION COMPLETED SUCCESSFULLY ==="

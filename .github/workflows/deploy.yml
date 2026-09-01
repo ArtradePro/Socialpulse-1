@@ -1,0 +1,117 @@
+name: Deploy Application
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target deployment environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      commit_sha:
+        description: 'Exact 40-character commit SHA verified and approved for release'
+        required: true
+        type: string
+      backend_image:
+        description: 'Exact immutable backend image tag or digest (e.g. repo/backend:sha-<sha> or repo/backend@sha256:<digest>)'
+        required: true
+        type: string
+      frontend_image:
+        description: 'Exact immutable frontend image tag or digest (e.g. repo/frontend:sha-<sha> or repo/frontend@sha256:<digest>)'
+        required: true
+        type: string
+      release_id:
+        description: 'Release identifier label (e.g. rel-20260901-01)'
+        required: true
+        type: string
+
+concurrency:
+  group: deployment-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Immutable Release (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Validate Inputs and Reject Mutable Tags
+        run: |
+          echo "=== VALIDATING DEPLOYMENT INPUTS ==="
+
+          # Reject blank inputs
+          if [ -z "${{ inputs.backend_image }}" ] || [ -z "${{ inputs.frontend_image }}" ] || [ -z "${{ inputs.commit_sha }}" ]; then
+            echo "ERROR: All image references and commit SHA are strictly required."
+            exit 1
+          fi
+
+          # Reject ':latest' references
+          if [[ "${{ inputs.backend_image }}" =~ :latest$ ]] || [[ "${{ inputs.frontend_image }}" =~ :latest$ ]]; then
+            echo "ERROR: Use of ':latest' tag is strictly prohibited in production and staging deployments."
+            exit 1
+          fi
+
+          # Reject mutable tag names without sha- or sha256:
+          if [[ ! "${{ inputs.backend_image }}" =~ sha- && ! "${{ inputs.backend_image }}" =~ @sha256: ]] || \
+             [[ ! "${{ inputs.frontend_image }}" =~ sha- && ! "${{ inputs.frontend_image }}" =~ @sha256: ]]; then
+            echo "ERROR: Images must use immutable commit-SHA tags (:sha-<commit>) or immutable digests (@sha256:<digest>)."
+            exit 1
+          fi
+
+          echo "Validation passed. Backend: ${{ inputs.backend_image }}, Frontend: ${{ inputs.frontend_image }}"
+
+      - name: Deploy to Target Host via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: BACKEND_IMG,FRONTEND_IMG,RELEASE_ID,ENV_NAME
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd /opt/socialpulse
+
+            echo "=== INITIATING CONTROLLED DEPLOYMENT ==="
+            echo "Release ID: ${{ inputs.release_id }}"
+            echo "Environment: ${{ inputs.environment }}"
+
+            # Export explicit immutable image references
+            export SOCIALPULSE_BACKEND_IMAGE="${{ inputs.backend_image }}"
+            export SOCIALPULSE_FRONTEND_IMAGE="${{ inputs.frontend_image }}"
+
+            # 1. Pull verified immutable images
+            echo "Pulling verified images..."
+            docker pull "${{ inputs.backend_image }}"
+            docker pull "${{ inputs.frontend_image }}"
+
+            # 2. Record current running containers for audit trail
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
+
+            # 3. Rolling update of application services with explicit immutable images
+            echo "Restarting application containers..."
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build server client
+
+            # 4. Post-deployment live readiness probe
+            echo "Running post-deployment health validation..."
+            sleep 5
+            wget -qO- http://localhost:5000/health/live || (echo "Health check failed!" && exit 1)
+
+            echo "=== DEPLOYMENT COMPLETED SUCCESSFULLY ==="
+
+      - name: Output Deployment Audit Summary
+        run: |
+          echo "=== DEPLOYMENT AUDIT SUMMARY ==="
+          echo "Environment: ${{ inputs.environment }}"
+          echo "Release ID: ${{ inputs.release_id }}"
+          echo "Commit SHA: ${{ inputs.commit_sha }}"
+          echo "Backend Image: ${{ inputs.backend_image }}"
+          echo "Frontend Image: ${{ inputs.frontend_image }}"
+          echo "Deployed At: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "Triggered By: ${{ github.actor }}"
