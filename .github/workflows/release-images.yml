@@ -33,10 +33,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Validate Commit SHA Format
+      - name: Validate Commit SHA Format & Target Environment
         run: |
+          # 1. Validate commit SHA format
           if ! [[ "${{ inputs.commit_sha }}" =~ ^[0-9a-fA-F]{40}$ ]]; then
             echo "ERROR: Invalid commit SHA format. Must be exact 40-character hexadecimal."
+            exit 1
+          fi
+
+          # 2. Validate environment allowlist
+          if [ "${{ inputs.target_environment }}" != "staging" ] && [ "${{ inputs.target_environment }}" != "production" ]; then
+            echo "ERROR: Target environment must strictly be 'staging' or 'production'."
             exit 1
           fi
 
@@ -88,21 +95,30 @@ jobs:
           mkdir -p artifacts
           cat <<EOF > artifacts/release-manifest.json
           {
+            "schemaVersion": "1.0.0",
             "releaseId": "${{ inputs.release_id }}",
+            "repository": "${{ github.repository }}",
             "sourceCommit": "${{ inputs.commit_sha }}",
             "targetEnvironment": "${{ inputs.target_environment }}",
             "backend": {
-              "image": "${{ secrets.DOCKERHUB_USERNAME }}/socialpulse-backend:sha-${{ inputs.commit_sha }}",
+              "repository": "${{ secrets.DOCKERHUB_USERNAME }}/socialpulse-backend",
+              "tag": "sha-${{ inputs.commit_sha }}",
               "digest": "${{ steps.build_backend.outputs.digest }}"
             },
             "frontend": {
-              "image": "${{ secrets.DOCKERHUB_USERNAME }}/socialpulse-frontend:sha-${{ inputs.commit_sha }}",
+              "repository": "${{ secrets.DOCKERHUB_USERNAME }}/socialpulse-frontend",
+              "tag": "sha-${{ inputs.commit_sha }}",
               "digest": "${{ steps.build_frontend.outputs.digest }}"
             },
-            "buildWorkflowRunId": "${{ github.run_id }}",
+            "workflowRunId": "${{ github.run_id }}",
             "builtAt": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           }
           EOF
+
+          # Compute manifest checksum
+          MANIFEST_CHECKSUM=$(sha256sum artifacts/release-manifest.json | awk '{print $1}')
+          echo "Manifest SHA-256 Checksum: $MANIFEST_CHECKSUM"
+
           echo "=== RELEASE MANIFEST GENERATED ==="
           cat artifacts/release-manifest.json
 
