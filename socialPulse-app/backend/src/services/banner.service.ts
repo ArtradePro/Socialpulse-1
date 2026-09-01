@@ -1,168 +1,159 @@
 import sharp from 'sharp';
 import axios from 'axios';
 
-interface BannerInput {
+export type BannerTheme = 'luxury_marble' | 'clinical_clean' | 'nature_dew' | 'neon' | 'glass' | 'modern';
+export type BannerRatio = '1:1' | '9:16' | '16:9';
+
+export interface ZeelyBannerInput {
+    imageUrl?: string;
+    productTitle: string;
+    headline: string;
+    subheadline?: string;
+    badgeText?: string;
+    priceText?: string;
+    ctaText?: string;
+    theme?: BannerTheme;
+    aspectRatio?: BannerRatio;
+    disclaimerText?: string;
+    isFNM?: boolean;
+}
+
+export const generateZeelyAdBanner = async (input: ZeelyBannerInput): Promise<Buffer> => {
+    const {
+        imageUrl,
+        productTitle,
+        headline,
+        subheadline,
+        badgeText = 'TOP SELLER',
+        priceText,
+        ctaText = 'SHOP NOW',
+        theme = 'luxury_marble',
+        aspectRatio = '1:1',
+        disclaimerText,
+        isFNM = false
+    } = input;
+
+    let width = 1080;
+    let height = 1080;
+    if (aspectRatio === '9:16') {
+        width = 1080;
+        height = 1920;
+    } else if (aspectRatio === '16:9') {
+        width = 1200;
+        height = 675;
+    }
+
+    let baseBackground = await createStudioBackground(width, height, theme);
+
+    // If product image is provided, fetch and composite it nicely in the center/right
+    const composites: sharp.OverlayOptions[] = [];
+
+    if (imageUrl) {
+        try {
+            const response = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 5000 });
+            const productBuf = Buffer.from(response.data);
+
+            const productWidth = Math.round(width * 0.55);
+            const productHeight = Math.round(height * 0.55);
+
+            const resizedProduct = await sharp(productBuf)
+                .resize(productWidth, productHeight, { fit: 'inside', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+                .toBuffer();
+
+            const leftPos = Math.round((width - productWidth) / 2);
+            const topPos = Math.round(height * 0.35);
+
+            composites.push({
+                input: resizedProduct,
+                top: topPos,
+                left: leftPos,
+                blend: 'over'
+            });
+        } catch (err) {
+            console.warn('[BannerService] Could not fetch product image, proceeding with text composite:', err);
+        }
+    }
+
+    // Generate Direct-Response SVG vector overlay
+    const svgOverlay = generateDirectResponseSvgOverlay({
+        width,
+        height,
+        productTitle,
+        headline,
+        subheadline: subheadline || (isFNM ? "Love The Skin You're In." : "Premium High-Efficacy Formula"),
+        badgeText,
+        priceText,
+        ctaText,
+        theme,
+        disclaimerText,
+        aspectRatio
+    });
+
+    composites.push({
+        input: Buffer.from(svgOverlay.trim()),
+        blend: 'over'
+    });
+
+    return sharp(baseBackground)
+        .composite(composites)
+        .png()
+        .toBuffer();
+};
+
+export const generateStaticBanner = async (input: {
     imageUrl?: string;
     discountText: string;
     promoText: string;
     theme: 'modern' | 'neon' | 'glass';
-}
-
-export const generateStaticBanner = async (input: BannerInput): Promise<Buffer> => {
-    const { imageUrl, discountText, promoText, theme } = input;
-    const width = 1080;
-    const height = 1080;
-
-    let baseImage: Buffer;
-
-    if (imageUrl) {
-        try {
-            // Fetch product image
-            const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-            baseImage = Buffer.from(response.data);
-        } catch (err) {
-            console.warn('[BannerService] Failed to fetch product image, using fallback background:', err);
-            baseImage = await createFallbackBackground(width, height, theme);
-        }
-    } else {
-        baseImage = await createFallbackBackground(width, height, theme);
-    }
-
-    // Resize base image to 1080x1080
-    const resizedBase = await sharp(baseImage)
-        .resize(width, height, { fit: 'cover' })
-        .toBuffer();
-
-    // Create SVG overlay based on theme
-    const svgOverlay = generateSvgOverlay(width, height, discountText, promoText, theme);
-
-    // Composite overlay on base image
-    const finalImage = await sharp(resizedBase)
-        .composite([{ input: Buffer.from(svgOverlay.trim()), blend: 'over' }])
-        .png()
-        .toBuffer();
-
-    return finalImage;
+}): Promise<Buffer> => {
+    return generateZeelyAdBanner({
+        imageUrl: input.imageUrl,
+        productTitle: 'Special Promotion',
+        headline: input.promoText,
+        badgeText: input.discountText,
+        theme: input.theme === 'neon' ? 'neon' : input.theme === 'glass' ? 'glass' : 'modern',
+        aspectRatio: '1:1'
+    });
 };
 
-// Creates a fallback background gradient if no product image is provided
-const createFallbackBackground = async (width: number, height: number, theme: string): Promise<Buffer> => {
-    let color1 = '#1e1b4b'; // dark blue
-    let color2 = '#311042'; // dark purple
+const createStudioBackground = async (width: number, height: number, theme: BannerTheme): Promise<Buffer> => {
+    let color1 = '#F8FAFC';
+    let color2 = '#E2E8F0';
 
-    if (theme === 'neon') {
+    if (theme === 'luxury_marble') {
+        color1 = '#FAFAFA';
+        color2 = '#E5E5E5';
+    } else if (theme === 'clinical_clean') {
+        color1 = '#F0FDF4';
+        color2 = '#DCFCE7';
+    } else if (theme === 'nature_dew') {
+        color1 = '#ECFDF5';
+        color2 = '#D1FAE5';
+    } else if (theme === 'neon') {
         color1 = '#090514';
-        color2 = '#1f073a';
+        color2 = '#1E0B36';
     } else if (theme === 'glass') {
-        color1 = '#fbcfe8'; // light pink
-        color2 = '#c084fc'; // light purple
-    } else {
-        color1 = '#f3f4f6'; // modern gray
-        color2 = '#e5e7eb';
+        color1 = '#FDF2F8';
+        color2 = '#F3E8FF';
     }
 
     const svg = `
         <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
             <defs>
-                <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                     <stop offset="0%" style="stop-color:${color1};stop-opacity:1" />
                     <stop offset="100%" style="stop-color:${color2};stop-opacity:1" />
                 </linearGradient>
             </defs>
-            <rect width="100%" height="100%" fill="url(#grad)" />
+            <rect width="100%" height="100%" fill="url(#bgGrad)" />
         </svg>
     `;
 
-    return Buffer.from(svg.trim());
+    return sharp(Buffer.from(svg.trim())).png().toBuffer();
 };
 
-// Generates theme-specific overlay layers
-const generateSvgOverlay = (
-    width: number,
-    height: number,
-    discount: string,
-    promo: string,
-    theme: 'modern' | 'neon' | 'glass'
-): string => {
-    const escDiscount = escapeXml(discount.toUpperCase());
-    const escPromo = escapeXml(promo);
-
-    if (theme === 'neon') {
-        // Futuristic Cyberpunk Cyber-Neon Theme
-        return `
-            <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-                <!-- Outer Neon Glow Border -->
-                <rect x="20" y="20" width="${width - 40}" height="${height - 40}" fill="none" stroke="#8B5CF6" stroke-width="12" rx="24" filter="drop-shadow(0 0 15px #8B5CF6)" />
-                <rect x="25" y="25" width="${width - 50}" height="${height - 50}" fill="none" stroke="#0C8CE9" stroke-width="4" rx="20" filter="drop-shadow(0 0 8px #0C8CE9)" />
-
-                <!-- Discount badge in Top Left with Neon glow -->
-                <g filter="drop-shadow(0 0 12px #EC4899)">
-                    <rect x="50" y="50" width="260" height="90" rx="16" fill="#EC4899" />
-                    <text x="180" y="108" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="36" fill="#FFFFFF" text-anchor="middle">${escDiscount}</text>
-                </g>
-
-                <!-- Neon Banner Footer -->
-                <g filter="drop-shadow(0 0 20px #8B5CF6)">
-                    <rect x="60" y="${height - 220}" width="${width - 120}" height="140" rx="20" fill="#0D0620" stroke="#8B5CF6" stroke-width="4" opacity="0.95" />
-                    <!-- Subtitle / CTA -->
-                    <text x="${width / 2}" y="${height - 165}" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="44" fill="#00F2FE" text-anchor="middle" letter-spacing="2">${escPromo}</text>
-                    <text x="${width / 2}" y="${height - 110}" font-family="system-ui, -apple-system, sans-serif" font-weight="bold" font-size="24" fill="#A78BFA" text-anchor="middle" letter-spacing="4">LIMITED TIME ONLY • CLICK TO SHOP</text>
-                </g>
-            </svg>
-        `;
-    }
-
-    if (theme === 'glass') {
-        // Frosted Glassmorphism Theme
-        return `
-            <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-                <!-- Soft Border -->
-                <rect x="30" y="30" width="${width - 60}" height="${height - 60}" fill="none" stroke="#ffffff" stroke-width="6" stroke-opacity="0.4" rx="32" />
-
-                <!-- Circular Frosted Badge -->
-                <g>
-                    <circle cx="160" cy="160" r="100" fill="#ffffff" fill-opacity="0.25" stroke="#ffffff" stroke-width="3" stroke-opacity="0.5" />
-                    <text x="160" y="155" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="34" fill="#ffffff" text-anchor="middle" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.2))">SPECIAL</text>
-                    <text x="160" y="195" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="38" fill="#F472B6" text-anchor="middle" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.2))">${escDiscount}</text>
-                </g>
-
-                <!-- Frosted Glass Footer Panel -->
-                <g>
-                    <!-- Simulated Blur backing with semi-translucent white -->
-                    <rect x="80" y="${height - 240}" width="${width - 160}" height="160" rx="30" fill="#ffffff" fill-opacity="0.15" stroke="#ffffff" stroke-width="2" stroke-opacity="0.3" />
-                    <text x="${width / 2}" y="${height - 170}" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="46" fill="#ffffff" text-anchor="middle" filter="drop-shadow(0 2px 5px rgba(0,0,0,0.3))">${escPromo}</text>
-                    <rect x="${width / 2 - 150}" y="${height - 128}" width="300" height="36" rx="18" fill="#ffffff" fill-opacity="0.8" />
-                    <text x="${width / 2}" y="${height - 104}" font-family="system-ui, -apple-system, sans-serif" font-weight="bold" font-size="18" fill="#475569" text-anchor="middle">SHOP EXCLUSIVE OFFERS</text>
-                </g>
-            </svg>
-        `;
-    }
-
-    // Modern Flat Premium Theme (Default)
-    return `
-        <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-            <!-- Sleek Minimalist Border Frame -->
-            <rect x="40" y="40" width="${width - 80}" height="${height - 80}" fill="none" stroke="#000000" stroke-width="4" />
-            
-            <!-- Modern Square Corner Badge -->
-            <g>
-                <rect x="40" y="40" width="280" height="100" fill="#0C8CE9" />
-                <text x="180" y="103" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="36" fill="#FFFFFF" text-anchor="middle">${escDiscount}</text>
-            </g>
-
-            <!-- Flat White Footer Card -->
-            <g filter="drop-shadow(0 10px 25px rgba(0,0,0,0.15))">
-                <rect x="80" y="${height - 200}" width="${width - 160}" height="120" fill="#FFFFFF" rx="4" />
-                <text x="${width / 2}" y="${height - 145}" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="38" fill="#111827" text-anchor="middle">${escPromo}</text>
-                <line x1="${width / 2 - 100}" y1="${height - 115}" x2="${width / 2 + 100}" y2="${height - 115}" stroke="#0C8CE9" stroke-width="3" />
-                <text x="${width / 2}" y="${height - 100}" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="14" fill="#0C8CE9" text-anchor="middle" letter-spacing="3">ORDER ONLINE TODAY</text>
-            </g>
-        </svg>
-    `;
-};
-
-const escapeXml = (unsafe: string): string => {
-    return unsafe.replace(/[<>&'"]/g, (c) => {
+const escapeXml = (unsafe: string) =>
+    (unsafe || '').replace(/[<>&'"]/g, (c) => {
         switch (c) {
             case '<': return '&lt;';
             case '>': return '&gt;';
@@ -172,4 +163,68 @@ const escapeXml = (unsafe: string): string => {
             default: return c;
         }
     });
+
+const generateDirectResponseSvgOverlay = (opts: {
+    width: number;
+    height: number;
+    productTitle: string;
+    headline: string;
+    subheadline: string;
+    badgeText: string;
+    priceText?: string;
+    ctaText: string;
+    theme: BannerTheme;
+    disclaimerText?: string;
+    aspectRatio: BannerRatio;
+}): string => {
+    const { width, height, productTitle, headline, subheadline, badgeText, priceText, ctaText, disclaimerText } = opts;
+
+    const escBadge = escapeXml(badgeText.toUpperCase());
+    const escTitle = escapeXml(productTitle);
+    const escHeadline = escapeXml(headline);
+    const escSub = escapeXml(subheadline);
+    const escCta = escapeXml(ctaText.toUpperCase());
+    const escPrice = priceText ? escapeXml(priceText) : '';
+    const escDisc = disclaimerText ? escapeXml(disclaimerText) : 'Individual results may vary. Love The Skin You\'re In.';
+
+    const isDark = opts.theme === 'neon';
+    const textColor = isDark ? '#FFFFFF' : '#0F172A';
+    const subColor = isDark ? '#A78BFA' : '#475569';
+    const accentColor = isDark ? '#EC4899' : '#0284C7';
+
+    return `
+        <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+            <style>
+                .badge { font-family: 'Segoe UI', Arial, sans-serif; font-weight: 800; font-size: 26px; fill: #FFFFFF; }
+                .title { font-family: 'Segoe UI', Arial, sans-serif; font-weight: 800; font-size: 42px; fill: ${textColor}; }
+                .headline { font-family: 'Segoe UI', Arial, sans-serif; font-weight: 700; font-size: 32px; fill: ${accentColor}; }
+                .sub { font-family: 'Segoe UI', Arial, sans-serif; font-weight: 500; font-size: 24px; fill: ${subColor}; }
+                .cta { font-family: 'Segoe UI', Arial, sans-serif; font-weight: 800; font-size: 28px; fill: #FFFFFF; }
+                .price { font-family: 'Segoe UI', Arial, sans-serif; font-weight: 900; font-size: 38px; fill: #16A34A; }
+                .disc { font-family: 'Segoe UI', Arial, sans-serif; font-size: 16px; fill: #94A3B8; text-anchor: middle; }
+            </style>
+
+            <!-- Top Badge Tag -->
+            <g>
+                <rect x="60" y="60" width="340" height="60" rx="12" fill="${accentColor}" />
+                <text x="230" y="100" text-anchor="middle" class="badge">★ ${escBadge} ★</text>
+            </g>
+
+            <!-- Product Title & Hook -->
+            <text x="60" y="180" class="title">${escTitle}</text>
+            <text x="60" y="230" class="headline">${escHeadline}</text>
+            <text x="60" y="275" class="sub">${escSub}</text>
+
+            <!-- Bottom Pricing & CTA Box -->
+            <g>
+                <rect x="60" y="${height - 180}" width="${width - 120}" height="90" rx="20" fill="${isDark ? '#1E1B4B' : '#FFFFFF'}" stroke="${accentColor}" stroke-width="3" filter="drop-shadow(0 8px 16px rgba(0,0,0,0.08))" />
+                ${escPrice ? `<text x="100" y="${height - 122}" class="price">${escPrice}</text>` : ''}
+                <rect x="${width - 340}" y="${height - 165}" width="240" height="60" rx="14" fill="${accentColor}" />
+                <text x="${width - 220}" y="${height - 124}" text-anchor="middle" class="cta">${escCta} →</text>
+            </g>
+
+            <!-- Mandatory Compliance Disclaimer -->
+            <text x="${width / 2}" y="${height - 40}" class="disc">${escDisc}</text>
+        </svg>
+    `;
 };

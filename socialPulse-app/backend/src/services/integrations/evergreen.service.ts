@@ -129,6 +129,8 @@ export class EvergreenIntegrationService {
                 if (data.contactIdentifier && data.channel) {
                     await SuppressionService.recordConsent(workspaceId, data);
                 }
+            } else if (eventType === 'product.created' || eventType === 'product.updated' || eventType === 'product.sync') {
+                await this.syncProduct(workspaceId, data);
             } else {
                 // Dispatch to general automation engine
                 await AutomationEngineService.triggerEvent(eventType, workspaceId, data);
@@ -153,5 +155,56 @@ export class EvergreenIntegrationService {
             );
             return { status: 'PROCESSED', message: 'Event received but processing error occurred', eventId };
         }
+    }
+
+    /**
+     * Synchronizes a product from Evergreen OS into the SocialPulse catalog.
+     */
+    public static async syncProduct(workspaceId: string, data: any): Promise<void> {
+        const externalId = data.id || data.productId || data.externalId || `eg_${Date.now()}`;
+        const title = data.title || data.name || 'Untitled Product';
+        const description = data.description || '';
+        const price = parseFloat(data.price) || 0.00;
+        const currency = data.currency || 'ZAR';
+        const imageUrl = data.imageUrl || data.image_url || null;
+        const productUrl = data.productUrl || data.product_url || `https://usesocialpulse.com/products/${externalId}`;
+        const category = data.category || 'Skincare';
+        const tags = Array.isArray(data.tags) ? data.tags : [];
+
+        // Ensure Evergreen store exists
+        let storeId: string;
+        const { rows: store } = await db.query(
+            `SELECT id FROM ecommerce_stores WHERE workspace_id = $1 AND platform = 'evergreen' LIMIT 1`,
+            [workspaceId]
+        );
+        if (store.length > 0) {
+            storeId = store[0].id;
+        } else {
+            const { rows: newStore } = await db.query(
+                `INSERT INTO ecommerce_stores (workspace_id, platform, name, status)
+                 VALUES ($1, 'evergreen', 'Higiene Evergreen OS Catalog', 'active')
+                 RETURNING id`,
+                [workspaceId]
+            );
+            storeId = newStore[0].id;
+        }
+
+        // Upsert product
+        await db.query(
+            `INSERT INTO products (store_id, workspace_id, external_id, title, description, price, currency, image_url, product_url, category, tags, status, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'active', NOW())
+             ON CONFLICT (store_id, external_id)
+             DO UPDATE SET title = EXCLUDED.title,
+                           description = EXCLUDED.description,
+                           price = EXCLUDED.price,
+                           currency = EXCLUDED.currency,
+                           image_url = EXCLUDED.image_url,
+                           product_url = EXCLUDED.product_url,
+                           category = EXCLUDED.category,
+                           tags = EXCLUDED.tags,
+                           status = 'active',
+                           updated_at = NOW()`,
+            [storeId, workspaceId, externalId, title, description, price, currency, imageUrl, productUrl, category, tags]
+        );
     }
 }

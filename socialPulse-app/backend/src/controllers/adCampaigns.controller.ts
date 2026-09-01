@@ -215,21 +215,49 @@ export const listGeneratedVideos = async (req: Request, res: Response): Promise<
     }
 };
 
-// Generate and composite static ad creative banner
+// Generate and composite static direct-response ad creative banner (Zeely-Style)
 export const generateAdBanner = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { imageUrl, discountText, promoText, theme } = req.body;
+        const { imageUrl, productTitle, headline, subheadline, badgeText, priceText, ctaText, theme, aspectRatio, discountText, promoText } = req.body;
         const userId = (req as any).user?.userId;
+        const workspaceId = req.workspaceId;
         if (!userId) {
             res.status(401).json({ message: 'Unauthorized' });
             return;
         }
 
-        const buffer = await generateStaticBanner({ imageUrl, discountText, promoText, theme });
+        const { generateZeelyAdBanner } = await import('../services/banner.service');
+        const { ClaimsGuardService } = await import('../services/marketing/claimsGuard.service');
+
+        // Check workspace brand context
+        let isFNM = false;
+        let disclaimerText: string | undefined;
+        if (workspaceId) {
+            const { rows } = await db.query(`SELECT name, brand_type FROM workspaces WHERE id = $1 LIMIT 1`, [workspaceId]);
+            isFNM = ClaimsGuardService.isFungusNoMore(rows[0]);
+            const validation = await ClaimsGuardService.validateContent(workspaceId, `${productTitle || ''} ${headline || promoText || ''}`);
+            if (validation.disclaimers.length > 0) {
+                disclaimerText = validation.disclaimers[0];
+            }
+        }
+
+        const buffer = await generateZeelyAdBanner({
+            imageUrl,
+            productTitle: productTitle || 'Special Promotion',
+            headline: headline || promoText || 'Limited Time Special Offer',
+            subheadline,
+            badgeText: badgeText || discountText || '50% OFF',
+            priceText,
+            ctaText: ctaText || 'SHOP NOW',
+            theme: theme || 'luxury_marble',
+            aspectRatio: aspectRatio || '1:1',
+            disclaimerText,
+            isFNM
+        });
         
         const result = await StorageService.upload({
             buffer,
-            originalName: `ad_banner_${Date.now()}.png`,
+            originalName: `zeely_banner_${Date.now()}.png`,
             mimeType: 'image/png',
             userId,
             folder: 'ads'
@@ -264,5 +292,56 @@ export const generateAdBanner = async (req: Request, res: Response): Promise<voi
     } catch (err) {
         console.error('[AdCampaigns] generateAdBanner error:', err);
         res.status(500).json({ message: 'Failed to generate ad creative banner' });
+    }
+};
+
+// Generate 3-part UGC Script (Zeely-Style)
+export const generateUGCScript = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const workspaceId = req.workspaceId;
+        const { productName, offerHook, targetAudience } = req.body;
+
+        if (!workspaceId || !productName || !offerHook) {
+            res.status(400).json({ message: 'workspaceId, productName, and offerHook are required' });
+            return;
+        }
+
+        const { UGCVideoService } = await import('../services/marketing/ugcVideo.service');
+        const script = await UGCVideoService.generateUGCScript(workspaceId, productName, offerHook, targetAudience);
+
+        res.json(script);
+    } catch (err: any) {
+        console.error('[AdCampaigns] generateUGCScript error:', err);
+        res.status(500).json({ message: 'Failed to generate UGC script' });
+    }
+};
+
+// Render full UGC Video (Zeely-Style 9:16 Video Asset)
+export const renderUGCVideo = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const workspaceId = req.workspaceId;
+        const { productName, offerHook, targetAudience, avatarStyle, voiceAccent, aspectRatio, customScript } = req.body;
+
+        if (!workspaceId || !productName) {
+            res.status(400).json({ message: 'workspaceId and productName are required' });
+            return;
+        }
+
+        const { UGCVideoService } = await import('../services/marketing/ugcVideo.service');
+        const video = await UGCVideoService.renderUGCVideo({
+            workspaceId,
+            productName,
+            offerHook: offerHook || 'Exclusive Offer',
+            targetAudience,
+            avatarStyle: avatarStyle || 'ugc_female',
+            voiceAccent: voiceAccent || 'en-ZA',
+            aspectRatio: aspectRatio || '9:16',
+            customScript
+        });
+
+        res.status(201).json(video);
+    } catch (err: any) {
+        console.error('[AdCampaigns] renderUGCVideo error:', err);
+        res.status(500).json({ message: 'Failed to render UGC video ad' });
     }
 };
