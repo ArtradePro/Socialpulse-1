@@ -1,0 +1,200 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
+export type ReadinessState =
+    | 'ready'
+    | 'configured_unverified'
+    | 'disabled'
+    | 'degraded'
+    | 'misconfigured'
+    | 'unavailable';
+
+export interface FeatureStatus {
+    enabled: boolean;
+    status: ReadinessState;
+    reason?: string;
+}
+
+export interface EnvironmentDiagnostic {
+    nodeEnv: string;
+    startupReady: boolean;
+    features: {
+        database: FeatureStatus;
+        redis: FeatureStatus;
+        encryption: FeatureStatus;
+        evergreen: FeatureStatus;
+        quote2contract: FeatureStatus;
+        stripe: FeatureStatus;
+        omnisend: FeatureStatus;
+        sendgrid: FeatureStatus;
+        twilio: FeatureStatus;
+        gemini: FeatureStatus;
+    };
+}
+
+export class EnvironmentConfig {
+    public static isProduction(): boolean {
+        return process.env.NODE_ENV === 'production';
+    }
+
+    public static isTest(): boolean {
+        return process.env.NODE_ENV === 'test';
+    }
+
+    /**
+     * Validates startup-critical variables. Throws descriptive, redacted error if missing.
+     */
+    public static validateStartup(): { valid: boolean; errors: string[] } {
+        const errors: string[] = [];
+
+        if (!process.env.DATABASE_URL && !process.env.TEST_DATABASE_URL && !(process.env.DB_HOST && process.env.DB_USER)) {
+            errors.push('DATABASE_URL is required for database connectivity.');
+        }
+
+        if (!process.env.JWT_SECRET && this.isProduction()) {
+            errors.push('JWT_SECRET must be configured in production.');
+        }
+
+        if (this.isProduction() && process.env.ALLOW_SIMULATED_DELIVERY === 'true') {
+            console.warn('[SECURITY WARNING] ALLOW_SIMULATED_DELIVERY=true is ignored in production mode.');
+        }
+
+        return {
+            valid: errors.length === 0,
+            errors
+        };
+    }
+
+    /**
+     * Validates encryption key configuration.
+     */
+    public static validateEncryptionConfig(activeKeyId?: string, keysJson?: string): { valid: boolean; error?: string } {
+        const keyId = activeKeyId ?? process.env.ACTIVE_ENCRYPTION_KEY_ID;
+        const rawJson = keysJson ?? process.env.ENCRYPTION_KEYS_JSON;
+
+        if (!keyId || !rawJson) {
+            return { valid: false, error: 'ACTIVE_ENCRYPTION_KEY_ID or ENCRYPTION_KEYS_JSON missing' };
+        }
+
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(keyId)) {
+            return { valid: false, error: 'Invalid ACTIVE_ENCRYPTION_KEY_ID format' };
+        }
+
+        try {
+            const parsed = JSON.parse(rawJson);
+            if (!parsed[keyId]) {
+                return { valid: false, error: `Active key ID "${keyId}" not found in ENCRYPTION_KEYS_JSON` };
+            }
+            const keyBuffer = Buffer.from(parsed[keyId], 'base64');
+            if (keyBuffer.length !== 32) {
+                return { valid: false, error: `Key "${keyId}" must be exactly 32 bytes (256-bit AES)` };
+            }
+            return { valid: true };
+        } catch (err: any) {
+            return { valid: false, error: `Failed to parse ENCRYPTION_KEYS_JSON: ${err.message}` };
+        }
+    }
+
+    /**
+     * Returns allowed CORS origins based on environment.
+     * In production, localhost origins are excluded unless explicitly permitted.
+     */
+    public static getAllowedOrigins(): string[] {
+        const prodOrigins = [
+            'https://usesocialpulse.com',
+            'https://www.usesocialpulse.com',
+            'https://silver-opossum-812035.hostingersite.com',
+            process.env.FRONTEND_URL,
+            process.env.CLIENT_URL,
+            process.env.CLIENT_URL_ALT
+        ].filter(Boolean) as string[];
+
+        const devOrigins = [
+            'http://localhost:3000',
+            'http://localhost:3001',
+            'http://localhost:5000',
+            'http://localhost:5173',
+            'http://127.0.0.1:3000',
+            'http://127.0.0.1:5000',
+            'http://127.0.0.1:5173'
+        ];
+
+        if (this.isProduction() && process.env.ALLOW_LOCALHOST_IN_PRODUCTION !== 'true') {
+            return prodOrigins;
+        }
+
+        return Array.from(new Set([...prodOrigins, ...devOrigins]));
+    }
+
+    /**
+     * Inspects features and returns safe, truthful, redacted diagnostic readiness states.
+     */
+    public static getDiagnostics(): EnvironmentDiagnostic {
+        const hasDb = Boolean(process.env.DATABASE_URL || process.env.TEST_DATABASE_URL || process.env.DB_HOST);
+        const hasRedis = Boolean(process.env.REDIS_URL || process.env.REDIS_HOST);
+        const encValidation = this.validateEncryptionConfig();
+        const hasEvergreen = Boolean(process.env.EVERGREEN_INTEGRATION_SECRET);
+        const hasQ2C = Boolean(process.env.Q2C_WEBHOOK_SECRET || process.env.EVERGREEN_INTEGRATION_SECRET);
+        const hasStripe = Boolean(process.env.STRIPE_SECRET_KEY);
+        const hasSendGrid = Boolean(process.env.SENDGRID_API_KEY);
+        const hasTwilio = Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN);
+        const hasGemini = Boolean(process.env.GEMINI_API_KEY);
+
+        return {
+            nodeEnv: process.env.NODE_ENV || 'development',
+            startupReady: hasDb,
+            features: {
+                database: {
+                    enabled: true,
+                    status: hasDb ? 'ready' : 'unavailable',
+                    reason: hasDb ? undefined : 'DATABASE_URL missing'
+                },
+                redis: {
+                    enabled: hasRedis,
+                    status: hasRedis ? 'ready' : 'disabled',
+                    reason: hasRedis ? undefined : 'REDIS_URL or REDIS_HOST not configured'
+                },
+                encryption: {
+                    enabled: encValidation.valid,
+                    status: encValidation.valid ? 'ready' : 'misconfigured',
+                    reason: encValidation.valid ? undefined : encValidation.error
+                },
+                evergreen: {
+                    enabled: hasEvergreen,
+                    status: hasEvergreen ? 'configured_unverified' : 'disabled',
+                    reason: hasEvergreen ? 'Secret present (connectivity unverified)' : 'EVERGREEN_INTEGRATION_SECRET not configured'
+                },
+                quote2contract: {
+                    enabled: hasQ2C,
+                    status: hasQ2C ? 'configured_unverified' : 'disabled',
+                    reason: hasQ2C ? 'Webhook secret present (connectivity unverified)' : 'Q2C_WEBHOOK_SECRET not configured'
+                },
+                stripe: {
+                    enabled: hasStripe,
+                    status: hasStripe ? 'configured_unverified' : 'disabled',
+                    reason: hasStripe ? 'Stripe secret key present (connectivity unverified)' : 'STRIPE_SECRET_KEY not configured'
+                },
+                omnisend: {
+                    enabled: false,
+                    status: 'disabled',
+                    reason: 'Per-workspace API keys required (no global key)'
+                },
+                sendgrid: {
+                    enabled: hasSendGrid,
+                    status: hasSendGrid ? 'configured_unverified' : 'disabled',
+                    reason: hasSendGrid ? 'SendGrid key present (connectivity unverified)' : 'SENDGRID_API_KEY not configured'
+                },
+                twilio: {
+                    enabled: hasTwilio,
+                    status: hasTwilio ? 'configured_unverified' : 'disabled',
+                    reason: hasTwilio ? 'Twilio credentials present (connectivity unverified)' : 'TWILIO credentials not configured'
+                },
+                gemini: {
+                    enabled: hasGemini,
+                    status: hasGemini ? 'configured_unverified' : 'disabled',
+                    reason: hasGemini ? 'Gemini key present (connectivity unverified)' : 'GEMINI_API_KEY not configured (fallback template active)'
+                }
+            }
+        };
+    }
+}

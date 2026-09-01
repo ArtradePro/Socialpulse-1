@@ -3,10 +3,14 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Prefer DATABASE_URL (Docker / production), fall back to individual vars (local dev)
-const poolConfig = process.env.DATABASE_URL
+// Prefer TEST_DATABASE_URL in test mode, or DATABASE_URL (Docker / production), fall back to individual vars (local dev)
+const connectionString = (process.env.NODE_ENV === 'test' && process.env.TEST_DATABASE_URL)
+  ? process.env.TEST_DATABASE_URL
+  : process.env.DATABASE_URL;
+
+const poolConfig = connectionString
   ? {
-      connectionString: process.env.DATABASE_URL,
+      connectionString,
       ssl: process.env.DB_SSL === 'true'
         ? { rejectUnauthorized: process.env.NODE_ENV !== 'production' ? false : true }
         : false,
@@ -40,4 +44,8 @@ export const connectDB = async (): Promise<void> => {
   const client = await pool.connect();
   client.release();
   console.log('PostgreSQL connected');
+};
+
+export const closeDB = async (): Promise<void> => {
+  await pool.end();
 };

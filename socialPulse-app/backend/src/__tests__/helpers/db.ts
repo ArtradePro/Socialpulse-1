@@ -1,4 +1,5 @@
 import { Pool, PoolClient } from 'pg';
+import { pool as appPool } from '../../config/database';
 
 let pool: Pool | null = null;
 
@@ -16,6 +17,9 @@ export async function closeTestPool(): Promise<void> {
         await pool.end();
         pool = null;
     }
+    try {
+        await appPool.end();
+    } catch (_) {}
 }
 
 /** Truncate all user-data tables between tests for isolation. */

@@ -11,10 +11,12 @@
     "db:update-credits": "psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -c \"UPDATE users SET ai_credits = 10000;\"",
     "lint": "eslint src/**/*.ts",
     "migrate": "npx ts-node --transpile-only src/database/migrate.ts",
+    "migrate:status": "npx ts-node --transpile-only src/database/scripts/migrationStatus.ts",
+    "migrate:adopt": "npx ts-node --transpile-only src/database/scripts/adoptLedger.ts",
     "seed": "npx ts-node --transpile-only src/database/seed.ts",
-    "test": "jest --runInBand --forceExit",
+    "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand",
-    "test:coverage": "jest --runInBand --forceExit --coverage",
+    "test:coverage": "jest --runInBand --coverage",
     "db:console": "node -e \"const pass = process.env.PGPASSWORD || process.env.DB_PASSWORD; if (!pass) { console.error('Error: PGPASSWORD or DB_PASSWORD environment variable must be set.'); process.exit(1); } process.env.PGPASSWORD = pass; const host = process.env.DB_HOST || '127.0.0.1'; const user = process.env.DB_USER || 'postgres'; const dbName = process.env.DB_NAME || 'socialpulse'; const port = process.env.DB_PORT || '5432'; const psqlBin = process.env.PSQL_PATH || (process.platform === 'win32' ? 'C:\\\\Program Files\\\\PostgreSQL\\\\18\\\\bin\\\\psql.exe' : 'psql'); const { execFileSync } = require('child_process'); try { execFileSync(psqlBin, ['-U', user, '-h', host, '-p', port, '-d', dbName], { stdio: 'inherit' }); } catch (e) { process.exit(e.status || 1); }\""
   },
   "dependencies": {

@@ -15,11 +15,14 @@ import { initAdPerformanceJob } from './jobs/adPerformance.job';
 import { initMarketingWorkers } from './jobs/marketing/workers';
 import { processQueue, processPendingScrapeTasks, checkScheduledTasks } from './services/automationService';
 
+import { EnvironmentConfig } from './config/environment';
+import { LifecycleManager } from './lifecycle';
+
 const PORT = process.env.PORT || 5000;
 
 const startAutomationSafetyNet = () => {
     console.log('🤖 Starting Automation Safety-Net Ticking loop (every 60s)...');
-    setInterval(async () => {
+    const interval = setInterval(async () => {
         try {
             await checkScheduledTasks();
             await processPendingScrapeTasks();
@@ -28,9 +31,18 @@ const startAutomationSafetyNet = () => {
             console.error('❌ Error in background automation safety-net tick:', err);
         }
     }, 60 * 1000);
+    LifecycleManager.registerInterval(interval);
 };
 
 const start = async (): Promise<void> => {
+    // 1. Startup environment validation
+    const envCheck = EnvironmentConfig.validateStartup();
+    if (!envCheck.valid) {
+        console.error('❌ Startup configuration validation failed:');
+        envCheck.errors.forEach(err => console.error(` - ${err}`));
+        process.exit(1);
+    }
+
     await connectDB();
     try {
         await connectRedis();
@@ -50,10 +62,10 @@ const start = async (): Promise<void> => {
         startAutomationSafetyNet();
     }
 
-    // Register Gemini test route
-    // app.use("/api", geminiTestRoute);
-
     const server = createServer(app);
+    LifecycleManager.registerServer(server);
+    LifecycleManager.initProcessSignals();
+
     const io = new Server(server, {
         cors: {
             origin: allowedOrigins,

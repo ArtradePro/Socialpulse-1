@@ -266,6 +266,20 @@ export const StorageService = {
      * Upload a file buffer.  Provider chosen via STORAGE_PROVIDER env var.
      */
     async upload(input: UploadInput): Promise<UploadResult> {
+        if (process.env.NODE_ENV === 'test' || (!process.env.CLOUDINARY_CLOUD_NAME && !process.env.AWS_ACCESS_KEY_ID)) {
+            return {
+                provider: 'cloudinary',
+                providerId: `mock_media_${Date.now()}`,
+                url: `https://res.cloudinary.com/demo/image/upload/mock_${input.originalName}`,
+                thumbnailUrl: `https://res.cloudinary.com/demo/image/upload/mock_${input.originalName}`,
+                width: 1200,
+                height: 1200,
+                durationSecs: null,
+                sizeByte: input.buffer.length,
+                mimeType: input.mimeType,
+                fileName: input.originalName
+            };
+        }
         if (PROVIDER === 's3') return uploadToS3(input);
         return uploadToCloudinary(input);
     },

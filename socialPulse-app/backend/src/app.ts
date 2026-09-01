@@ -69,27 +69,18 @@ app.use(helmet({
 // If behind Cloudflare, change to: app.set('trust proxy', 2)
 app.set('trust proxy', 1);
 
-export const allowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:5000',
-    'http://localhost:5173',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:5000',
-    'http://127.0.0.1:5173',
-    'https://usesocialpulse.com',
-    'https://www.usesocialpulse.com',
-    'https://silver-opossum-812035.hostingersite.com',
-    process.env.CLIENT_URL,
-    process.env.CLIENT_URL_ALT,
-].filter(Boolean) as string[];
+import { EnvironmentConfig } from './config/environment';
+import healthRoutes from './routes/health.routes';
+
+export const allowedOrigins = EnvironmentConfig.getAllowedOrigins();
 
 app.use(cors({
     origin: (origin, callback) => {
         // Allow requests with no origin (like mobile apps or curl)
         if (!origin) return callback(null, true);
         
-        if (allowedOrigins.some(o => origin === o || origin.startsWith(o))) {
+        const currentAllowed = EnvironmentConfig.getAllowedOrigins();
+        if (currentAllowed.some(o => origin === o || origin.startsWith(o))) {
             return callback(null, true);
         }
         
@@ -119,6 +110,7 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
+app.use('/health',             healthRoutes);
 app.use('/api/auth',          authRoutes);
 app.use('/api/posts',         postRoutes);
 app.use('/api/ai',            aiRoutes);
@@ -151,10 +143,6 @@ app.use('/api/integrations',   integrationsRoutes);
 app.use('/api/claims',         claimsRoutes);
 app.use('/api/marketing/omnisend', omnisendRoutes);
 app.use('/api/integrations/q2c', q2cRoutes);
-
-app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
 
 // Serve frontend dist bundle if available
 import path from 'path';
