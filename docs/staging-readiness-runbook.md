@@ -1,9 +1,9 @@
 # Staging Readiness & Operational Runbook — SocialPulse
 
-**Governing Context:** Project Evergreen — Higiene / Higienlabs Technology Division  
-**Authorized Owner:** Vernon la Cock (CEO and Authorized Owner, Higiene (Pty) Ltd)  
-**Executive Oversight:** Ziona la Cock (Vice President, Higiene (Pty) Ltd)  
-**Security Classification:** Confidential Internal Technical Runbook  
+**Governing Context:** Project Evergreen — Higiene / Higienlabs Technology Division
+**Authorized Owner:** Vernon la Cock (CEO and Authorized Owner, Higiene (Pty) Ltd)
+**Executive Oversight:** Ziona la Cock (Vice President, Higiene (Pty) Ltd)
+**Security Classification:** Confidential Internal Technical Runbook
 
 ---
 

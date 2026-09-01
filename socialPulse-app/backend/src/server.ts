@@ -22,7 +22,7 @@ const PORT = process.env.PORT || 5000;
 
 const startAutomationSafetyNet = () => {
     console.log('🤖 Starting Automation Safety-Net Ticking loop (every 60s)...');
-    setInterval(async () => {
+    const interval = setInterval(async () => {
         try {
             await checkScheduledTasks();
             await processPendingScrapeTasks();
@@ -31,6 +31,7 @@ const startAutomationSafetyNet = () => {
             console.error('❌ Error in background automation safety-net tick:', err);
         }
     }, 60 * 1000);
+    LifecycleManager.registerInterval(interval);
 };
 
 const start = async (): Promise<void> => {

@@ -58,6 +58,36 @@ export class EnvironmentConfig {
     }
 
     /**
+     * Validates encryption key configuration.
+     */
+    public static validateEncryptionConfig(activeKeyId?: string, keysJson?: string): { valid: boolean; error?: string } {
+        const keyId = activeKeyId ?? process.env.ACTIVE_ENCRYPTION_KEY_ID;
+        const rawJson = keysJson ?? process.env.ENCRYPTION_KEYS_JSON;
+
+        if (!keyId || !rawJson) {
+            return { valid: false, error: 'ACTIVE_ENCRYPTION_KEY_ID or ENCRYPTION_KEYS_JSON missing' };
+        }
+
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(keyId)) {
+            return { valid: false, error: 'Invalid ACTIVE_ENCRYPTION_KEY_ID format' };
+        }
+
+        try {
+            const parsed = JSON.parse(rawJson);
+            if (!parsed[keyId]) {
+                return { valid: false, error: `Active key ID "${keyId}" not found in ENCRYPTION_KEYS_JSON` };
+            }
+            const keyBuffer = Buffer.from(parsed[keyId], 'base64');
+            if (keyBuffer.length !== 32) {
+                return { valid: false, error: `Key "${keyId}" must be exactly 32 bytes (256-bit AES)` };
+            }
+            return { valid: true };
+        } catch (err: any) {
+            return { valid: false, error: `Failed to parse ENCRYPTION_KEYS_JSON: ${err.message}` };
+        }
+    }
+
+    /**
      * Returns allowed CORS origins based on environment.
      * In production, localhost origins are excluded unless explicitly permitted.
      */
@@ -94,7 +124,7 @@ export class EnvironmentConfig {
     public static getDiagnostics(): EnvironmentDiagnostic {
         const hasDb = Boolean(process.env.DATABASE_URL || process.env.TEST_DATABASE_URL || process.env.DB_HOST);
         const hasRedis = Boolean(process.env.REDIS_URL || process.env.REDIS_HOST);
-        const hasEncryption = Boolean(process.env.ACTIVE_ENCRYPTION_KEY_ID && process.env.ENCRYPTION_KEYS_JSON);
+        const encValidation = this.validateEncryptionConfig();
         const hasEvergreen = Boolean(process.env.EVERGREEN_INTEGRATION_SECRET);
         const hasQ2C = Boolean(process.env.Q2C_WEBHOOK_SECRET || process.env.EVERGREEN_INTEGRATION_SECRET);
         const hasStripe = Boolean(process.env.STRIPE_SECRET_KEY);
@@ -117,9 +147,9 @@ export class EnvironmentConfig {
                     reason: hasRedis ? undefined : 'REDIS_URL or REDIS_HOST not configured'
                 },
                 encryption: {
-                    enabled: hasEncryption,
-                    status: hasEncryption ? 'ready' : 'misconfigured',
-                    reason: hasEncryption ? undefined : 'ACTIVE_ENCRYPTION_KEY_ID or ENCRYPTION_KEYS_JSON missing'
+                    enabled: encValidation.valid,
+                    status: encValidation.valid ? 'ready' : 'misconfigured',
+                    reason: encValidation.valid ? undefined : encValidation.error
                 },
                 evergreen: {
                     enabled: hasEvergreen,
