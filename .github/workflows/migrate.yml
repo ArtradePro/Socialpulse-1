@@ -332,13 +332,13 @@ jobs:
           export SOCIALPULSE_BACKEND_IMAGE="$MIGRATE_BACKEND_REF"
 
           echo "=== RUNNING PRE-MIGRATION STATUS INSPECTION ==="
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env run --rm migrate npx ts-node src/database/scripts/migrationStatus.ts
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env run --rm migrate npx ts-node src/database/scripts/migrationStatus.ts
 
           echo "=== EXECUTING TRANSACTIONAL MIGRATIONS ==="
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env run --rm migrate npx ts-node src/database/migrate.ts
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env run --rm migrate npx ts-node src/database/migrate.ts
 
           echo "=== VERIFYING POST-MIGRATION LEDGER STATE ==="
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env run --rm migrate npx ts-node src/database/scripts/migrationStatus.ts
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env run --rm migrate npx ts-node src/database/scripts/migrationStatus.ts
 
           echo "=== MIGRATION COMPLETED SUCCESSFULLY ==="
 

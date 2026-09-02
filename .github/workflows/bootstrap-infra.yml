@@ -113,7 +113,7 @@ jobs:
           export SOCIALPULSE_BACKEND_IMAGE="artradepro/socialpulse-backend@sha256:0000000000000000000000000000000000000000000000000000000000000000"
           export SOCIALPULSE_FRONTEND_IMAGE="artradepro/socialpulse-frontend@sha256:0000000000000000000000000000000000000000000000000000000000000000"
 
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env up -d postgres redis
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env up -d postgres redis
 
           echo "=== VERIFYING INFRASTRUCTURE CONTAINER HEALTH ==="
           PG_HEALTHY=0

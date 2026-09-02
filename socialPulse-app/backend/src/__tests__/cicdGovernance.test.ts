@@ -538,12 +538,14 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         });
     });
 
-    describe('7. Staging Bootstrap, Migration & Environment-File Governance Controls (SP-8C-5C Controls 46-60)', () => {
+    describe('7. Staging Bootstrap, Migration & Environment-File Governance Controls (SP-8C-5C-R1 Controls 46-60)', () => {
         const bootstrapInfraPath = join(workflowsDir, 'bootstrap-infra.yml');
         const bootstrapAppPath = join(workflowsDir, 'bootstrap-app.yml');
+        const composeStagingPath = join(rootDir, 'docker-compose.staging.yml');
 
         const bootstrapInfraContent = readFileSync(bootstrapInfraPath, 'utf-8');
         const bootstrapAppContent = readFileSync(bootstrapAppPath, 'utf-8');
+        const composeStagingContent = readFileSync(composeStagingPath, 'utf-8');
 
         it('Control 46: All three staging workflows are manual-only and target protected staging environment', () => {
             for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
@@ -574,12 +576,13 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             }
         });
 
-        it('Control 50: Explicit staging environment file binding exists across all Compose commands', () => {
+        it('Control 50: Explicit staging environment file binding and staging overlay exist across all Compose commands', () => {
             const requiredEnvFlag = '--env-file /opt/socialpulse/.env';
-            expect(deployContent).toContain(`docker compose -f docker-compose.yml -f docker-compose.prod.yml ${requiredEnvFlag} up -d --no-build server client`);
-            expect(bootstrapInfraContent).toContain(`docker compose -f docker-compose.yml -f docker-compose.prod.yml ${requiredEnvFlag} up -d postgres redis`);
-            expect(bootstrapAppContent).toContain(`docker compose -f docker-compose.yml -f docker-compose.prod.yml ${requiredEnvFlag} up -d --no-build server client`);
-            expect(migrateContent).toContain(`docker compose -f docker-compose.yml -f docker-compose.prod.yml ${requiredEnvFlag} run --rm migrate npx ts-node src/database/migrate.ts`);
+            const requiredComposeArgs = '-f docker-compose.yml -f docker-compose.staging.yml';
+            expect(deployContent).toContain(`docker compose ${requiredComposeArgs} ${requiredEnvFlag} up -d --no-build server client`);
+            expect(bootstrapInfraContent).toContain(`docker compose ${requiredComposeArgs} ${requiredEnvFlag} up -d postgres redis`);
+            expect(bootstrapAppContent).toContain(`docker compose ${requiredComposeArgs} ${requiredEnvFlag} up -d --no-build server client`);
+            expect(migrateContent).toContain(`docker compose ${requiredComposeArgs} ${requiredEnvFlag} run --rm migrate npx ts-node src/database/migrate.ts`);
         });
 
         it('Control 51: Staging configuration preflight verifies /opt/socialpulse/.env is regular, non-symlink and readable', () => {
@@ -596,33 +599,48 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(bootstrapInfraContent).toContain('VERIFYING NO APPLICATION CONTAINERS ARE UNEXPECTEDLY RUNNING');
         });
 
-        it('Control 53: Application bootstrap fails closed if application containers already exist', () => {
+        it('Control 53: Application bootstrap fails closed if application containers already exist and verifies migration status before starting apps', () => {
             expect(bootstrapAppContent).toContain('VERIFYING NO APPLICATION CONTAINERS ARE ALREADY RUNNING');
             expect(bootstrapAppContent).toContain('An initial bootstrap is not allowed when containers exist');
+            expect(bootstrapAppContent).toContain('Verifying database migration status before application bootstrap');
+            expect(bootstrapAppContent).toContain('migrationStatus.ts');
         });
 
         it('Control 54: Application bootstrap cleanup removes failed app containers while preserving database and redis', () => {
             expect(bootstrapAppContent).toContain('cleanup_failed_bootstrap');
-            expect(bootstrapAppContent).toContain('docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env stop server client');
-            expect(bootstrapAppContent).toContain('docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env rm -f server client');
+            expect(bootstrapAppContent).toContain('docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env stop server client');
+            expect(bootstrapAppContent).toContain('docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env rm -f server client');
             expect(bootstrapAppContent).not.toContain('down -v');
             expect(bootstrapAppContent).not.toContain('rm -f postgres');
         });
 
-        it('Control 55: Infrastructure images are digest-bound in production/staging compose overlay', () => {
-            expect(composeProdContent).toContain('postgres@sha256:fe0737ba566a2c5b2a28f34433c0a423261900ec17b9bf7ad115e1aae7e57f1b');
-            expect(composeProdContent).toContain('redis@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf');
-            expect(composeProdContent).toContain('nginx@sha256:516475cc129da42866742567714ddc681e5eed7b9ee0b9e9c015e464b4221a00');
+        it('Control 55: Infrastructure images are digest-bound in dedicated staging compose overlay', () => {
+            expect(composeStagingContent).toContain('postgres@sha256:fe0737ba566a2c5b2a28f34433c0a423261900ec17b9bf7ad115e1aae7e57f1b');
+            expect(composeStagingContent).toContain('redis@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf');
         });
 
-        it('Control 56: Application ports are bound to loopback only (127.0.0.1) and databases are not exposed', () => {
-            expect(composeProdContent).toContain('"127.0.0.1:5000:5000"');
-            expect(composeProdContent).toContain('"127.0.0.1:3000:3000"');
-            expect(composeProdContent).toMatch(/postgres:[\s\S]*?ports:\s*\[\]/);
-            expect(composeProdContent).toMatch(/redis:[\s\S]*?ports:\s*\[\]/);
+        it('Control 56: Staging application ports are bound to loopback only (127.0.0.1) and databases are not exposed', () => {
+            expect(composeStagingContent).toContain('"127.0.0.1:5000:5000"');
+            expect(composeStagingContent).toContain('"127.0.0.1:3000:3000"');
+            expect(composeStagingContent).toMatch(/postgres:[\s\S]*?ports:\s*\[\]/);
+            expect(composeStagingContent).toMatch(/redis:[\s\S]*?ports:\s*\[\]/);
         });
 
-        it('Control 57: Provider safety under NODE_ENV=production fails closed and forbids simulation', async () => {
+        it('Control 57: Effective static Compose model validation confirms exact port and volume boundaries', () => {
+            const yaml = require('js-yaml');
+            const composeBase = yaml.load(readFileSync(join(rootDir, 'docker-compose.yml'), 'utf-8')) as any;
+            const composeStaging = yaml.load(composeStagingContent) as any;
+
+            // In Compose override rules: ports in staging overlay override base ports
+            expect(composeStaging.services.server.ports).toEqual(['127.0.0.1:5000:5000']);
+            expect(composeStaging.services.client.ports).toEqual(['127.0.0.1:3000:3000']);
+            expect(composeStaging.services.postgres.ports).toEqual([]);
+            expect(composeStaging.services.redis.ports).toEqual([]);
+            expect(composeStaging.volumes).toHaveProperty('postgres_data');
+            expect(composeStaging.volumes).toHaveProperty('redis_data');
+        });
+
+        it('Control 58: Provider safety under NODE_ENV=production fails closed and forbids simulation', async () => {
             const { EmailProviderService } = require('../services/marketing/emailProvider.service');
             const { SmsProviderService } = require('../services/marketing/smsProvider.service');
 

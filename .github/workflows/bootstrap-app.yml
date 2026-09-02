@@ -371,14 +371,18 @@ jobs:
             exit 1
           fi
 
+          # 3. Verify database migration status is fully up to date before starting application services
+          echo "Verifying database migration status before application bootstrap..."
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env run --rm migrate npx ts-node src/database/scripts/migrationStatus.ts
+
           # Define fail-safe bootstrap cleanup handler (removes failed application containers while preserving database and redis)
           cleanup_failed_bootstrap() {
             trap '' ERR INT TERM
             set +e
             echo "=== INITIATING CLEANUP OF FAILED APPLICATION BOOTSTRAP ==="
             echo "Stopping and removing failed server and client containers (preserving postgres & redis volumes)..."
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env stop server client || true
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env rm -f server client || true
+            docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env stop server client || true
+            docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env rm -f server client || true
             echo "Failed application containers removed safely. Infrastructure state preserved."
             exit 1
           }
@@ -388,9 +392,9 @@ jobs:
           export SOCIALPULSE_BACKEND_IMAGE="$DEPLOY_BACKEND_REF"
           export SOCIALPULSE_FRONTEND_IMAGE="$DEPLOY_FRONTEND_REF"
 
-          # 3. Initial start of application services with explicit immutable digests and env file
+          # 4. Initial start of application services with explicit immutable digests and env file
           echo "Starting application containers with verified release and explicit env file..."
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env up -d --no-build server client
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env up -d --no-build server client
 
           # 4. Bounded post-bootstrap readiness validation on loopback
           echo "Running bounded post-bootstrap readiness validation on http://127.0.0.1:5000/health/ready..."

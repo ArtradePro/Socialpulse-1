@@ -406,7 +406,7 @@ jobs:
 
             echo "Recreating services with prior verified immutable images and explicit env file..."
             COMPOSE_EXIT=0
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env up -d --no-build server client || COMPOSE_EXIT=$?
+            docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env up -d --no-build server client || COMPOSE_EXIT=$?
 
             echo "Verifying rollback readiness on http://127.0.0.1:5000/health/ready..."
             ROLLBACK_READY=0
@@ -444,7 +444,7 @@ jobs:
 
           # 4. Rolling update of application services with explicit immutable digests and explicit env file
           echo "Restarting application containers with verified release and explicit env file..."
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env up -d --no-build server client
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env up -d --no-build server client
 
           # 5. Bounded post-deployment readiness validation with JSON response verification
           echo "Running bounded post-deployment readiness validation on http://127.0.0.1:5000/health/ready..."
