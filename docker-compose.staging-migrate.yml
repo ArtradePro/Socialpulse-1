@@ -1,0 +1,17 @@
+# Staging migration runner Compose overlay — used alongside docker-compose.staging-infra.yml:
+#   docker compose -f docker-compose.staging-infra.yml -f docker-compose.staging-migrate.yml --env-file /opt/socialpulse/.env run --rm --no-deps migrate
+# Requires only SOCIALPULSE_BACKEND_IMAGE (no frontend image required).
+
+name: socialpulse-staging
+
+services:
+
+  migrate:
+    image: ${SOCIALPULSE_BACKEND_IMAGE:?SOCIALPULSE_BACKEND_IMAGE environment variable is strictly required}
+    command: ["node", "dist/database/migrate.js"]
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/socialpulse
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
