@@ -1,4 +1,4 @@
-name: Deploy Application
+name: Deploy Application (Staging)
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -6,27 +6,20 @@ env:
 on:
   workflow_dispatch:
     inputs:
-      environment:
-        description: 'Target deployment environment (strictly allowlisted)'
-        required: true
-        type: choice
-        options:
-          - staging
-          - production
       commit_sha:
         description: 'Exact 40-character commit SHA verified and approved for release'
         required: true
         type: string
       release_id:
-        description: 'Release identifier label (e.g. rel-20260901-01)'
+        description: 'Release identifier label (e.g. sp-8b-staging-release-01)'
         required: true
         type: string
-      backend_digest:
-        description: 'Exact backend image digest (e.g. sha256:4f39e359...)'
+      release_run_id:
+        description: 'Workflow run ID of the release image publication run (e.g. 33556885396)'
         required: true
         type: string
-      frontend_digest:
-        description: 'Exact frontend image digest (e.g. sha256:9e62b146...)'
+      manifest_sha256:
+        description: 'Exact SHA-256 checksum of the release manifest artifact (e.g. d1b64d19...)'
         required: true
         type: string
       authorization_reference:
@@ -34,109 +27,478 @@ on:
         required: true
         type: string
       confirm_deployment:
-        description: 'I confirm explicit authorization to deploy the specified immutable release'
+        description: 'I confirm explicit authorization to deploy the specified immutable release to staging'
         required: true
         type: boolean
         default: false
 
+permissions:
+  contents: read
+  actions: read
+
 concurrency:
-  group: deployment-${{ inputs.environment }}
+  group: deployment-staging
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Deploy Immutable Release (${{ inputs.environment }})
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+  deploy-staging:
+    name: Deploy Immutable Release (staging)
+    # Exclusively bound to the dedicated staging self-hosted runner and staging environment
+    runs-on: [self-hosted, linux, socialpulse-staging]
+    environment: staging
 
     steps:
       - name: Validate Inputs, Allowlist & Fail-Closed Guards
+        env:
+          INPUT_CONFIRM_DEPLOYMENT: ${{ inputs.confirm_deployment }}
+          INPUT_AUTHORIZATION_REFERENCE: ${{ inputs.authorization_reference }}
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+          INPUT_RELEASE_ID: ${{ inputs.release_id }}
+          INPUT_RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+          INPUT_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
         run: |
+          set -euo pipefail
           echo "=== VALIDATING DEPLOYMENT INPUTS & AUTHORIZATION ==="
 
           # 1. Require explicit deployment confirmation
-          if [ "${{ inputs.confirm_deployment }}" != "true" ]; then
+          if [ "$INPUT_CONFIRM_DEPLOYMENT" != "true" ]; then
             echo "ERROR: Deployment not confirmed. Aborting."
             exit 1
           fi
 
-          # 2. Require non-empty authorization reference
-          if [ -z "${{ inputs.authorization_reference }}" ]; then
-            echo "ERROR: Authorization reference is strictly required."
+          # 2. Validate authorization reference format (bounded printable chars, no newlines/metacharacters)
+          if ! [[ "$INPUT_AUTHORIZATION_REFERENCE" =~ ^[a-zA-Z0-9._\ -]{1,128}$ ]]; then
+            echo "ERROR: Invalid authorization reference format. Must be 1-128 printable characters with no metacharacters."
             exit 1
           fi
 
-          # 3. Environment allowlist enforcement
-          if [ "${{ inputs.environment }}" != "staging" ] && [ "${{ inputs.environment }}" != "production" ]; then
-            echo "ERROR: Environment '${{ inputs.environment }}' is not permit-listed. Allowed: staging, production."
+          # 3. Validate release ID format (bounded alphanumeric, dot, underscore, dash, no leading dot)
+          if ! [[ "$INPUT_RELEASE_ID" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$ ]]; then
+            echo "ERROR: Invalid release ID format."
             exit 1
           fi
 
-          # 4. Commit SHA format validation
-          if ! [[ "${{ inputs.commit_sha }}" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            echo "ERROR: Invalid commit SHA format."
+          # 4. Validate commit SHA format (exact 40-character hexadecimal)
+          if ! [[ "$INPUT_COMMIT_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "ERROR: Invalid commit SHA format. Must be exactly 40 hexadecimal characters."
             exit 1
           fi
 
-          # 5. Digest format validation (sha256:<64-hex>)
-          if ! [[ "${{ inputs.backend_digest }}" =~ ^sha256:[0-9a-fA-F]{64}$ ]] || \
-             ! [[ "${{ inputs.frontend_digest }}" =~ ^sha256:[0-9a-fA-F]{64}$ ]]; then
-            echo "ERROR: Backend and frontend digests must strictly match OCI format (sha256:<64-hex>)."
+          # 5. Validate release run ID format (digits only)
+          if ! [[ "$INPUT_RELEASE_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: Invalid release run ID format. Must contain digits only."
             exit 1
           fi
 
-          echo "Validation passed for release '${{ inputs.release_id }}' on environment '${{ inputs.environment }}'."
+          # 6. Checksum format validation (exact 64-hexadecimal characters)
+          if ! [[ "$INPUT_MANIFEST_SHA256" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            echo "ERROR: Manifest SHA-256 must be exactly 64 hexadecimal characters."
+            exit 1
+          fi
 
-      - name: Deploy to Target Host via SSH
-        uses: appleboy/ssh-action@v1
+          echo "Validation passed for release '$INPUT_RELEASE_ID' targeting staging."
+
+      - name: Preflight Tool & Environment Availability Check
+        run: |
+          set -euo pipefail
+          echo "=== PREFLIGHT TOOL AVAILABILITY CHECK ==="
+          for tool in gh node sha256sum git docker wget realpath mktemp chmod; do
+            if ! command -v "$tool" &>/dev/null; then
+              echo "ERROR: Required tool '$tool' is not available on runner. Aborting."
+              exit 1
+            fi
+          done
+          if ! docker compose version &>/dev/null; then
+            echo "ERROR: Docker Compose is not available on runner. Aborting."
+            exit 1
+          fi
+          echo "All required deployment tools are available."
+
+      - name: Authenticate Protected-Main Release Workflow Run & Artifact Metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+          INPUT_RELEASE_ID: ${{ inputs.release_id }}
+        run: |
+          set -euo pipefail
+          echo "=== AUTHENTICATING RELEASE RUN & ARTIFACT METADATA (PRIOR TO CHECKOUT) ==="
+
+          # Query and verify workflow run metadata
+          RUN_JSON=$(gh api "/repos/ArtradePro/Socialpulse-1/actions/runs/$INPUT_RELEASE_RUN_ID")
+          node -e "
+            const run = JSON.parse(process.argv[1]);
+            if (!run || !run.repository || run.repository.full_name !== 'ArtradePro/Socialpulse-1') {
+              console.error('ERROR: Run repository mismatch:', run?.repository?.full_name);
+              process.exit(1);
+            }
+            if (!run.head_repository || run.head_repository.full_name !== 'ArtradePro/Socialpulse-1') {
+              console.error('ERROR: Forked or unauthorized head repository:', run?.head_repository?.full_name);
+              process.exit(1);
+            }
+            if (run.path !== '.github/workflows/release-images.yml') {
+              console.error('ERROR: Run is not exact .github/workflows/release-images.yml:', run.path);
+              process.exit(1);
+            }
+            if (run.name !== 'Release Images') {
+              console.error('ERROR: Run name mismatch:', run.name);
+              process.exit(1);
+            }
+            if (run.status !== 'completed' || run.conclusion !== 'success') {
+              console.error('ERROR: Release run did not complete successfully:', run.status, run.conclusion);
+              process.exit(1);
+            }
+            if (run.event !== 'workflow_dispatch') {
+              console.error('ERROR: Release run was not triggered via manual workflow_dispatch:', run.event);
+              process.exit(1);
+            }
+            if (run.head_branch !== 'main') {
+              console.error('ERROR: Release run did not originate from protected main branch:', run.head_branch);
+              process.exit(1);
+            }
+            if (run.head_sha !== process.env.INPUT_COMMIT_SHA) {
+              console.error('ERROR: Release run head SHA mismatch:', run.head_sha);
+              process.exit(1);
+            }
+            console.log('Protected-main release run metadata authenticated successfully.');
+          " "$RUN_JSON"
+
+          # Query and verify artifact metadata
+          ARTIFACTS_JSON=$(gh api "/repos/ArtradePro/Socialpulse-1/actions/runs/$INPUT_RELEASE_RUN_ID/artifacts")
+          node -e "
+            const data = JSON.parse(process.argv[1]);
+            const targetName = 'release-manifest-' + process.env.INPUT_RELEASE_ID;
+            const matched = (data.artifacts || []).filter(a => a.name === targetName);
+            if (matched.length !== 1) {
+              console.error('ERROR: Expected exactly 1 artifact named', targetName, 'found:', matched.length);
+              process.exit(1);
+            }
+            if (matched[0].expired) {
+              console.error('ERROR: Manifest artifact is expired.');
+              process.exit(1);
+            }
+            console.log('Manifest artifact authenticated and unexpired.');
+          " "$ARTIFACTS_JSON"
+
+      - name: Checkout Authorized Release Configuration Provenance
+        # Pinned immutably to official commit SHA for actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script_stop: true
-          script: |
-            set -euo pipefail
-            cd /opt/socialpulse
+          ref: ${{ inputs.commit_sha }}
+          persist-credentials: false
+          clean: true
 
-            echo "=== INITIATING CONTROLLED DEPLOYMENT ==="
-            echo "Release ID: ${{ inputs.release_id }}"
-            echo "Environment: ${{ inputs.environment }}"
-            echo "Authorization: ${{ inputs.authorization_reference }}"
+      - name: Verify Configuration & Git Provenance
+        env:
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          CURRENT_HEAD=$(git rev-parse HEAD)
+          if [ "$CURRENT_HEAD" != "$INPUT_COMMIT_SHA" ]; then
+            echo "ERROR: Checked out HEAD ($CURRENT_HEAD) does not match authorized commit ($INPUT_COMMIT_SHA)."
+            exit 1
+          fi
+          echo "Configuration provenance verified at commit $CURRENT_HEAD."
 
-            # Build full content-addressable image references
-            BACKEND_REF="${{ secrets.DOCKERHUB_USERNAME }}/socialpulse-backend@${{ inputs.backend_digest }}"
-            FRONTEND_REF="${{ secrets.DOCKERHUB_USERNAME }}/socialpulse-frontend@${{ inputs.frontend_digest }}"
+      - name: Create Dedicated Secure Temporary Directory & Cryptographically Verify Release Manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_RELEASE_RUN_ID: ${{ inputs.release_run_id }}
+          INPUT_RELEASE_ID: ${{ inputs.release_id }}
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+          INPUT_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+        run: |
+          set -euo pipefail
+          echo "=== VALIDATING DEDICATED RUNNER TEMP & CREATING SECURE TEMPORARY DIRECTORY ==="
 
-            export SOCIALPULSE_BACKEND_IMAGE="$BACKEND_REF"
-            export SOCIALPULSE_FRONTEND_IMAGE="$FRONTEND_REF"
+          # Enforce dedicated, writable RUNNER_TEMP (no fallback to general /tmp)
+          if [ -z "${RUNNER_TEMP:-}" ] || [ ! -d "$RUNNER_TEMP" ] || [ -L "$RUNNER_TEMP" ] || [ ! -w "$RUNNER_TEMP" ]; then
+            echo "ERROR: RUNNER_TEMP must be a defined, existing, non-symlink, writable directory."
+            exit 1
+          fi
 
-            # 1. Pull verified immutable digests
-            echo "Pulling verified digests..."
-            docker pull "$BACKEND_REF"
-            docker pull "$FRONTEND_REF"
+          CANONICAL_RUNNER_TEMP=$(realpath "$RUNNER_TEMP")
+          if [ "$CANONICAL_RUNNER_TEMP" = "/" ] || \
+             [ "$CANONICAL_RUNNER_TEMP" = "$HOME" ] || \
+             [ "$CANONICAL_RUNNER_TEMP" = "/tmp" ] || \
+             [ "$CANONICAL_RUNNER_TEMP" = "/opt" ] || \
+             [ "$CANONICAL_RUNNER_TEMP" = "${GITHUB_WORKSPACE:-}" ]; then
+            echo "ERROR: RUNNER_TEMP ($CANONICAL_RUNNER_TEMP) cannot be root, home, /tmp, /opt, or workspace root."
+            exit 1
+          fi
 
-            # 2. Record current running containers
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
+          SECURE_DIR=$(mktemp -d "$CANONICAL_RUNNER_TEMP/sp-manifest.XXXXXX")
+          chmod 700 "$SECURE_DIR"
+          CANONICAL_SECURE_DIR=$(realpath "$SECURE_DIR")
 
-            # 3. Rolling update of application services with explicit immutable digests
-            echo "Restarting application containers..."
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build server client
+          # Path safety validation: ensure directory is strictly inside CANONICAL_RUNNER_TEMP and not a symlink
+          if [[ "$CANONICAL_SECURE_DIR" != "$CANONICAL_RUNNER_TEMP/"* ]] || [ -L "$SECURE_DIR" ]; then
+            echo "ERROR: Unsafe temporary directory path: $SECURE_DIR"
+            exit 1
+          fi
 
-            # 4. Post-deployment live readiness probe
-            echo "Running post-deployment health validation..."
+          echo "MANIFEST_TMP_DIR=$CANONICAL_SECURE_DIR" >> "$GITHUB_ENV"
+
+          # Download manifest artifact from the authorized release run into secure temp dir
+          gh run download "$INPUT_RELEASE_RUN_ID" --name "release-manifest-$INPUT_RELEASE_ID" --dir "$CANONICAL_SECURE_DIR"
+
+          MANIFEST_FILE="$CANONICAL_SECURE_DIR/release-manifest.json"
+          if [ ! -f "$MANIFEST_FILE" ]; then
+            echo "ERROR: Release manifest file not found in artifact."
+            exit 1
+          fi
+
+          # Compute SHA-256 and compare against authorized input
+          COMPUTED_SHA256=$(sha256sum "$MANIFEST_FILE" | awk '{print $1}')
+          echo "Computed Manifest SHA-256: $COMPUTED_SHA256"
+          echo "Expected Manifest SHA-256: $INPUT_MANIFEST_SHA256"
+
+          if [ "$COMPUTED_SHA256" != "$INPUT_MANIFEST_SHA256" ]; then
+            echo "ERROR: Manifest SHA-256 checksum mismatch! Aborting."
+            exit 1
+          fi
+
+          # Safely parse and validate exact SP-8B manifest schema, exporting verified digests to GITHUB_ENV
+          node -e "
+            const fs = require('fs');
+            const m = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+
+            if (m.schemaVersion !== '1.0.0') {
+              console.error('ERROR: Invalid manifest schemaVersion:', m.schemaVersion);
+              process.exit(1);
+            }
+            if (m.repository !== 'ArtradePro/Socialpulse-1') {
+              console.error('ERROR: Manifest repository mismatch:', m.repository);
+              process.exit(1);
+            }
+            if (m.releaseId !== process.env.INPUT_RELEASE_ID) {
+              console.error('ERROR: Manifest releaseId mismatch:', m.releaseId);
+              process.exit(1);
+            }
+            if (m.targetEnvironment !== 'staging') {
+              console.error('ERROR: Manifest targetEnvironment mismatch (expected staging):', m.targetEnvironment);
+              process.exit(1);
+            }
+            if (m.sourceCommit !== process.env.INPUT_COMMIT_SHA) {
+              console.error('ERROR: Manifest sourceCommit mismatch:', m.sourceCommit);
+              process.exit(1);
+            }
+            if (String(m.workflowRunId) !== process.env.INPUT_RELEASE_RUN_ID) {
+              console.error('ERROR: Manifest workflowRunId mismatch:', m.workflowRunId);
+              process.exit(1);
+            }
+            if (!m.backend || m.backend.repository !== 'artradepro/socialpulse-backend') {
+              console.error('ERROR: Manifest backend repository mismatch:', m?.backend?.repository);
+              process.exit(1);
+            }
+            if (m.backend.tag !== 'sha-' + process.env.INPUT_COMMIT_SHA) {
+              console.error('ERROR: Manifest backend tag mismatch:', m?.backend?.tag);
+              process.exit(1);
+            }
+            if (!/^sha256:[0-9a-fA-F]{64}$/.test(m.backend.digest)) {
+              console.error('ERROR: Invalid manifest backend digest:', m?.backend?.digest);
+              process.exit(1);
+            }
+            if (!m.frontend || m.frontend.repository !== 'artradepro/socialpulse-frontend') {
+              console.error('ERROR: Manifest frontend repository mismatch:', m?.frontend?.repository);
+              process.exit(1);
+            }
+            if (m.frontend.tag !== 'sha-' + process.env.INPUT_COMMIT_SHA) {
+              console.error('ERROR: Manifest frontend tag mismatch:', m?.frontend?.tag);
+              process.exit(1);
+            }
+            if (!/^sha256:[0-9a-fA-F]{64}$/.test(m.frontend.digest)) {
+              console.error('ERROR: Invalid manifest frontend digest:', m?.frontend?.digest);
+              process.exit(1);
+            }
+
+            const backendRef = m.backend.repository + '@' + m.backend.digest;
+            const frontendRef = m.frontend.repository + '@' + m.frontend.digest;
+
+            fs.appendFileSync(process.env.GITHUB_ENV, 'DEPLOY_BACKEND_REF=' + backendRef + '\n');
+            fs.appendFileSync(process.env.GITHUB_ENV, 'DEPLOY_FRONTEND_REF=' + frontendRef + '\n');
+            fs.appendFileSync(process.env.GITHUB_ENV, 'DEPLOY_BACKEND_DIGEST=' + m.backend.digest + '\n');
+            fs.appendFileSync(process.env.GITHUB_ENV, 'DEPLOY_FRONTEND_DIGEST=' + m.frontend.digest + '\n');
+            console.log('Manifest identity fields fully verified against SP-8B schema. Image refs derived directly from manifest.');
+          " "$MANIFEST_FILE"
+
+          echo "=== RELEASE MANIFEST CRYPTOGRAPHICALLY BOUND & VERIFIED ==="
+
+      - name: Deploy to Local Staging Host via Docker Compose with Fail-Safe Rollback
+        env:
+          INPUT_RELEASE_ID: ${{ inputs.release_id }}
+          INPUT_AUTHORIZATION_REFERENCE: ${{ inputs.authorization_reference }}
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          set -E
+
+          echo "=== INITIATING CONTROLLED LOCAL STAGING DEPLOYMENT ==="
+          echo "Release ID: $INPUT_RELEASE_ID"
+          echo "Authorization: $INPUT_AUTHORIZATION_REFERENCE"
+          echo "Commit SHA: $INPUT_COMMIT_SHA"
+
+          # 1. Validate manifest-derived runtime environment variables directly
+          if [ -z "${DEPLOY_BACKEND_REF:-}" ] || [ -z "${DEPLOY_FRONTEND_REF:-}" ]; then
+            echo "ERROR: Deployment image references are missing from environment."
+            exit 1
+          fi
+
+          if ! [[ "$DEPLOY_BACKEND_REF" =~ ^artradepro/socialpulse-backend@sha256:[0-9a-fA-F]{64}$ ]] || \
+             ! [[ "$DEPLOY_FRONTEND_REF" =~ ^artradepro/socialpulse-frontend@sha256:[0-9a-fA-F]{64}$ ]]; then
+            echo "ERROR: Deployment image references do not match exact immutable fixed-repository digest format."
+            exit 1
+          fi
+
+          # 2. Pull verified immutable digests locally before initiating mutation boundary
+          echo "Pulling verified immutable digests derived from manifest..."
+          docker pull "$DEPLOY_BACKEND_REF"
+          docker pull "$DEPLOY_FRONTEND_REF"
+
+          # 3. Capture and strictly validate pre-deployment state for rollback
+          echo "Capturing and validating pre-deployment container state..."
+          PREV_BACKEND=$(docker inspect --format='{{.Config.Image}}' socialpulse-backend 2>/dev/null || true)
+          PREV_FRONTEND=$(docker inspect --format='{{.Config.Image}}' socialpulse-frontend 2>/dev/null || true)
+
+          if [ -z "$PREV_BACKEND" ] || [ -z "$PREV_FRONTEND" ]; then
+            echo "ERROR: Previous container state is missing. A first/bootstrap deployment must be separately governed."
+            exit 1
+          fi
+
+          # Require digest-only pinned references matching the exact repository
+          if ! [[ "$PREV_BACKEND" =~ ^artradepro/socialpulse-backend@sha256:[0-9a-fA-F]{64}$ ]]; then
+            echo "ERROR: Previous backend image reference '$PREV_BACKEND' is not an immutable digest reference (expected artradepro/socialpulse-backend@sha256:<64-hex>)."
+            exit 1
+          fi
+
+          if ! [[ "$PREV_FRONTEND" =~ ^artradepro/socialpulse-frontend@sha256:[0-9a-fA-F]{64}$ ]]; then
+            echo "ERROR: Previous frontend image reference '$PREV_FRONTEND' is not an immutable digest reference (expected artradepro/socialpulse-frontend@sha256:<64-hex>)."
+            exit 1
+          fi
+
+          # Verify rollback images exist locally
+          if ! docker image inspect "$PREV_BACKEND" &>/dev/null || ! docker image inspect "$PREV_FRONTEND" &>/dev/null; then
+            echo "ERROR: Previous rollback images are not available in local Docker cache."
+            exit 1
+          fi
+
+          echo "Rollback state verified. Prior backend: $PREV_BACKEND, Prior frontend: $PREV_FRONTEND."
+
+          # Define fail-safe rollback handler for service mutation boundary
+          rollback() {
+            trap '' ERR INT TERM
+            set +e
+            echo "=== INITIATING FAIL-SAFE ROLLBACK ON MUTATION FAILURE ==="
+            export SOCIALPULSE_BACKEND_IMAGE="$PREV_BACKEND"
+            export SOCIALPULSE_FRONTEND_IMAGE="$PREV_FRONTEND"
+
+            echo "Recreating services with prior verified immutable images..."
+            COMPOSE_EXIT=0
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build server client || COMPOSE_EXIT=$?
+
+            echo "Verifying rollback readiness on /health/ready..."
+            ROLLBACK_READY=0
+            for r_attempt in {1..6}; do
+              RESPONSE=$(wget -qO- --timeout=5 http://localhost:5000/health/ready 2>/dev/null || true)
+              if [ -n "$RESPONSE" ]; then
+                if node -e "
+                  try {
+                    const data = JSON.parse(process.argv[1]);
+                    if (data.ready === true) process.exit(0);
+                  } catch(e) {}
+                  process.exit(1);
+                " "$RESPONSE" 2>/dev/null; then
+                  ROLLBACK_READY=1
+                  break
+                fi
+              fi
+              sleep 5
+            done
+
+            if [ "$COMPOSE_EXIT" -eq 0 ] && [ "$ROLLBACK_READY" -eq 1 ]; then
+              echo "Rollback successfully restored previous stable release."
+            else
+              echo "CRITICAL: Rollback failed! Compose exit: $COMPOSE_EXIT, Readiness: $ROLLBACK_READY. Manual host inspection required."
+            fi
+            echo "Deployment release failed. Exiting with failure status."
+            exit 1
+          }
+
+          # === SERVICE MUTATION BOUNDARY BEGINS ===
+          trap rollback ERR INT TERM
+
+          export SOCIALPULSE_BACKEND_IMAGE="$DEPLOY_BACKEND_REF"
+          export SOCIALPULSE_FRONTEND_IMAGE="$DEPLOY_FRONTEND_REF"
+
+          # 4. Rolling update of application services with explicit immutable digests
+          echo "Restarting application containers with verified release..."
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build server client
+
+          # 5. Bounded post-deployment readiness validation with JSON response verification
+          echo "Running bounded post-deployment readiness validation on /health/ready..."
+          READY=0
+          for attempt in {1..6}; do
+            echo "Readiness probe attempt $attempt of 6..."
+            RESPONSE=$(wget -qO- --timeout=5 http://localhost:5000/health/ready 2>/dev/null || true)
+            if [ -n "$RESPONSE" ]; then
+              if node -e "
+                try {
+                  const data = JSON.parse(process.argv[1]);
+                  if (data.ready === true) process.exit(0);
+                } catch(e) {}
+                process.exit(1);
+              " "$RESPONSE" 2>/dev/null; then
+                echo "Readiness probe passed (ready: true)."
+                READY=1
+                break
+              fi
+            fi
             sleep 5
-            wget -qO- http://localhost:5000/health/live || (echo "Health check failed!" && exit 1)
+          done
 
-            echo "=== DEPLOYMENT COMPLETED SUCCESSFULLY ==="
+          if [ "$READY" -ne 1 ]; then
+            echo "ERROR: Application failed readiness validation on /health/ready after 30 seconds."
+            rollback
+          fi
+
+          trap - ERR INT TERM
+          echo "=== STAGING DEPLOYMENT COMPLETED SUCCESSFULLY ==="
+
+      - name: Secure Temporary Artifact Cleanup
+        if: always()
+        run: |
+          echo "=== RUNNING POST-DEPLOYMENT SECURE CLEANUP ==="
+          if [ -n "${MANIFEST_TMP_DIR:-}" ] && [ -d "$MANIFEST_TMP_DIR" ]; then
+            CANONICAL_TEMP_DIR=$(realpath "$MANIFEST_TMP_DIR" 2>/dev/null || true)
+            if [ -n "${RUNNER_TEMP:-}" ] && [ -d "$RUNNER_TEMP" ]; then
+              CANONICAL_ROOT=$(realpath "$RUNNER_TEMP" 2>/dev/null || true)
+              if [[ "$CANONICAL_TEMP_DIR" == "$CANONICAL_ROOT/"* ]] && \
+                 [ "$CANONICAL_TEMP_DIR" != "/" ] && \
+                 [ "$CANONICAL_TEMP_DIR" != "$HOME" ] && \
+                 [ "$CANONICAL_TEMP_DIR" != "/tmp" ] && \
+                 [ "$CANONICAL_TEMP_DIR" != "/opt" ]; then
+                rm -rf "$CANONICAL_TEMP_DIR"
+                echo "Generated temporary manifest directory safely cleaned: $CANONICAL_TEMP_DIR"
+              fi
+            fi
+          fi
 
       - name: Output Deployment Audit Summary
+        env:
+          INPUT_RELEASE_ID: ${{ inputs.release_id }}
+          INPUT_AUTHORIZATION_REFERENCE: ${{ inputs.authorization_reference }}
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+          DEPLOY_BACKEND_DIGEST: ${{ env.DEPLOY_BACKEND_DIGEST }}
+          DEPLOY_FRONTEND_DIGEST: ${{ env.DEPLOY_FRONTEND_DIGEST }}
+          INPUT_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
         run: |
           echo "=== DEPLOYMENT AUDIT SUMMARY ==="
-          echo "Environment: ${{ inputs.environment }}"
-          echo "Release ID: ${{ inputs.release_id }}"
-          echo "Authorization Ref: ${{ inputs.authorization_reference }}"
-          echo "Commit SHA: ${{ inputs.commit_sha }}"
-          echo "Backend Digest: ${{ inputs.backend_digest }}"
-          echo "Frontend Digest: ${{ inputs.frontend_digest }}"
+          echo "Environment: staging"
+          echo "Release ID: $INPUT_RELEASE_ID"
+          echo "Authorization Ref: $INPUT_AUTHORIZATION_REFERENCE"
+          echo "Commit SHA: $INPUT_COMMIT_SHA"
+          echo "Backend Digest: $DEPLOY_BACKEND_DIGEST"
+          echo "Frontend Digest: $DEPLOY_FRONTEND_DIGEST"
+          echo "Manifest SHA-256: $INPUT_MANIFEST_SHA256"
           echo "Deployed At: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           echo "Triggered By: ${{ github.actor }}"
