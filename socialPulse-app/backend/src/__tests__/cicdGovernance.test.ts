@@ -192,8 +192,8 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         });
 
         it('Control 21: Migration preflight precedes execution', () => {
-            const preflightIdx = migrateContent.indexOf('migrationStatus.ts');
-            const migrateIdx = migrateContent.indexOf('migrate.ts');
+            const preflightIdx = migrateContent.indexOf('migrationStatus.js');
+            const migrateIdx = migrateContent.indexOf('migrate.js');
             expect(preflightIdx).toBeGreaterThan(-1);
             expect(migrateIdx).toBeGreaterThan(preflightIdx);
         });
@@ -538,7 +538,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         });
     });
 
-    describe('7. Staging Bootstrap, Migration & Environment-File Governance Controls (SP-8C-5C-R4 Controls 46-75)', () => {
+    describe('7. Staging Bootstrap, Migration & Environment-File Governance Controls (SP-8C-5C-R5 Controls 46-77)', () => {
         const bootstrapInfraPath = join(workflowsDir, 'bootstrap-infra.yml');
         const bootstrapAppPath = join(workflowsDir, 'bootstrap-app.yml');
         const composeStagingPath = join(rootDir, 'docker-compose.staging.yml');
@@ -585,7 +585,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(deployContent).toContain(`docker compose -f docker-compose.yml -f docker-compose.staging.yml ${requiredEnvFlag} up -d --no-build --no-deps server client`);
             expect(bootstrapInfraContent).toContain(`docker compose -f docker-compose.staging-infra.yml ${requiredEnvFlag} up -d postgres redis`);
             expect(bootstrapAppContent).toContain(`docker compose -f docker-compose.yml -f docker-compose.staging.yml ${requiredEnvFlag} up -d --no-build --no-deps server client`);
-            expect(migrateContent).toContain(`docker compose -f docker-compose.staging-infra.yml -f docker-compose.staging-migrate.yml ${requiredEnvFlag} run --rm --no-deps migrate`);
+            expect(migrateContent).toContain(`docker compose -f docker-compose.staging-infra.yml -f docker-compose.staging-migrate.yml ${requiredEnvFlag} run --rm --no-deps migrate node dist/database/migrate.js`);
         });
 
         it('Control 51: Staging configuration preflight verifies /opt/socialpulse/.env exact symbolic ownership (root), group (github-runner), mode (0640), non-symlink and isolation', () => {
@@ -881,6 +881,94 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(migrationStatusSrc).toContain('await pool.end()');
             expect(migrationStatusSrc).toContain('process.exitCode = exitCode');
             expect(migrationStatusSrc).toMatch(/finally\s*\{[\s\S]*?await pool\.end\(\)/);
+        });
+
+        it('Control 72: Infrastructure Compose models mount named persistent volumes (postgres_data & redis_data) and prevent anonymous volumes', () => {
+            const yaml = require('js-yaml');
+            const infraDoc = yaml.load(composeInfraContent);
+            expect(infraDoc.services.postgres.volumes).toEqual(['postgres_data:/var/lib/postgresql/data']);
+            expect(infraDoc.services.redis.volumes).toEqual(['redis_data:/data']);
+            expect(infraDoc.volumes).toHaveProperty('postgres_data');
+            expect(infraDoc.volumes).toHaveProperty('redis_data');
+        });
+
+        it('Control 73: Staging PostgreSQL explicitly configures bootstrap identity (user: postgres, db: socialpulse) and database-level healthcheck', () => {
+            const yaml = require('js-yaml');
+            const OverrideSeq = new yaml.Type('!override', { kind: 'sequence', construct: (data: any) => data });
+            const OverrideMap = new yaml.Type('!override', { kind: 'mapping', construct: (data: any) => data });
+            const OverrideScalar = new yaml.Type('!override', { kind: 'scalar', construct: (data: any) => data });
+            const COMPOSE_SCHEMA = new yaml.Schema({ include: [yaml.DEFAULT_SCHEMA], explicit: [OverrideSeq, OverrideMap, OverrideScalar] });
+
+            const infraDoc = yaml.load(composeInfraContent);
+            expect(infraDoc.services.postgres.environment.POSTGRES_USER).toBe('postgres');
+            expect(infraDoc.services.postgres.environment.POSTGRES_DB).toBe('socialpulse');
+            expect(infraDoc.services.postgres.healthcheck.test).toEqual(['CMD-SHELL', 'pg_isready -U postgres -d socialpulse']);
+
+            const stagingDoc = yaml.load(composeStagingContent, { schema: COMPOSE_SCHEMA }) as any;
+            expect(stagingDoc.services.postgres.environment.POSTGRES_USER).toBe('postgres');
+            expect(stagingDoc.services.postgres.environment.POSTGRES_DB).toBe('socialpulse');
+            expect(stagingDoc.services.postgres.healthcheck.test).toEqual(['CMD-SHELL', 'pg_isready -U postgres -d socialpulse']);
+        });
+
+        it('Control 74: All staging workflows use compiled JavaScript and contain zero ts-node/npx runtime dependency', () => {
+            for (const c of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
+                expect(c).not.toContain('ts-node');
+                expect(c).not.toContain('src/database/scripts');
+                expect(c).not.toContain('src/database/migrate.ts');
+            }
+            expect(bootstrapAppContent).toContain('node dist/database/scripts/migrationStatus.js --strict --mode=incremental --require-current');
+            expect(migrateContent).toContain('node dist/database/scripts/migrationStatus.js --strict --mode="$INPUT_MIGRATION_MODE"');
+            expect(migrateContent).toContain('node dist/database/migrate.js');
+            expect(migrateContent).toContain('node dist/database/scripts/migrationStatus.js --strict --mode=incremental --require-current');
+        });
+
+        it('Control 75: Production backend build output contains both compiled migration entry points', () => {
+            const distMigratePath = join(rootDir, 'socialPulse-app/backend/dist/database/migrate.js');
+            const distStatusPath = join(rootDir, 'socialPulse-app/backend/dist/database/scripts/migrationStatus.js');
+            expect(existsSync(distMigratePath)).toBe(true);
+            expect(existsSync(distStatusPath)).toBe(true);
+        });
+
+        it('Control 76: Strict migration CLI argument parser fails closed on invalid, missing, duplicate, and malformed mode values', () => {
+            const { parseMigrationCliArgs } = require('../database/scripts/migrationStatus');
+
+            // Missing mode in strict mode
+            const strictMissing = parseMigrationCliArgs(['--strict']);
+            expect(strictMissing.errors.length).toBeGreaterThan(0);
+            expect(strictMissing.mode).toBeNull();
+
+            // Invalid mode in strict mode
+            const strictInvalid = parseMigrationCliArgs(['--strict', '--mode=nonsense']);
+            expect(strictInvalid.errors.length).toBeGreaterThan(0);
+            expect(strictInvalid.mode).toBeNull();
+
+            // Duplicate mode values
+            const dupArgs = parseMigrationCliArgs(['--mode=bootstrap', '--mode=incremental']);
+            expect(dupArgs.errors.length).toBeGreaterThan(0);
+            expect(dupArgs.mode).toBeNull();
+
+            // Missing mode value after flag
+            const missingVal = parseMigrationCliArgs(['--strict', '--mode']);
+            expect(missingVal.errors.length).toBeGreaterThan(0);
+            expect(missingVal.mode).toBeNull();
+
+            // Non-strict invalid mode does not silently fallback to incremental
+            const nonStrictInvalid = parseMigrationCliArgs(['--mode=bogus']);
+            expect(nonStrictInvalid.errors.length).toBeGreaterThan(0);
+            expect(nonStrictInvalid.mode).toBeNull();
+
+            // Non-strict default
+            const nonStrictDefault = parseMigrationCliArgs([]);
+            expect(nonStrictDefault.errors).toHaveLength(0);
+            expect(nonStrictDefault.mode).toBe('incremental');
+        });
+
+        it('Control 77: Machine-readable effective Compose verification confirms zero published database ports and named volumes', () => {
+            const yaml = require('js-yaml');
+            const infraDoc = yaml.load(composeInfraContent);
+            expect(infraDoc.services.postgres.ports).toBeUndefined();
+            expect(infraDoc.services.redis.ports).toBeUndefined();
+            expect(infraDoc.name).toBe('socialpulse-staging');
         });
     });
 });

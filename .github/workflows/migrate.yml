@@ -499,13 +499,13 @@ jobs:
           docker pull "$MIGRATE_BACKEND_REF"
 
           echo "=== RUNNING STRICT PRE-MIGRATION STATUS INSPECTION (Mode: $INPUT_MIGRATION_MODE, --no-deps) ==="
-          docker compose -f docker-compose.staging-infra.yml -f docker-compose.staging-migrate.yml --env-file /opt/socialpulse/.env run --rm --no-deps migrate npx ts-node src/database/scripts/migrationStatus.ts --strict --mode="$INPUT_MIGRATION_MODE"
+          docker compose -f docker-compose.staging-infra.yml -f docker-compose.staging-migrate.yml --env-file /opt/socialpulse/.env run --rm --no-deps migrate node dist/database/scripts/migrationStatus.js --strict --mode="$INPUT_MIGRATION_MODE"
 
           echo "=== EXECUTING TRANSACTIONAL MIGRATIONS (--no-deps) ==="
-          docker compose -f docker-compose.staging-infra.yml -f docker-compose.staging-migrate.yml --env-file /opt/socialpulse/.env run --rm --no-deps migrate npx ts-node src/database/migrate.ts
+          docker compose -f docker-compose.staging-infra.yml -f docker-compose.staging-migrate.yml --env-file /opt/socialpulse/.env run --rm --no-deps migrate node dist/database/migrate.js
 
           echo "=== VERIFYING POST-MIGRATION LEDGER STATE (--strict --mode=incremental --require-current, --no-deps) ==="
-          docker compose -f docker-compose.staging-infra.yml -f docker-compose.staging-migrate.yml --env-file /opt/socialpulse/.env run --rm --no-deps migrate npx ts-node src/database/scripts/migrationStatus.ts --strict --mode=incremental --require-current
+          docker compose -f docker-compose.staging-infra.yml -f docker-compose.staging-migrate.yml --env-file /opt/socialpulse/.env run --rm --no-deps migrate node dist/database/scripts/migrationStatus.js --strict --mode=incremental --require-current
 
           echo "=== MIGRATION COMPLETED SUCCESSFULLY ==="
 

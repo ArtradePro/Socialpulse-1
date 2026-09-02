@@ -1,6 +1,11 @@
-import { verifyMigrationCurrent, verifyMigrationModeState, MigrationPreflightReport } from '../database/scripts/migrationStatus';
+import {
+    verifyMigrationCurrent,
+    verifyMigrationModeState,
+    parseMigrationCliArgs,
+    MigrationPreflightReport
+} from '../database/scripts/migrationStatus';
 
-describe('Migration Status Governance & Mode Verification (SP-8C-5C-R4)', () => {
+describe('Migration Status Governance, Mode Verification & Strict CLI Parsing (SP-8C-5C-R5)', () => {
     const baseReport: MigrationPreflightReport = {
         timestamp: new Date().toISOString(),
         ledgerStatus: 'active',
@@ -226,6 +231,79 @@ describe('Migration Status Governance & Mode Verification (SP-8C-5C-R4)', () => 
             const result = verifyMigrationModeState(errReport, 'incremental', false);
             expect(result.isValid).toBe(false);
             expect(result.reasons.some(r => r.includes('QUERY_ERROR: connection refused'))).toBe(true);
+        });
+    });
+
+    describe('4. Fail-Closed Strict CLI Argument Parsing (parseMigrationCliArgs)', () => {
+        it('accepts explicit --mode=bootstrap', () => {
+            const parsed = parseMigrationCliArgs(['--mode=bootstrap']);
+            expect(parsed.errors).toHaveLength(0);
+            expect(parsed.mode).toBe('bootstrap');
+        });
+
+        it('accepts explicit --mode=incremental', () => {
+            const parsed = parseMigrationCliArgs(['--mode=incremental']);
+            expect(parsed.errors).toHaveLength(0);
+            expect(parsed.mode).toBe('incremental');
+        });
+
+        it('accepts space-separated --mode bootstrap and --mode incremental', () => {
+            const p1 = parseMigrationCliArgs(['--mode', 'bootstrap']);
+            expect(p1.errors).toHaveLength(0);
+            expect(p1.mode).toBe('bootstrap');
+
+            const p2 = parseMigrationCliArgs(['--mode', 'incremental']);
+            expect(p2.errors).toHaveLength(0);
+            expect(p2.mode).toBe('incremental');
+        });
+
+        it('provides default incremental mode only for non-strict local/read-only inspection without mode args', () => {
+            const parsed = parseMigrationCliArgs([]);
+            expect(parsed.errors).toHaveLength(0);
+            expect(parsed.mode).toBe('incremental');
+            expect(parsed.isStrict).toBe(false);
+        });
+
+        it('fails closed when --strict is passed without an explicit mode', () => {
+            const parsed = parseMigrationCliArgs(['--strict']);
+            expect(parsed.errors.length).toBeGreaterThan(0);
+            expect(parsed.errors[0]).toContain('Strict migration preflight (--strict) requires an explicit valid mode');
+            expect(parsed.mode).toBeNull();
+        });
+
+        it('fails closed when an invalid mode value is supplied under --strict', () => {
+            const parsed = parseMigrationCliArgs(['--strict', '--mode=unrecognized']);
+            expect(parsed.errors.length).toBeGreaterThan(0);
+            expect(parsed.errors[0]).toContain('Invalid or malformed --mode value: "unrecognized"');
+            expect(parsed.mode).toBeNull();
+        });
+
+        it('fails closed when an invalid mode value is supplied in non-strict mode without silently defaulting to incremental', () => {
+            const parsed = parseMigrationCliArgs(['--mode=something_else']);
+            expect(parsed.errors.length).toBeGreaterThan(0);
+            expect(parsed.errors[0]).toContain('Invalid or malformed --mode value: "something_else"');
+            expect(parsed.mode).toBeNull();
+        });
+
+        it('fails closed when duplicate conflicting --mode arguments are supplied', () => {
+            const parsed = parseMigrationCliArgs(['--mode=bootstrap', '--mode=incremental']);
+            expect(parsed.errors.length).toBeGreaterThan(0);
+            expect(parsed.errors[0]).toContain('Duplicate --mode arguments supplied');
+            expect(parsed.mode).toBeNull();
+        });
+
+        it('fails closed when duplicate identical --mode arguments are supplied', () => {
+            const parsed = parseMigrationCliArgs(['--mode=bootstrap', '--mode=bootstrap']);
+            expect(parsed.errors.length).toBeGreaterThan(0);
+            expect(parsed.errors[0]).toContain('Duplicate --mode arguments supplied');
+            expect(parsed.mode).toBeNull();
+        });
+
+        it('fails closed when --mode flag is missing its value', () => {
+            const parsed = parseMigrationCliArgs(['--strict', '--mode']);
+            expect(parsed.errors.length).toBeGreaterThan(0);
+            expect(parsed.errors[0]).toContain('Invalid or malformed --mode value');
+            expect(parsed.mode).toBeNull();
         });
     });
 });

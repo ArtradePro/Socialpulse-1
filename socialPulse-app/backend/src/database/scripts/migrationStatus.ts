@@ -40,8 +40,66 @@ export interface MigrationPreflightReport {
     safeToApply: boolean;
 }
 
+export interface ParsedCliArgs {
+    mode: 'bootstrap' | 'incremental' | null;
+    isStrict: boolean;
+    requireCurrent: boolean;
+    errors: string[];
+}
+
 export function computeFileChecksum(content: string): string {
     return crypto.createHash('sha256').update(content, 'utf8').digest('hex');
+}
+
+export function parseMigrationCliArgs(argv: string[]): ParsedCliArgs {
+    const isStrict = argv.includes('--strict');
+    const requireCurrent = argv.includes('--require-current');
+    const errors: string[] = [];
+    const modeValues: string[] = [];
+
+    for (let i = 0; i < argv.length; i++) {
+        const arg = argv[i];
+        if (arg.startsWith('--mode=')) {
+            const val = arg.slice(7).trim();
+            modeValues.push(val);
+        } else if (arg === '--mode') {
+            if (i + 1 < argv.length && !argv[i + 1].startsWith('--')) {
+                modeValues.push(argv[i + 1].trim());
+                i++;
+            } else {
+                modeValues.push(''); // Missing argument value after --mode flag
+            }
+        }
+    }
+
+    if (modeValues.length > 1) {
+        errors.push(`Duplicate --mode arguments supplied: ${modeValues.join(', ')}`);
+    }
+
+    let parsedMode: 'bootstrap' | 'incremental' | null = null;
+
+    if (modeValues.length === 1) {
+        const raw = modeValues[0].toLowerCase();
+        if (raw === 'bootstrap' || raw === 'incremental') {
+            parsedMode = raw;
+        } else {
+            errors.push(`Invalid or malformed --mode value: "${modeValues[0]}". Must be "bootstrap" or "incremental".`);
+        }
+    } else if (modeValues.length === 0) {
+        if (isStrict) {
+            errors.push('Strict migration preflight (--strict) requires an explicit valid mode (--mode=bootstrap or --mode=incremental).');
+        } else {
+            // Intentional default for non-strict local/read-only inspection
+            parsedMode = 'incremental';
+        }
+    }
+
+    return {
+        mode: parsedMode,
+        isStrict,
+        requireCurrent,
+        errors
+    };
 }
 
 export async function checkMigrationStatus(customPool?: any): Promise<MigrationPreflightReport> {
@@ -347,37 +405,31 @@ export function verifyMigrationCurrent(report: MigrationPreflightReport): { isCu
 }
 
 if (require.main === module) {
-    const args = process.argv.slice(2);
-    const requireCurrent = args.includes('--require-current');
-    const isStrict = args.includes('--strict');
-    let mode: 'bootstrap' | 'incremental' = 'incremental';
-
-    for (let i = 0; i < args.length; i++) {
-        if (args[i].startsWith('--mode=')) {
-            const val = args[i].split('=')[1].toLowerCase();
-            if (val === 'bootstrap' || val === 'incremental') mode = val as any;
-        } else if (args[i] === '--mode' && args[i + 1]) {
-            const val = args[i + 1].toLowerCase();
-            if (val === 'bootstrap' || val === 'incremental') mode = val as any;
-        }
-    }
+    const parsedArgs = parseMigrationCliArgs(process.argv.slice(2));
 
     let exitCode = 0;
     (async () => {
         try {
+            if (parsedArgs.errors.length > 0) {
+                console.error('\nERROR: Invalid migration CLI argument(s):');
+                parsedArgs.errors.forEach((e) => console.error(`  - ${e}`));
+                exitCode = 1;
+                return;
+            }
+
             const report = await checkMigrationStatus();
             console.log('\n--- READ-ONLY MIGRATION PREFLIGHT REPORT ---');
             console.log(JSON.stringify(report, null, 2));
 
-            const verification = verifyMigrationModeState(report, mode, requireCurrent);
+            const verification = verifyMigrationModeState(report, parsedArgs.mode!, parsedArgs.requireCurrent);
             if (!verification.isValid) {
-                console.error(`\nERROR: Migration preflight failed validation (mode: ${mode}, requireCurrent: ${requireCurrent}):`);
+                console.error(`\nERROR: Migration preflight failed validation (mode: ${parsedArgs.mode}, requireCurrent: ${parsedArgs.requireCurrent}):`);
                 verification.reasons.forEach((r) => console.error(`  - ${r}`));
-                if (isStrict || requireCurrent) {
+                if (parsedArgs.isStrict || parsedArgs.requireCurrent) {
                     exitCode = 1;
                 }
             } else {
-                console.log(`\nSUCCESS: Database migration state validated successfully for mode '${mode}'.`);
+                console.log(`\nSUCCESS: Database migration state validated successfully for mode '${parsedArgs.mode}'.`);
             }
         } catch (err: any) {
             console.error('Preflight check failed with error:', err);

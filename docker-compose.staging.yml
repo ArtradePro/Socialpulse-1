@@ -16,9 +16,11 @@ services:
     restart: unless-stopped
     ports: !override []           # reset/remove host exposure — internal container network only
     environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: socialpulse
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d socialpulse"]
       interval: 10s
       timeout: 5s
       retries: 5

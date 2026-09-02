@@ -504,7 +504,7 @@ jobs:
 
           # 3. Verify database migration status is fully current (--strict --mode=incremental --require-current) before starting application services
           echo "Verifying database migration status before application bootstrap..."
-          docker compose -f docker-compose.staging-infra.yml -f docker-compose.staging-migrate.yml --env-file /opt/socialpulse/.env run --rm --no-deps migrate npx ts-node src/database/scripts/migrationStatus.ts --strict --mode=incremental --require-current
+          docker compose -f docker-compose.staging-infra.yml -f docker-compose.staging-migrate.yml --env-file /opt/socialpulse/.env run --rm --no-deps migrate node dist/database/scripts/migrationStatus.js --strict --mode=incremental --require-current
 
           # Define fail-safe bootstrap cleanup handler (removes failed application containers while preserving database and redis)
           cleanup_failed_bootstrap() {
