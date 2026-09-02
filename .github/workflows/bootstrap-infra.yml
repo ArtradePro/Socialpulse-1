@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: deployment-staging-infra
+  group: socialpulse-staging-mutation
   cancel-in-progress: false
 
 jobs:
@@ -51,11 +51,11 @@ jobs:
 
           echo "Infrastructure bootstrap authorization verified: $INPUT_AUTHORIZATION_REFERENCE"
 
-      - name: Preflight Tool, Version, Configuration, Identity & First-Run State Check
+      - name: Preflight Host Tool, Docker Version, Staging Environment File Identity & First-Run State
         run: |
           set -euo pipefail
           echo "=== PREFLIGHT TOOL AVAILABILITY CHECK ==="
-          for tool in git docker realpath chmod stat grep node; do
+          for tool in git docker realpath chmod stat node; do
             if ! command -v "$tool" &>/dev/null; then
               echo "ERROR: Required tool '$tool' is not available on runner. Aborting."
               exit 1
@@ -138,40 +138,73 @@ jobs:
           fi
           echo "Staging environment configuration file verified (Owner: root, Group: github-runner, Mode: 0640)."
 
-          echo "=== VALIDATING REQUIRED INFRASTRUCTURE VARIABLE NAMES (NON-EMPTY, SAFE) ==="
-          validate_env_var() {
-            local var_name="$1"
-            if ! grep -q -E "^[[:space:]]*${var_name}=[^\r\n]+" "$STAGING_ENV_FILE"; then
-              echo "ERROR: Required environment variable '${var_name}' is missing or empty in $STAGING_ENV_FILE"
-              exit 1
-            fi
-          }
+          echo "=== PARSING & VALIDATING INFRASTRUCTURE ENVIRONMENT (NON-SOURCING, NO SECRET LEAKAGE) ==="
+          node -e "
+            const fs = require('fs');
+            const envFile = process.argv[1];
+            const requiredVars = process.argv[2].split(',').filter(Boolean);
 
-          for var in POSTGRES_PASSWORD REDIS_PASSWORD; do
-            validate_env_var "$var"
-          done
-          echo "Infrastructure variable names verified present with non-empty assignments."
+            const lines = fs.readFileSync(envFile, 'utf8').split(/\r?\n/);
+            const parsed = new Map();
+
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i].trim();
+              if (!line || line.startsWith('#')) continue;
+              const eqIdx = line.indexOf('=');
+              if (eqIdx <= 0) {
+                console.error('ERROR: Malformed environment line ' + (i + 1) + ' in ' + envFile);
+                process.exit(1);
+              }
+              const key = line.slice(0, eqIdx).trim();
+              let val = line.slice(eqIdx + 1).trim();
+
+              if (parsed.has(key)) {
+                console.error('ERROR: Duplicate active environment variable assignment rejected: ' + key);
+                process.exit(1);
+              }
+
+              if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                val = val.slice(1, -1);
+              }
+
+              if (val.trim().length === 0) {
+                console.error('ERROR: Empty or whitespace-only assignment for required variable: ' + key);
+                process.exit(1);
+              }
+
+              parsed.set(key, val);
+            }
+
+            for (const req of requiredVars) {
+              if (!parsed.has(req)) {
+                console.error('ERROR: Required infrastructure environment variable missing: ' + req);
+                process.exit(1);
+              }
+            }
+
+            console.log('Infrastructure environment safely validated (zero secrets leaked).');
+          " "$STAGING_ENV_FILE" "POSTGRES_PASSWORD,REDIS_PASSWORD"
 
           echo "=== VERIFYING FIRST-RUN CLEAN STATE (NO PRE-EXISTING STAGING RESOURCES) ==="
-          # 1. Verify no existing containers
-          if docker inspect socialpulse-1-postgres-1 &>/dev/null || docker inspect postgres &>/dev/null || \
-             docker inspect socialpulse-1-redis-1 &>/dev/null || docker inspect redis &>/dev/null || \
-             docker inspect socialpulse-1-server-1 &>/dev/null || docker inspect socialpulse-backend &>/dev/null || \
-             docker inspect socialpulse-1-client-1 &>/dev/null || docker inspect socialpulse-frontend &>/dev/null; then
-            echo "ERROR: Pre-existing containers detected on host. Infrastructure bootstrap requires a clean first-run host."
+          # 1. Verify no existing project containers
+          if docker inspect socialpulse-staging-postgres-1 &>/dev/null || \
+             docker inspect socialpulse-staging-redis-1 &>/dev/null || \
+             docker inspect socialpulse-staging-server-1 &>/dev/null || \
+             docker inspect socialpulse-staging-client-1 &>/dev/null; then
+            echo "ERROR: Pre-existing containers detected on host for project 'socialpulse-staging'. Infrastructure bootstrap requires a clean first-run host."
             exit 1
           fi
 
-          # 2. Verify no existing volumes
-          if docker volume inspect socialpulse-1_postgres_data &>/dev/null || docker volume inspect postgres_data &>/dev/null || \
-             docker volume inspect socialpulse-1_redis_data &>/dev/null || docker volume inspect redis_data &>/dev/null; then
+          # 2. Verify no existing project volumes
+          if docker volume inspect socialpulse-staging_postgres_data &>/dev/null || \
+             docker volume inspect socialpulse-staging_redis_data &>/dev/null; then
             echo "ERROR: Pre-existing database or redis volumes detected on host. Aborting to prevent data corruption."
             exit 1
           fi
 
-          # 3. Verify no conflicting networks
-          if docker network inspect socialpulse-1_default &>/dev/null; then
-            echo "ERROR: Pre-existing network 'socialpulse-1_default' detected on host."
+          # 3. Verify no conflicting project network
+          if docker network inspect socialpulse-staging_default &>/dev/null; then
+            echo "ERROR: Pre-existing network 'socialpulse-staging_default' detected on host."
             exit 1
           fi
 
@@ -232,7 +265,7 @@ jobs:
           PG_HEALTHY=0
           for attempt in {1..12}; do
             echo "Checking PostgreSQL health (attempt $attempt of 12)..."
-            STATUS=$(docker inspect --format='{{.State.Health.Status}}' socialpulse-1-postgres-1 2>/dev/null || docker inspect --format='{{.State.Health.Status}}' postgres 2>/dev/null || echo "unhealthy")
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' socialpulse-staging-postgres-1 2>/dev/null || echo "unhealthy")
             if [ "$STATUS" = "healthy" ]; then
               PG_HEALTHY=1
               echo "PostgreSQL container is healthy."
@@ -250,7 +283,7 @@ jobs:
           REDIS_HEALTHY=0
           for attempt in {1..12}; do
             echo "Checking Redis health (attempt $attempt of 12)..."
-            STATUS=$(docker inspect --format='{{.State.Health.Status}}' socialpulse-1-redis-1 2>/dev/null || docker inspect --format='{{.State.Health.Status}}' redis 2>/dev/null || echo "unhealthy")
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' socialpulse-staging-redis-1 2>/dev/null || echo "unhealthy")
             if [ "$STATUS" = "healthy" ]; then
               REDIS_HEALTHY=1
               echo "Redis container is healthy."

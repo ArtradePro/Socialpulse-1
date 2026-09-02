@@ -7,9 +7,7 @@
 #   3. Development source bind mounts are stripped via volumes: !override []
 #   4. Infrastructure images are pinned to immutable official OCI digests (non-overrideable by env file)
 #   5. Persistent data is preserved across deployments in named volumes (postgres_data, redis_data)
-# Minimum required Docker Compose version: v2.24.4+ (!override requires Compose 2.24.4 or later)
-
-version: "3.8"
+name: socialpulse-staging
 
 services:
 

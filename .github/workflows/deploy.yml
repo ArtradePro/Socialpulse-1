@@ -37,7 +37,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: deployment-staging
+  group: socialpulse-staging-mutation
   cancel-in-progress: false
 
 jobs:
@@ -97,11 +97,11 @@ jobs:
 
           echo "Validation passed for release '$INPUT_RELEASE_ID' targeting staging."
 
-      - name: Preflight Tool, Version, Configuration & Environment Identity Check
+      - name: Preflight Host Tool, Docker Version & Staging Environment File Identity
         run: |
           set -euo pipefail
           echo "=== PREFLIGHT TOOL AVAILABILITY CHECK ==="
-          for tool in gh node sha256sum git docker wget realpath mktemp chmod stat grep; do
+          for tool in gh node sha256sum git docker wget realpath mktemp chmod stat; do
             if ! command -v "$tool" &>/dev/null; then
               echo "ERROR: Required tool '$tool' is not available on runner. Aborting."
               exit 1
@@ -184,29 +184,61 @@ jobs:
           fi
           echo "Staging environment configuration file verified (Owner: root, Group: github-runner, Mode: 0640)."
 
-          echo "=== VALIDATING REQUIRED ENVIRONMENT VARIABLE NAMES (NON-EMPTY, SAFE) ==="
-          validate_env_var() {
-            local var_name="$1"
-            if ! grep -q -E "^[[:space:]]*${var_name}=[^\r\n]+" "$STAGING_ENV_FILE"; then
-              echo "ERROR: Required environment variable '${var_name}' is missing or empty in $STAGING_ENV_FILE"
-              exit 1
-            fi
-          }
+          echo "=== PARSING & VALIDATING STAGING ENVIRONMENT (NON-SOURCING, NO SECRET LEAKAGE) ==="
+          node -e "
+            const fs = require('fs');
+            const envFile = process.argv[1];
+            const requiredVars = process.argv[2].split(',').filter(Boolean);
+            const requireProduction = process.argv[3] === 'true';
 
-          # Infrastructure-critical variables
-          for var in POSTGRES_PASSWORD REDIS_PASSWORD; do
-            validate_env_var "$var"
-          done
+            const lines = fs.readFileSync(envFile, 'utf8').split(/\r?\n/);
+            const parsed = new Map();
 
-          # Startup-critical variables
-          for var in NODE_ENV JWT_SECRET ACTIVE_ENCRYPTION_KEY_ID ENCRYPTION_KEYS_JSON FRONTEND_URL BACKEND_URL APP_URL; do
-            validate_env_var "$var"
-          done
-          echo "All required staging variable names verified present with non-empty assignments."
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i].trim();
+              if (!line || line.startsWith('#')) continue;
+              const eqIdx = line.indexOf('=');
+              if (eqIdx <= 0) {
+                console.error('ERROR: Malformed environment line ' + (i + 1) + ' in ' + envFile);
+                process.exit(1);
+              }
+              const key = line.slice(0, eqIdx).trim();
+              let val = line.slice(eqIdx + 1).trim();
 
-          echo "=== VALIDATING EFFECTIVE STAGING COMPOSE CONFIGURATION (SUPPRESSED OUTPUT) ==="
-          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file "$STAGING_ENV_FILE" config --quiet
-          echo "Effective Staging Compose configuration is valid."
+              if (parsed.has(key)) {
+                console.error('ERROR: Duplicate active environment variable assignment rejected: ' + key);
+                process.exit(1);
+              }
+
+              if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                val = val.slice(1, -1);
+              }
+
+              if (val.trim().length === 0) {
+                console.error('ERROR: Empty or whitespace-only assignment for required variable: ' + key);
+                process.exit(1);
+              }
+
+              parsed.set(key, val);
+            }
+
+            for (const req of requiredVars) {
+              if (!parsed.has(req)) {
+                console.error('ERROR: Required environment variable missing: ' + req);
+                process.exit(1);
+              }
+            }
+
+            if (requireProduction) {
+              const nodeEnv = parsed.get('NODE_ENV');
+              if (nodeEnv !== 'production') {
+                console.error('ERROR: Staging NODE_ENV must be strictly "production" (got: ' + nodeEnv + ')');
+                process.exit(1);
+              }
+            }
+
+            console.log('Environment configuration safely validated (' + parsed.size + ' variables checked, zero secrets leaked).');
+          " "$STAGING_ENV_FILE" "POSTGRES_PASSWORD,REDIS_PASSWORD,NODE_ENV,JWT_SECRET,ACTIVE_ENCRYPTION_KEY_ID,ENCRYPTION_KEYS_JSON,FRONTEND_URL,BACKEND_URL,APP_URL" "true"
 
       - name: Authenticate Protected-Main Release Workflow Run & Artifact Metadata
         env:
@@ -293,6 +325,12 @@ jobs:
             exit 1
           fi
           echo "Configuration provenance verified at commit $CURRENT_HEAD."
+
+      - name: Validate Effective Staging Compose Configuration (Suppressed Output)
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env config --quiet
+          echo "Effective Staging Compose configuration is valid."
 
       - name: Create Dedicated Secure Temporary Directory & Cryptographically Verify Release Manifest
         env:
@@ -449,20 +487,20 @@ jobs:
           docker pull "$DEPLOY_BACKEND_REF"
           docker pull "$DEPLOY_FRONTEND_REF"
 
-          # 2. Verify infrastructure dependencies are healthy before touching application services
+          # 3. Verify infrastructure dependencies are healthy before touching application services
           echo "Verifying infrastructure dependency containers are healthy..."
-          PG_STATUS=$(docker inspect --format='{{.State.Health.Status}}' socialpulse-1-postgres-1 2>/dev/null || docker inspect --format='{{.State.Health.Status}}' postgres 2>/dev/null || echo "unhealthy")
-          REDIS_STATUS=$(docker inspect --format='{{.State.Health.Status}}' socialpulse-1-redis-1 2>/dev/null || docker inspect --format='{{.State.Health.Status}}' redis 2>/dev/null || echo "unhealthy")
+          PG_STATUS=$(docker inspect --format='{{.State.Health.Status}}' socialpulse-staging-postgres-1 2>/dev/null || echo "unhealthy")
+          REDIS_STATUS=$(docker inspect --format='{{.State.Health.Status}}' socialpulse-staging-redis-1 2>/dev/null || echo "unhealthy")
 
           if [ "$PG_STATUS" != "healthy" ] || [ "$REDIS_STATUS" != "healthy" ]; then
             echo "ERROR: Infrastructure containers must be healthy before application deployment. Postgres: $PG_STATUS, Redis: $REDIS_STATUS."
             exit 1
           fi
 
-          # 3. Capture and strictly validate pre-deployment state for rollback
+          # 4. Capture and strictly validate pre-deployment state for rollback
           echo "Capturing and validating pre-deployment container state..."
-          PREV_BACKEND=$(docker inspect --format='{{.Config.Image}}' socialpulse-backend 2>/dev/null || true)
-          PREV_FRONTEND=$(docker inspect --format='{{.Config.Image}}' socialpulse-frontend 2>/dev/null || true)
+          PREV_BACKEND=$(docker inspect --format='{{.Config.Image}}' socialpulse-staging-server-1 2>/dev/null || true)
+          PREV_FRONTEND=$(docker inspect --format='{{.Config.Image}}' socialpulse-staging-client-1 2>/dev/null || true)
 
           if [ -z "$PREV_BACKEND" ] || [ -z "$PREV_FRONTEND" ]; then
             echo "ERROR: Previous container state is missing. A first/bootstrap deployment must be separately governed."
@@ -534,11 +572,11 @@ jobs:
           export SOCIALPULSE_BACKEND_IMAGE="$DEPLOY_BACKEND_REF"
           export SOCIALPULSE_FRONTEND_IMAGE="$DEPLOY_FRONTEND_REF"
 
-          # 4. Rolling update of application services with explicit immutable digests and --no-deps isolation
+          # 5. Rolling update of application services with explicit immutable digests and --no-deps isolation
           echo "Restarting application containers with verified release (--no-deps)..."
           docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env up -d --no-build --no-deps server client
 
-          # 5. Bounded post-deployment readiness validation with JSON response verification
+          # 6. Bounded post-deployment readiness validation with JSON response verification
           echo "Running bounded post-deployment readiness validation on http://127.0.0.1:5000/health/ready..."
           READY=0
           for attempt in {1..6}; do

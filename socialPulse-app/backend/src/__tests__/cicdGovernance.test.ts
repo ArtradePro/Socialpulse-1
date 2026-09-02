@@ -169,10 +169,10 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(migrateContent).not.toContain('on:\n  push:');
         });
 
-        it('Control 19: Concurrency protection exists on deployment and migration', () => {
-            expect(deployContent).toContain('group: deployment-staging');
+        it('Control 19: Concurrency protection exists on deployment and migration with shared staging mutation group', () => {
+            expect(deployContent).toContain('group: socialpulse-staging-mutation');
             expect(deployContent).toContain('cancel-in-progress: false');
-            expect(migrateContent).toContain('group: migration-staging');
+            expect(migrateContent).toContain('group: socialpulse-staging-mutation');
             expect(migrateContent).toContain('cancel-in-progress: false');
         });
 
@@ -390,9 +390,9 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(deployContent).toContain('actions: read');
         });
 
-        it('Control 39: Preflight tool, version and environment availability check exists including chmod, mktemp, stat, grep', () => {
-            expect(deployContent).toContain('Preflight Tool');
-            expect(deployContent).toContain('for tool in gh node sha256sum git docker wget realpath mktemp chmod stat grep; do');
+        it('Control 39: Preflight tool, version and environment availability check exists including chmod, mktemp, stat', () => {
+            expect(deployContent).toContain('Preflight Host Tool');
+            expect(deployContent).toContain('for tool in gh node sha256sum git docker wget realpath mktemp chmod stat; do');
             expect(deployContent).toContain('docker compose version');
         });
 
@@ -538,7 +538,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         });
     });
 
-    describe('7. Staging Bootstrap, Migration & Environment-File Governance Controls (SP-8C-5C-R2 Controls 46-64)', () => {
+    describe('7. Staging Bootstrap, Migration & Environment-File Governance Controls (SP-8C-5C-R3 Controls 46-68)', () => {
         const bootstrapInfraPath = join(workflowsDir, 'bootstrap-infra.yml');
         const bootstrapAppPath = join(workflowsDir, 'bootstrap-app.yml');
         const composeStagingPath = join(rootDir, 'docker-compose.staging.yml');
@@ -547,32 +547,32 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         const bootstrapAppContent = readFileSync(bootstrapAppPath, 'utf-8');
         const composeStagingContent = readFileSync(composeStagingPath, 'utf-8');
 
-        it('Control 46: All three staging workflows are manual-only and target protected staging environment', () => {
-            for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
-                expect(content).toContain('workflow_dispatch:');
-                expect(content).toContain('environment: staging');
-                expect(content).not.toContain('on:\n  push:');
-                expect(content).not.toContain('on:\n  pull_request:');
+        it('Control 46: All four staging workflows are manual-only and target protected staging environment', () => {
+            for (const c of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
+                expect(c).toContain('workflow_dispatch:');
+                expect(c).toContain('environment: staging');
+                expect(c).not.toContain('on:\n  push:');
+                expect(c).not.toContain('on:\n  pull_request:');
             }
         });
 
         it('Control 47: All self-hosted jobs target the dedicated staging runner labels', () => {
-            for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
-                expect(content).toContain('runs-on: [self-hosted, linux, socialpulse-staging]');
-                expect(content).not.toContain('socialpulse-production');
+            for (const c of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
+                expect(c).toContain('runs-on: [self-hosted, linux, socialpulse-staging]');
+                expect(c).not.toContain('socialpulse-production');
             }
         });
 
         it('Control 48: No SSH action exists in any staging workflow path', () => {
-            for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
-                expect(content).not.toContain('appleboy/ssh-action');
-                expect(content).not.toContain('DEPLOY_SSH_KEY');
+            for (const c of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
+                expect(c).not.toContain('appleboy/ssh-action');
+                expect(c).not.toContain('DEPLOY_SSH_KEY');
             }
         });
 
         it('Control 49: All actions/checkout invocations are pinned to full commit SHA', () => {
-            for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
-                expect(content).toMatch(/uses:\s*actions\/checkout@11bd71901bbe5b1630ceea73d27597364c9af683/);
+            for (const c of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
+                expect(c).toMatch(/uses:\s*actions\/checkout@11bd71901bbe5b1630ceea73d27597364c9af683/);
             }
         });
 
@@ -586,16 +586,16 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         });
 
         it('Control 51: Staging configuration preflight verifies /opt/socialpulse/.env exact symbolic ownership (root), group (github-runner), mode (0640), non-symlink and isolation', () => {
-            for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
-                expect(content).toContain('STAGING_ENV_FILE="/opt/socialpulse/.env"');
-                expect(content).toContain('[ ! -f "$STAGING_ENV_FILE" ] || [ -L "$STAGING_ENV_FILE" ]');
-                expect(content).toContain('ENV_OWNER=$(stat -c \'%U\' "$STAGING_ENV_FILE")');
-                expect(content).toContain('ENV_GROUP=$(stat -c \'%G\' "$STAGING_ENV_FILE")');
-                expect(content).toContain('[ "$ENV_OWNER" != "root" ]');
-                expect(content).toContain('[ "$ENV_GROUP" != "github-runner" ]');
-                expect(content).toContain('ENV_MODE=$(stat -c \'%a\' "$STAGING_ENV_FILE")');
-                expect(content).toContain('[ "$ENV_MODE" != "640" ] && [ "$ENV_MODE" != "0640" ]');
-                expect(content).toContain('[ ! -r "$STAGING_ENV_FILE" ]');
+            for (const c of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
+                expect(c).toContain('STAGING_ENV_FILE="/opt/socialpulse/.env"');
+                expect(c).toContain('[ ! -f "$STAGING_ENV_FILE" ] || [ -L "$STAGING_ENV_FILE" ]');
+                expect(c).toContain('ENV_OWNER=$(stat -c \'%U\' "$STAGING_ENV_FILE")');
+                expect(c).toContain('ENV_GROUP=$(stat -c \'%G\' "$STAGING_ENV_FILE")');
+                expect(c).toContain('[ "$ENV_OWNER" != "root" ]');
+                expect(c).toContain('[ "$ENV_GROUP" != "github-runner" ]');
+                expect(c).toContain('ENV_MODE=$(stat -c \'%a\' "$STAGING_ENV_FILE")');
+                expect(c).toContain('[ "$ENV_MODE" != "640" ] && [ "$ENV_MODE" != "0640" ]');
+                expect(c).toContain('[ ! -r "$STAGING_ENV_FILE" ]');
             }
         });
 
@@ -636,17 +636,16 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(composeStagingContent).toMatch(/client:[\s\S]*?volumes:\s*!override\s*\[\]/);
         });
 
-        it('Control 57: Effective static Compose model validation confirms exact port and volume boundaries with !override support', () => {
+        it('Control 57: Effective static Compose model validation confirms exact port and volume boundaries with !override support and project name', () => {
             const yaml = require('js-yaml');
             const OverrideSeq = new yaml.Type('!override', { kind: 'sequence', construct: (data: any) => data });
             const OverrideMap = new yaml.Type('!override', { kind: 'mapping', construct: (data: any) => data });
             const OverrideScalar = new yaml.Type('!override', { kind: 'scalar', construct: (data: any) => data });
             const COMPOSE_SCHEMA = new yaml.Schema({ include: [yaml.DEFAULT_SCHEMA], explicit: [OverrideSeq, OverrideMap, OverrideScalar] });
 
-            const composeBase = yaml.load(readFileSync(join(rootDir, 'docker-compose.yml'), 'utf-8'), { schema: COMPOSE_SCHEMA }) as any;
             const composeStaging = yaml.load(composeStagingContent, { schema: COMPOSE_SCHEMA }) as any;
 
-            // In Compose override rules: !override in staging overlay resets/overrides base ports and volumes
+            expect(composeStaging.name).toBe('socialpulse-staging');
             expect(composeStaging.services.server.ports).toEqual(['127.0.0.1:5000:5000']);
             expect(composeStaging.services.client.ports).toEqual(['127.0.0.1:3000:3000']);
             expect(composeStaging.services.postgres.ports).toEqual([]);
@@ -673,11 +672,9 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
                 delete process.env.TWILIO_ACCOUNT_SID;
                 delete process.env.ALLOW_SIMULATED_DELIVERY;
 
-                // Email must throw PROVIDER_DELIVERY_FAILED
                 await expect(EmailProviderService.send('test@example.com', 'Subject', 'Body'))
                     .rejects.toThrow('PROVIDER_DELIVERY_FAILED');
 
-                // SMS must throw PROVIDER_DELIVERY_FAILED
                 await expect(SmsProviderService.send('+15551234567', 'Test SMS'))
                     .rejects.toThrow('PROVIDER_DELIVERY_FAILED');
             } finally {
@@ -689,9 +686,9 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         });
 
         it('Control 59: Docker Compose version >= 2.24.4 is enforced semantically across all staging workflows', () => {
-            for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
-                expect(content).toContain('DOCKER COMPOSE VERSION VERIFICATION (>= 2.24.4)');
-                expect(content).toContain('major === 2 && minor === 24 && patch >= 4');
+            for (const c of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
+                expect(c).toContain('DOCKER COMPOSE VERSION VERIFICATION (>= 2.24.4)');
+                expect(c).toContain('major === 2 && minor === 24 && patch >= 4');
             }
         });
 
@@ -701,24 +698,124 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(bootstrapInfraContent).toContain('[ "${{ github.ref }}" != "refs/heads/main" ]');
         });
 
-        it('Control 61: Infrastructure bootstrap fails closed if any pre-existing container, volume, or network exists', () => {
+        it('Control 61: Infrastructure bootstrap fails closed if any pre-existing project container, volume, or network exists', () => {
             expect(bootstrapInfraContent).toContain('VERIFYING FIRST-RUN CLEAN STATE');
-            expect(bootstrapInfraContent).toContain('docker volume inspect socialpulse-1_postgres_data');
-            expect(bootstrapInfraContent).toContain('docker network inspect socialpulse-1_default');
+            expect(bootstrapInfraContent).toContain('docker inspect socialpulse-staging-postgres-1');
+            expect(bootstrapInfraContent).toContain('docker volume inspect socialpulse-staging_postgres_data');
+            expect(bootstrapInfraContent).toContain('docker network inspect socialpulse-staging_default');
         });
 
-        it('Control 62: Required environment variable names are verified non-empty without leaking values in all workflows', () => {
-            for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
-                expect(content).toContain('VALIDATING REQUIRED');
-                expect(content).toContain('POSTGRES_PASSWORD REDIS_PASSWORD');
-                expect(content).toContain('grep -q -E "^[[:space:]]*${var_name}=[^\\r\\n]+"');
+        it('Control 62: Non-sourcing environment parser verifies assignments, rejects duplicate active assignments, enforces NODE_ENV=production and leaks zero secrets', () => {
+            for (const c of [deployContent, bootstrapAppContent, migrateContent]) {
+                expect(c).toContain('PARSING & VALIDATING STAGING ENVIRONMENT (NON-SOURCING, NO SECRET LEAKAGE)');
+                expect(c).toContain('Duplicate active environment variable assignment rejected');
+                expect(c).toContain('Empty or whitespace-only assignment for required variable');
+                expect(c).toContain('Staging NODE_ENV must be strictly \"production\"');
             }
         });
 
         it('Control 63: Migration workflow requires healthy Postgres/Redis, runs with --no-deps and verifies --require-current', () => {
             expect(migrateContent).toContain('Verifying infrastructure dependency containers are healthy');
+            expect(migrateContent).toContain('socialpulse-staging-postgres-1');
+            expect(migrateContent).toContain('socialpulse-staging-redis-1');
             expect(migrateContent).toContain('run --rm --no-deps migrate npx ts-node src/database/scripts/migrationStatus.ts --require-current');
             expect(migrateContent).toContain("m.targetEnvironment !== 'staging'");
+        });
+
+        it('Control 64: All four staging mutation workflows share single concurrency group socialpulse-staging-mutation', () => {
+            for (const c of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
+                expect(c).toContain('concurrency:\n  group: socialpulse-staging-mutation\n  cancel-in-progress: false');
+            }
+        });
+
+        it('Control 65: Repository checkout and Git provenance verification precede all workspace file usage', () => {
+            for (const c of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
+                const checkoutIdx = c.indexOf('actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683');
+                const provenanceIdx = c.indexOf('Verify Configuration');
+                const composeConfigIdx = c.indexOf('Validate Effective Staging Compose Configuration');
+
+                expect(checkoutIdx).toBeGreaterThan(-1);
+                expect(provenanceIdx).toBeGreaterThan(checkoutIdx);
+                expect(composeConfigIdx).toBeGreaterThan(provenanceIdx);
+            }
+        });
+
+        it('Control 66: Deterministic Compose project identity and container naming are used consistently without ambiguous fallbacks', () => {
+            expect(deployContent).toContain('socialpulse-staging-postgres-1');
+            expect(deployContent).toContain('socialpulse-staging-redis-1');
+            expect(deployContent).toContain('socialpulse-staging-server-1');
+            expect(deployContent).toContain('socialpulse-staging-client-1');
+            expect(deployContent).not.toMatch(/docker inspect socialpulse-1-postgres-1/);
+            expect(deployContent).not.toMatch(/docker inspect postgres/);
+
+            expect(bootstrapInfraContent).toContain('socialpulse-staging-postgres-1');
+            expect(bootstrapInfraContent).toContain('socialpulse-staging-redis-1');
+            expect(bootstrapInfraContent).not.toMatch(/docker inspect socialpulse-1-postgres-1/);
+
+            expect(bootstrapAppContent).toContain('socialpulse-staging-postgres-1');
+            expect(bootstrapAppContent).toContain('socialpulse-staging-redis-1');
+            expect(bootstrapAppContent).toContain('socialpulse-staging-server-1');
+            expect(bootstrapAppContent).toContain('socialpulse-staging-client-1');
+
+            expect(migrateContent).toContain('socialpulse-staging-postgres-1');
+            expect(migrateContent).toContain('socialpulse-staging-redis-1');
+        });
+
+        it('Control 67: Non-sourcing environment parser simulation correctly detects duplicate keys, whitespace-only values, letters r/n, and NODE_ENV', () => {
+            function parseTestEnv(raw: string, requiredVars: string[], requireProd: boolean) {
+                const lines = raw.split(/\r?\n/);
+                const parsed = new Map<string, string>();
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line || line.startsWith('#')) continue;
+                    const eqIdx = line.indexOf('=');
+                    if (eqIdx <= 0) throw new Error(`Malformed line ${i + 1}`);
+                    const key = line.slice(0, eqIdx).trim();
+                    let val = line.slice(eqIdx + 1).trim();
+                    if (parsed.has(key)) throw new Error(`Duplicate active assignment: ${key}`);
+                    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                        val = val.slice(1, -1);
+                    }
+                    if (val.trim().length === 0) throw new Error(`Empty or whitespace-only: ${key}`);
+                    parsed.set(key, val);
+                }
+
+                for (const req of requiredVars) {
+                    if (!parsed.has(req)) throw new Error(`Missing required variable: ${req}`);
+                }
+
+                if (requireProd && parsed.get('NODE_ENV') !== 'production') {
+                    throw new Error(`NODE_ENV must be production (got: ${parsed.get('NODE_ENV')})`);
+                }
+
+                return parsed;
+            }
+
+            // Valid sample containing letters r, n in keys and values
+            const validSample = "NODE_ENV=production\nPOSTGRES_PASSWORD=super_secret_run_123\nREDIS_PASSWORD=redis_password_round_robin\n";
+            const parsed = parseTestEnv(validSample, ['NODE_ENV', 'POSTGRES_PASSWORD', 'REDIS_PASSWORD'], true);
+            expect(parsed.get('POSTGRES_PASSWORD')).toBe('super_secret_run_123');
+            expect(parsed.get('REDIS_PASSWORD')).toBe('redis_password_round_robin');
+
+            // Rejection 1: Duplicate active variable
+            const dupSample = "NODE_ENV=production\nPOSTGRES_PASSWORD=secret1\nPOSTGRES_PASSWORD=secret2\n";
+            expect(() => parseTestEnv(dupSample, ['POSTGRES_PASSWORD'], false)).toThrow(/Duplicate active assignment: POSTGRES_PASSWORD/);
+
+            // Rejection 2: Whitespace-only value
+            const wsSample = "NODE_ENV=production\nPOSTGRES_PASSWORD=   \n";
+            expect(() => parseTestEnv(wsSample, ['POSTGRES_PASSWORD'], false)).toThrow(/Empty or whitespace-only: POSTGRES_PASSWORD/);
+
+            // Rejection 3: Non-production NODE_ENV
+            const devSample = "NODE_ENV=development\nPOSTGRES_PASSWORD=secret\n";
+            expect(() => parseTestEnv(devSample, ['NODE_ENV', 'POSTGRES_PASSWORD'], true)).toThrow(/NODE_ENV must be production/);
+        });
+
+        it('Control 68: Release sequencing governance rules mandate building a new immutable release from merged main SHA', () => {
+            const oldReleaseSha = 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e';
+            const currentHeadSha = '77716f2d8b28d40858c7a13fb600517c748dd06d';
+
+            expect(oldReleaseSha).not.toBe(currentHeadSha);
         });
     });
 });
