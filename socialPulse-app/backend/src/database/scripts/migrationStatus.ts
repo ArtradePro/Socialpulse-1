@@ -247,11 +247,65 @@ export async function checkMigrationStatus(customPool?: any): Promise<MigrationP
     };
 }
 
+export function verifyMigrationCurrent(report: MigrationPreflightReport): { isCurrent: boolean; reasons: string[] } {
+    const reasons: string[] = [];
+
+    if (report.ledgerStatus !== 'active') {
+        reasons.push('Migration ledger is absent (schema_migrations table missing)');
+    }
+
+    if (report.blockers && report.blockers.length > 0) {
+        reasons.push(...report.blockers);
+    }
+
+    const pending = report.migrations.filter((m) => m.status === 'pending');
+    if (pending.length > 0) {
+        reasons.push(`Database has ${pending.length} pending migration(s): ${pending.map((p) => p.filename).join(', ')}`);
+    }
+
+    const drift = report.migrations.filter((m) => m.status === 'drift_detected');
+    if (drift.length > 0) {
+        reasons.push(`Database has ${drift.length} drift detected migration(s): ${drift.map((d) => d.filename).join(', ')}`);
+    }
+
+    const unknown = report.migrations.filter((m) => m.status === 'unknown_in_db');
+    if (unknown.length > 0) {
+        reasons.push(`Database ledger has ${unknown.length} unknown migration(s): ${unknown.map((u) => u.filename).join(', ')}`);
+    }
+
+    if (report.totalDiscovered === 0) {
+        reasons.push('No migration files discovered in migrations directory');
+    }
+
+    const applied = report.migrations.filter((m) => m.status === 'applied');
+    if (applied.length !== report.totalDiscovered) {
+        reasons.push(`Applied migrations count (${applied.length}) does not match total discovered (${report.totalDiscovered})`);
+    }
+
+    return {
+        isCurrent: reasons.length === 0,
+        reasons
+    };
+}
+
 if (require.main === module) {
+    const requireCurrent = process.argv.includes('--require-current');
     checkMigrationStatus()
         .then((report) => {
             console.log('\n--- READ-ONLY MIGRATION PREFLIGHT REPORT ---');
             console.log(JSON.stringify(report, null, 2));
+
+            if (requireCurrent) {
+                const verification = verifyMigrationCurrent(report);
+                if (!verification.isCurrent) {
+                    console.error('\nERROR: Migration status is NOT current (failed --require-current check):');
+                    verification.reasons.forEach((r) => console.error(`  - ${r}`));
+                    pool.end();
+                    process.exit(1);
+                }
+                console.log('\nSUCCESS: Database migration state is fully current and verified.');
+            }
+
             pool.end();
             process.exit(0);
         })

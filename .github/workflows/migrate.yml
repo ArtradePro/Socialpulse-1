@@ -122,45 +122,76 @@ jobs:
 
           echo "Authorization verified for release '$INPUT_RELEASE_ID' on environment '$INPUT_ENVIRONMENT'."
 
-      - name: Preflight Tool & Environment Availability Check
+      - name: Preflight Tool, Version, Configuration & Environment Identity Check
         run: |
           set -euo pipefail
           echo "=== PREFLIGHT TOOL AVAILABILITY CHECK ==="
-          for tool in gh node sha256sum git docker realpath mktemp chmod; do
+          for tool in gh node sha256sum git docker realpath mktemp chmod stat grep; do
             if ! command -v "$tool" &>/dev/null; then
               echo "ERROR: Required tool '$tool' is not available on runner. Aborting."
               exit 1
             fi
           done
-          if ! docker compose version &>/dev/null; then
-            echo "ERROR: Docker Compose is not available on runner. Aborting."
+
+          echo "=== DOCKER COMPOSE VERSION VERIFICATION (>= 2.24.4) ==="
+          COMPOSE_VER_RAW=$(docker compose version --short 2>/dev/null || docker compose version 2>/dev/null || true)
+          node -e "
+            const raw = process.argv[1] || '';
+            const match = raw.match(/([0-9]+)\.([0-9]+)\.([0-9]+)/);
+            if (!match) {
+              console.error('ERROR: Unable to determine machine-readable Docker Compose version:', raw);
+              process.exit(1);
+            }
+            const [_, major, minor, patch] = match.map(Number);
+            const isAtLeast = (major > 2) ||
+                              (major === 2 && minor > 24) ||
+                              (major === 2 && minor === 24 && patch >= 4);
+            if (!isAtLeast) {
+              console.error('ERROR: Docker Compose version 2.24.4 or later is strictly required for !override semantics (found: ' + raw + ').');
+              process.exit(1);
+            }
+            console.log('Docker Compose version verified: ' + raw + ' (>= 2.24.4)');
+          " "$COMPOSE_VER_RAW"
+
+          echo "=== STAGING ENVIRONMENT CONFIGURATION & DIRECTORY PREFLIGHT ==="
+          STAGING_DIR="/opt/socialpulse"
+          STAGING_ENV_FILE="/opt/socialpulse/.env"
+
+          if [ ! -d "$STAGING_DIR" ] || [ -L "$STAGING_DIR" ]; then
+            echo "ERROR: Staging directory '$STAGING_DIR' must exist as a regular non-symlink directory."
             exit 1
           fi
-          echo "=== STAGING ENVIRONMENT CONFIGURATION PREFLIGHT ==="
-          STAGING_ENV_FILE="/opt/socialpulse/.env"
+
           if [ ! -f "$STAGING_ENV_FILE" ] || [ -L "$STAGING_ENV_FILE" ]; then
             echo "ERROR: Staging environment file '$STAGING_ENV_FILE' must exist as a regular non-symlink file."
             exit 1
           fi
 
           # 1. Canonical path isolation check
+          CANONICAL_DIR=$(realpath "$STAGING_DIR")
           CANONICAL_ENV_FILE=$(realpath "$STAGING_ENV_FILE")
-          if [ -n "${GITHUB_WORKSPACE:-}" ] && [[ "$CANONICAL_ENV_FILE" == "${GITHUB_WORKSPACE}"* ]]; then
-            echo "ERROR: Staging environment file cannot reside inside checkout workspace."
+
+          if [ -n "${GITHUB_WORKSPACE:-}" ] && ([[ "$CANONICAL_ENV_FILE" == "${GITHUB_WORKSPACE}"* ]] || [[ "$CANONICAL_DIR" == "${GITHUB_WORKSPACE}"* ]]); then
+            echo "ERROR: Staging environment file or directory cannot reside inside checkout workspace."
             exit 1
           fi
 
-          # 2. Strict owner verification (must be root / uid 0)
-          ENV_OWNER=$(stat -c '%U' "$STAGING_ENV_FILE" 2>/dev/null || stat -c '%u' "$STAGING_ENV_FILE")
-          if [ "$ENV_OWNER" != "root" ] && [ "$ENV_OWNER" != "0" ]; then
-            echo "ERROR: Staging environment file owner must be 'root' (got: $ENV_OWNER)."
+          if [ -n "${RUNNER_TEMP:-}" ] && ([[ "$CANONICAL_ENV_FILE" == "${RUNNER_TEMP}"* ]] || [[ "$CANONICAL_DIR" == "${RUNNER_TEMP}"* ]]); then
+            echo "ERROR: Staging environment file or directory cannot reside inside runner temporary directory."
             exit 1
           fi
 
-          # 3. Strict group verification (must be github-runner / gid 1001)
-          ENV_GROUP=$(stat -c '%G' "$STAGING_ENV_FILE" 2>/dev/null || stat -c '%g' "$STAGING_ENV_FILE")
-          if [ "$ENV_GROUP" != "github-runner" ] && [ "$ENV_GROUP" != "1001" ]; then
-            echo "ERROR: Staging environment file group must be 'github-runner' (got: $ENV_GROUP)."
+          # 2. Strict symbolic owner verification (must be exact string root)
+          ENV_OWNER=$(stat -c '%U' "$STAGING_ENV_FILE")
+          if [ "$ENV_OWNER" != "root" ]; then
+            echo "ERROR: Staging environment file owner must be exact symbolic 'root' (got: $ENV_OWNER)."
+            exit 1
+          fi
+
+          # 3. Strict symbolic group verification (must be exact string github-runner)
+          ENV_GROUP=$(stat -c '%G' "$STAGING_ENV_FILE")
+          if [ "$ENV_GROUP" != "github-runner" ]; then
+            echo "ERROR: Staging environment file group must be exact symbolic 'github-runner' (got: $ENV_GROUP)."
             exit 1
           fi
 
@@ -177,8 +208,28 @@ jobs:
             exit 1
           fi
           echo "Staging environment configuration file verified (Owner: root, Group: github-runner, Mode: 0640)."
-          echo "Staging environment configuration verified."
-          echo "All required migration tools are available."
+
+          echo "=== VALIDATING REQUIRED ENVIRONMENT VARIABLE NAMES (NON-EMPTY, SAFE) ==="
+          validate_env_var() {
+            local var_name="$1"
+            if ! grep -q -E "^[[:space:]]*${var_name}=[^\r\n]+" "$STAGING_ENV_FILE"; then
+              echo "ERROR: Required environment variable '${var_name}' is missing or empty in $STAGING_ENV_FILE"
+              exit 1
+            fi
+          }
+
+          for var in POSTGRES_PASSWORD REDIS_PASSWORD; do
+            validate_env_var "$var"
+          done
+
+          for var in NODE_ENV JWT_SECRET ACTIVE_ENCRYPTION_KEY_ID ENCRYPTION_KEYS_JSON FRONTEND_URL BACKEND_URL APP_URL; do
+            validate_env_var "$var"
+          done
+          echo "All required staging variable names verified present with non-empty assignments."
+
+          echo "=== VALIDATING EFFECTIVE STAGING COMPOSE CONFIGURATION (SUPPRESSED OUTPUT) ==="
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file "$STAGING_ENV_FILE" config --quiet
+          echo "Effective Staging Compose configuration is valid."
 
       - name: Authenticate Protected-Main Release Workflow Run & Artifact Metadata
         env:
@@ -321,6 +372,10 @@ jobs:
               console.error('ERROR: Manifest releaseId mismatch:', m.releaseId);
               process.exit(1);
             }
+            if (m.targetEnvironment !== 'staging') {
+              console.error('ERROR: Manifest targetEnvironment mismatch (expected staging):', m.targetEnvironment);
+              process.exit(1);
+            }
             if (m.sourceCommit !== process.env.INPUT_COMMIT_SHA) {
               console.error('ERROR: Manifest sourceCommit mismatch:', m.sourceCommit);
               process.exit(1);
@@ -356,19 +411,29 @@ jobs:
             exit 1
           fi
 
+          # 1. Verify infrastructure dependency containers exist and are healthy before running migration container
+          echo "Verifying infrastructure dependency containers are healthy..."
+          PG_STATUS=$(docker inspect --format='{{.State.Health.Status}}' socialpulse-1-postgres-1 2>/dev/null || docker inspect --format='{{.State.Health.Status}}' postgres 2>/dev/null || echo "unhealthy")
+          REDIS_STATUS=$(docker inspect --format='{{.State.Health.Status}}' socialpulse-1-redis-1 2>/dev/null || docker inspect --format='{{.State.Health.Status}}' redis 2>/dev/null || echo "unhealthy")
+
+          if [ "$PG_STATUS" != "healthy" ] || [ "$REDIS_STATUS" != "healthy" ]; then
+            echo "ERROR: Infrastructure containers (Postgres/Redis) must be healthy before migration execution. Postgres: $PG_STATUS, Redis: $REDIS_STATUS."
+            exit 1
+          fi
+
           echo "Pulling verified migration backend image..."
           docker pull "$MIGRATE_BACKEND_REF"
 
           export SOCIALPULSE_BACKEND_IMAGE="$MIGRATE_BACKEND_REF"
 
-          echo "=== RUNNING PRE-MIGRATION STATUS INSPECTION ==="
-          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env run --rm migrate npx ts-node src/database/scripts/migrationStatus.ts
+          echo "=== RUNNING PRE-MIGRATION STATUS INSPECTION (--no-deps) ==="
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env run --rm --no-deps migrate npx ts-node src/database/scripts/migrationStatus.ts
 
-          echo "=== EXECUTING TRANSACTIONAL MIGRATIONS ==="
-          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env run --rm migrate npx ts-node src/database/migrate.ts
+          echo "=== EXECUTING TRANSACTIONAL MIGRATIONS (--no-deps) ==="
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env run --rm --no-deps migrate npx ts-node src/database/migrate.ts
 
-          echo "=== VERIFYING POST-MIGRATION LEDGER STATE ==="
-          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env run --rm migrate npx ts-node src/database/scripts/migrationStatus.ts
+          echo "=== VERIFYING POST-MIGRATION LEDGER STATE (--require-current, --no-deps) ==="
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env run --rm --no-deps migrate npx ts-node src/database/scripts/migrationStatus.ts --require-current
 
           echo "=== MIGRATION COMPLETED SUCCESSFULLY ==="
 

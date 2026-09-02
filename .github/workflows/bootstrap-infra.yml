@@ -7,11 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       authorization_reference:
-        description: "Executive written authorization identifier (e.g. AUTH-VERNON-20260902-INFRA)"
+        description: 'Executive written authorization identifier (e.g. AUTH-VERNON-20260902-INFRA)'
         required: true
         type: string
       confirm_bootstrap:
-        description: "I confirm authorization to bootstrap staging PostgreSQL and Redis containers"
+        description: 'I confirm authorization to bootstrap staging PostgreSQL and Redis containers'
         required: true
         type: boolean
         default: false
@@ -28,6 +28,7 @@ jobs:
     name: Bootstrap Staging Infrastructure (postgres & redis)
     runs-on: [self-hosted, linux, socialpulse-staging]
     environment: staging
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Validate Inputs & Authorization Guards
@@ -50,47 +51,76 @@ jobs:
 
           echo "Infrastructure bootstrap authorization verified: $INPUT_AUTHORIZATION_REFERENCE"
 
-      - name: Preflight Tools & Host Environment Isolation Check
+      - name: Preflight Tool, Version, Configuration, Identity & First-Run State Check
         run: |
           set -euo pipefail
-          echo "=== PREFLIGHT TOOL & ENVIRONMENT ISOLATION CHECK ==="
-
-          for tool in git docker realpath chmod; do
+          echo "=== PREFLIGHT TOOL AVAILABILITY CHECK ==="
+          for tool in git docker realpath chmod stat grep node; do
             if ! command -v "$tool" &>/dev/null; then
               echo "ERROR: Required tool '$tool' is not available on runner. Aborting."
               exit 1
             fi
           done
 
-          if ! docker compose version &>/dev/null; then
-            echo "ERROR: Docker Compose is not available on runner. Aborting."
+          echo "=== DOCKER COMPOSE VERSION VERIFICATION (>= 2.24.4) ==="
+          COMPOSE_VER_RAW=$(docker compose version --short 2>/dev/null || docker compose version 2>/dev/null || true)
+          node -e "
+            const raw = process.argv[1] || '';
+            const match = raw.match(/([0-9]+)\.([0-9]+)\.([0-9]+)/);
+            if (!match) {
+              console.error('ERROR: Unable to determine machine-readable Docker Compose version:', raw);
+              process.exit(1);
+            }
+            const [_, major, minor, patch] = match.map(Number);
+            const isAtLeast = (major > 2) ||
+                              (major === 2 && minor > 24) ||
+                              (major === 2 && minor === 24 && patch >= 4);
+            if (!isAtLeast) {
+              console.error('ERROR: Docker Compose version 2.24.4 or later is strictly required for !override semantics (found: ' + raw + ').');
+              process.exit(1);
+            }
+            console.log('Docker Compose version verified: ' + raw + ' (>= 2.24.4)');
+          " "$COMPOSE_VER_RAW"
+
+          echo "=== STAGING ENVIRONMENT CONFIGURATION & DIRECTORY PREFLIGHT ==="
+          STAGING_DIR="/opt/socialpulse"
+          STAGING_ENV_FILE="/opt/socialpulse/.env"
+
+          if [ ! -d "$STAGING_DIR" ] || [ -L "$STAGING_DIR" ]; then
+            echo "ERROR: Staging directory '$STAGING_DIR' must exist as a regular non-symlink directory."
             exit 1
           fi
-          echo "=== STAGING ENVIRONMENT CONFIGURATION PREFLIGHT ==="
-          STAGING_ENV_FILE="/opt/socialpulse/.env"
+
           if [ ! -f "$STAGING_ENV_FILE" ] || [ -L "$STAGING_ENV_FILE" ]; then
             echo "ERROR: Staging environment file '$STAGING_ENV_FILE' must exist as a regular non-symlink file."
             exit 1
           fi
 
           # 1. Canonical path isolation check
+          CANONICAL_DIR=$(realpath "$STAGING_DIR")
           CANONICAL_ENV_FILE=$(realpath "$STAGING_ENV_FILE")
-          if [ -n "${GITHUB_WORKSPACE:-}" ] && [[ "$CANONICAL_ENV_FILE" == "${GITHUB_WORKSPACE}"* ]]; then
-            echo "ERROR: Staging environment file cannot reside inside checkout workspace."
+
+          if [ -n "${GITHUB_WORKSPACE:-}" ] && ([[ "$CANONICAL_ENV_FILE" == "${GITHUB_WORKSPACE}"* ]] || [[ "$CANONICAL_DIR" == "${GITHUB_WORKSPACE}"* ]]); then
+            echo "ERROR: Staging environment file or directory cannot reside inside checkout workspace."
             exit 1
           fi
 
-          # 2. Strict owner verification (must be root / uid 0)
-          ENV_OWNER=$(stat -c '%U' "$STAGING_ENV_FILE" 2>/dev/null || stat -c '%u' "$STAGING_ENV_FILE")
-          if [ "$ENV_OWNER" != "root" ] && [ "$ENV_OWNER" != "0" ]; then
-            echo "ERROR: Staging environment file owner must be 'root' (got: $ENV_OWNER)."
+          if [ -n "${RUNNER_TEMP:-}" ] && ([[ "$CANONICAL_ENV_FILE" == "${RUNNER_TEMP}"* ]] || [[ "$CANONICAL_DIR" == "${RUNNER_TEMP}"* ]]); then
+            echo "ERROR: Staging environment file or directory cannot reside inside runner temporary directory."
             exit 1
           fi
 
-          # 3. Strict group verification (must be github-runner / gid 1001)
-          ENV_GROUP=$(stat -c '%G' "$STAGING_ENV_FILE" 2>/dev/null || stat -c '%g' "$STAGING_ENV_FILE")
-          if [ "$ENV_GROUP" != "github-runner" ] && [ "$ENV_GROUP" != "1001" ]; then
-            echo "ERROR: Staging environment file group must be 'github-runner' (got: $ENV_GROUP)."
+          # 2. Strict symbolic owner verification (must be exact string root)
+          ENV_OWNER=$(stat -c '%U' "$STAGING_ENV_FILE")
+          if [ "$ENV_OWNER" != "root" ]; then
+            echo "ERROR: Staging environment file owner must be exact symbolic 'root' (got: $ENV_OWNER)."
+            exit 1
+          fi
+
+          # 3. Strict symbolic group verification (must be exact string github-runner)
+          ENV_GROUP=$(stat -c '%G' "$STAGING_ENV_FILE")
+          if [ "$ENV_GROUP" != "github-runner" ]; then
+            echo "ERROR: Staging environment file group must be exact symbolic 'github-runner' (got: $ENV_GROUP)."
             exit 1
           fi
 
@@ -108,25 +138,83 @@ jobs:
           fi
           echo "Staging environment configuration file verified (Owner: root, Group: github-runner, Mode: 0640)."
 
-          echo "=== VERIFYING NO APPLICATION CONTAINERS ARE UNEXPECTEDLY RUNNING ==="
-          EXISTING_BACKEND=$(docker inspect --format='{{.Config.Image}}' socialpulse-backend 2>/dev/null || true)
-          EXISTING_FRONTEND=$(docker inspect --format='{{.Config.Image}}' socialpulse-frontend 2>/dev/null || true)
+          echo "=== VALIDATING REQUIRED INFRASTRUCTURE VARIABLE NAMES (NON-EMPTY, SAFE) ==="
+          validate_env_var() {
+            local var_name="$1"
+            if ! grep -q -E "^[[:space:]]*${var_name}=[^\r\n]+" "$STAGING_ENV_FILE"; then
+              echo "ERROR: Required environment variable '${var_name}' is missing or empty in $STAGING_ENV_FILE"
+              exit 1
+            fi
+          }
 
-          if [ -n "$EXISTING_BACKEND" ] || [ -n "$EXISTING_FRONTEND" ]; then
-            echo "ERROR: Application containers (backend/frontend) are already present on host. Use standard deploy workflow."
+          for var in POSTGRES_PASSWORD REDIS_PASSWORD; do
+            validate_env_var "$var"
+          done
+          echo "Infrastructure variable names verified present with non-empty assignments."
+
+          echo "=== VERIFYING FIRST-RUN CLEAN STATE (NO PRE-EXISTING STAGING RESOURCES) ==="
+          # 1. Verify no existing containers
+          if docker inspect socialpulse-1-postgres-1 &>/dev/null || docker inspect postgres &>/dev/null || \
+             docker inspect socialpulse-1-redis-1 &>/dev/null || docker inspect redis &>/dev/null || \
+             docker inspect socialpulse-1-server-1 &>/dev/null || docker inspect socialpulse-backend &>/dev/null || \
+             docker inspect socialpulse-1-client-1 &>/dev/null || docker inspect socialpulse-frontend &>/dev/null; then
+            echo "ERROR: Pre-existing containers detected on host. Infrastructure bootstrap requires a clean first-run host."
             exit 1
           fi
 
-          echo "Preflight completed successfully. Host is in clean bootstrap state."
+          # 2. Verify no existing volumes
+          if docker volume inspect socialpulse-1_postgres_data &>/dev/null || docker volume inspect postgres_data &>/dev/null || \
+             docker volume inspect socialpulse-1_redis_data &>/dev/null || docker volume inspect redis_data &>/dev/null; then
+            echo "ERROR: Pre-existing database or redis volumes detected on host. Aborting to prevent data corruption."
+            exit 1
+          fi
 
-      - name: Checkout Authorized Release Configuration Provenance
-        # Pinned immutably to official commit SHA for actions/checkout v4.2.2
+          # 3. Verify no conflicting networks
+          if docker network inspect socialpulse-1_default &>/dev/null; then
+            echo "ERROR: Pre-existing network 'socialpulse-1_default' detected on host."
+            exit 1
+          fi
+
+          echo "First-run clean state verified. Host is ready for infrastructure bootstrap."
+
+      - name: Authenticate Protected-Main Release Provenance
+        run: |
+          set -euo pipefail
+          echo "=== AUTHENTICATING PROTECTED MAIN REPOSITORY PROVENANCE ==="
+          if [ "${{ github.repository }}" != "ArtradePro/Socialpulse-1" ]; then
+            echo "ERROR: Unauthorized repository: ${{ github.repository }}"
+            exit 1
+          fi
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "ERROR: Infrastructure bootstrap must run strictly from protected main branch."
+            exit 1
+          fi
+          echo "Protected main provenance authenticated."
+
+      - name: Checkout Protected Main Release Configuration
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
           clean: true
 
-      - name: Pull Immutable Verified Infrastructure Digests & Start Postgres and Redis
+      - name: Verify Configuration Git Provenance
+        run: |
+          set -euo pipefail
+          CURRENT_HEAD=$(git rev-parse HEAD)
+          if [ "$CURRENT_HEAD" != "${{ github.sha }}" ]; then
+            echo "ERROR: Checked out HEAD ($CURRENT_HEAD) does not match authorized commit (${{ github.sha }})."
+            exit 1
+          fi
+          echo "Configuration provenance verified at protected main commit $CURRENT_HEAD."
+
+      - name: Validate Effective Staging Compose Configuration (Suppressed Output)
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env config --quiet
+          echo "Effective Staging Compose configuration is valid."
+
+      - name: Pull Immutable Infrastructure Images & Bootstrap PostgreSQL and Redis
         run: |
           set -euo pipefail
           echo "=== PULLING IMMUTABLE INFRASTRUCTURE IMAGES BY DIGEST ==="
@@ -138,11 +226,6 @@ jobs:
           docker pull "$REDIS_DIGEST"
 
           echo "=== STARTING POSTGRESQL & REDIS CONTAINERS VIA DOCKER COMPOSE ==="
-          export SOCIALPULSE_POSTGRES_IMAGE="$POSTGRES_DIGEST"
-          export SOCIALPULSE_REDIS_IMAGE="$REDIS_DIGEST"
-          export SOCIALPULSE_BACKEND_IMAGE="artradepro/socialpulse-backend@sha256:0000000000000000000000000000000000000000000000000000000000000000"
-          export SOCIALPULSE_FRONTEND_IMAGE="artradepro/socialpulse-frontend@sha256:0000000000000000000000000000000000000000000000000000000000000000"
-
           docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env up -d postgres redis
 
           echo "=== VERIFYING INFRASTRUCTURE CONTAINER HEALTH ==="
@@ -160,6 +243,7 @@ jobs:
 
           if [ "$PG_HEALTHY" -ne 1 ]; then
             echo "ERROR: PostgreSQL container failed health check within 60 seconds."
+            echo "Created containers preserved for investigation. Aborting."
             exit 1
           fi
 
@@ -177,6 +261,7 @@ jobs:
 
           if [ "$REDIS_HEALTHY" -ne 1 ]; then
             echo "ERROR: Redis container failed health check within 60 seconds."
+            echo "Created containers preserved for investigation. Aborting."
             exit 1
           fi
 

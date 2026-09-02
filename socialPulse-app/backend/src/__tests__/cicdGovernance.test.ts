@@ -390,9 +390,9 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(deployContent).toContain('actions: read');
         });
 
-        it('Control 39: Preflight tool and environment availability check exists including chmod and mktemp', () => {
-            expect(deployContent).toContain('Preflight Tool & Environment Availability Check');
-            expect(deployContent).toContain('for tool in gh node sha256sum git docker wget realpath mktemp chmod; do');
+        it('Control 39: Preflight tool, version and environment availability check exists including chmod, mktemp, stat, grep', () => {
+            expect(deployContent).toContain('Preflight Tool');
+            expect(deployContent).toContain('for tool in gh node sha256sum git docker wget realpath mktemp chmod stat grep; do');
             expect(deployContent).toContain('docker compose version');
         });
 
@@ -538,7 +538,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         });
     });
 
-    describe('7. Staging Bootstrap, Migration & Environment-File Governance Controls (SP-8C-5C-R1 Controls 46-60)', () => {
+    describe('7. Staging Bootstrap, Migration & Environment-File Governance Controls (SP-8C-5C-R2 Controls 46-64)', () => {
         const bootstrapInfraPath = join(workflowsDir, 'bootstrap-infra.yml');
         const bootstrapAppPath = join(workflowsDir, 'bootstrap-app.yml');
         const composeStagingPath = join(rootDir, 'docker-compose.staging.yml');
@@ -576,21 +576,23 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             }
         });
 
-        it('Control 50: Explicit staging environment file binding and staging overlay exist across all Compose commands', () => {
+        it('Control 50: Explicit staging environment file binding, staging overlay and --no-deps exist across all application/migration Compose commands', () => {
             const requiredEnvFlag = '--env-file /opt/socialpulse/.env';
             const requiredComposeArgs = '-f docker-compose.yml -f docker-compose.staging.yml';
-            expect(deployContent).toContain(`docker compose ${requiredComposeArgs} ${requiredEnvFlag} up -d --no-build server client`);
+            expect(deployContent).toContain(`docker compose ${requiredComposeArgs} ${requiredEnvFlag} up -d --no-build --no-deps server client`);
             expect(bootstrapInfraContent).toContain(`docker compose ${requiredComposeArgs} ${requiredEnvFlag} up -d postgres redis`);
-            expect(bootstrapAppContent).toContain(`docker compose ${requiredComposeArgs} ${requiredEnvFlag} up -d --no-build server client`);
-            expect(migrateContent).toContain(`docker compose ${requiredComposeArgs} ${requiredEnvFlag} run --rm migrate npx ts-node src/database/migrate.ts`);
+            expect(bootstrapAppContent).toContain(`docker compose ${requiredComposeArgs} ${requiredEnvFlag} up -d --no-build --no-deps server client`);
+            expect(migrateContent).toContain(`docker compose ${requiredComposeArgs} ${requiredEnvFlag} run --rm --no-deps migrate npx ts-node src/database/migrate.ts`);
         });
 
-        it('Control 51: Staging configuration preflight verifies /opt/socialpulse/.env exact ownership (root), group (github-runner), mode (0640), non-symlink and isolation', () => {
+        it('Control 51: Staging configuration preflight verifies /opt/socialpulse/.env exact symbolic ownership (root), group (github-runner), mode (0640), non-symlink and isolation', () => {
             for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
                 expect(content).toContain('STAGING_ENV_FILE="/opt/socialpulse/.env"');
                 expect(content).toContain('[ ! -f "$STAGING_ENV_FILE" ] || [ -L "$STAGING_ENV_FILE" ]');
-                expect(content).toContain('ENV_OWNER=$(stat -c \'%U\' "$STAGING_ENV_FILE"');
-                expect(content).toContain('ENV_GROUP=$(stat -c \'%G\' "$STAGING_ENV_FILE"');
+                expect(content).toContain('ENV_OWNER=$(stat -c \'%U\' "$STAGING_ENV_FILE")');
+                expect(content).toContain('ENV_GROUP=$(stat -c \'%G\' "$STAGING_ENV_FILE")');
+                expect(content).toContain('[ "$ENV_OWNER" != "root" ]');
+                expect(content).toContain('[ "$ENV_GROUP" != "github-runner" ]');
                 expect(content).toContain('ENV_MODE=$(stat -c \'%a\' "$STAGING_ENV_FILE")');
                 expect(content).toContain('[ "$ENV_MODE" != "640" ] && [ "$ENV_MODE" != "0640" ]');
                 expect(content).toContain('[ ! -r "$STAGING_ENV_FILE" ]');
@@ -600,14 +602,14 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         it('Control 52: Infrastructure bootstrap cannot deploy application services or execute migrations', () => {
             expect(bootstrapInfraContent).not.toContain('up -d server client');
             expect(bootstrapInfraContent).not.toContain('migrate.ts');
-            expect(bootstrapInfraContent).toContain('VERIFYING NO APPLICATION CONTAINERS ARE UNEXPECTEDLY RUNNING');
+            expect(bootstrapInfraContent).toContain('VERIFYING FIRST-RUN CLEAN STATE');
         });
 
-        it('Control 53: Application bootstrap fails closed if application containers already exist and verifies migration status before starting apps', () => {
+        it('Control 53: Application bootstrap fails closed if application containers already exist and verifies strict migration status before starting apps', () => {
             expect(bootstrapAppContent).toContain('VERIFYING NO APPLICATION CONTAINERS ARE ALREADY RUNNING');
             expect(bootstrapAppContent).toContain('An initial bootstrap is not allowed when containers exist');
             expect(bootstrapAppContent).toContain('Verifying database migration status before application bootstrap');
-            expect(bootstrapAppContent).toContain('migrationStatus.ts');
+            expect(bootstrapAppContent).toContain('migrationStatus.ts --require-current');
         });
 
         it('Control 54: Application bootstrap cleanup removes failed app containers while preserving database and redis', () => {
@@ -618,9 +620,11 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(bootstrapAppContent).not.toContain('rm -f postgres');
         });
 
-        it('Control 55: Infrastructure images are digest-bound in dedicated staging compose overlay', () => {
-            expect(composeStagingContent).toContain('postgres@sha256:fe0737ba566a2c5b2a28f34433c0a423261900ec17b9bf7ad115e1aae7e57f1b');
-            expect(composeStagingContent).toContain('redis@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf');
+        it('Control 55: Infrastructure images are fixed digest-bound in dedicated staging compose overlay (non-overrideable by env file)', () => {
+            expect(composeStagingContent).toContain('image: postgres@sha256:fe0737ba566a2c5b2a28f34433c0a423261900ec17b9bf7ad115e1aae7e57f1b');
+            expect(composeStagingContent).toContain('image: redis@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf');
+            expect(composeStagingContent).not.toContain('${SOCIALPULSE_POSTGRES_IMAGE');
+            expect(composeStagingContent).not.toContain('${SOCIALPULSE_REDIS_IMAGE');
         });
 
         it('Control 56: Staging application ports are bound to loopback only (127.0.0.1) and databases are not exposed using !override semantics', () => {
@@ -682,6 +686,39 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
                 if (originalTwilio) process.env.TWILIO_ACCOUNT_SID = originalTwilio;
                 if (originalSim) process.env.ALLOW_SIMULATED_DELIVERY = originalSim;
             }
+        });
+
+        it('Control 59: Docker Compose version >= 2.24.4 is enforced semantically across all staging workflows', () => {
+            for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
+                expect(content).toContain('DOCKER COMPOSE VERSION VERIFICATION (>= 2.24.4)');
+                expect(content).toContain('major === 2 && minor === 24 && patch >= 4');
+            }
+        });
+
+        it('Control 60: Infrastructure bootstrap provenance restricts execution to protected main branch', () => {
+            expect(bootstrapInfraContent).toContain("if: github.ref == 'refs/heads/main'");
+            expect(bootstrapInfraContent).toContain('[ "${{ github.repository }}" != "ArtradePro/Socialpulse-1" ]');
+            expect(bootstrapInfraContent).toContain('[ "${{ github.ref }}" != "refs/heads/main" ]');
+        });
+
+        it('Control 61: Infrastructure bootstrap fails closed if any pre-existing container, volume, or network exists', () => {
+            expect(bootstrapInfraContent).toContain('VERIFYING FIRST-RUN CLEAN STATE');
+            expect(bootstrapInfraContent).toContain('docker volume inspect socialpulse-1_postgres_data');
+            expect(bootstrapInfraContent).toContain('docker network inspect socialpulse-1_default');
+        });
+
+        it('Control 62: Required environment variable names are verified non-empty without leaking values in all workflows', () => {
+            for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
+                expect(content).toContain('VALIDATING REQUIRED');
+                expect(content).toContain('POSTGRES_PASSWORD REDIS_PASSWORD');
+                expect(content).toContain('grep -q -E "^[[:space:]]*${var_name}=[^\\r\\n]+"');
+            }
+        });
+
+        it('Control 63: Migration workflow requires healthy Postgres/Redis, runs with --no-deps and verifies --require-current', () => {
+            expect(migrateContent).toContain('Verifying infrastructure dependency containers are healthy');
+            expect(migrateContent).toContain('run --rm --no-deps migrate npx ts-node src/database/scripts/migrationStatus.ts --require-current');
+            expect(migrateContent).toContain("m.targetEnvironment !== 'staging'");
         });
     });
 });
