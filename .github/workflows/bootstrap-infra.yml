@@ -163,7 +163,7 @@ jobs:
                 process.exit(1);
               }
 
-              if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+              if ((val.startsWith('\"') && val.endsWith('\"')) || (val.startsWith(\"'\") && val.endsWith(\"'\"))) {
                 val = val.slice(1, -1);
               }
 
@@ -241,11 +241,11 @@ jobs:
           fi
           echo "Configuration provenance verified at protected main commit $CURRENT_HEAD."
 
-      - name: Validate Effective Staging Compose Configuration (Suppressed Output)
+      - name: Validate Dedicated Staging Infrastructure Compose Configuration
         run: |
           set -euo pipefail
-          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env config --quiet
-          echo "Effective Staging Compose configuration is valid."
+          docker compose -f docker-compose.staging-infra.yml --env-file /opt/socialpulse/.env config --quiet
+          echo "Dedicated Staging Infrastructure Compose configuration is valid (no application images required)."
 
       - name: Pull Immutable Infrastructure Images & Bootstrap PostgreSQL and Redis
         run: |
@@ -259,7 +259,7 @@ jobs:
           docker pull "$REDIS_DIGEST"
 
           echo "=== STARTING POSTGRESQL & REDIS CONTAINERS VIA DOCKER COMPOSE ==="
-          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env up -d postgres redis
+          docker compose -f docker-compose.staging-infra.yml --env-file /opt/socialpulse/.env up -d postgres redis
 
           echo "=== VERIFYING INFRASTRUCTURE CONTAINER HEALTH ==="
           PG_HEALTHY=0

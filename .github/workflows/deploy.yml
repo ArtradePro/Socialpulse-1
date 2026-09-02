@@ -210,7 +210,7 @@ jobs:
                 process.exit(1);
               }
 
-              if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+              if ((val.startsWith('\"') && val.endsWith('\"')) || (val.startsWith(\"'\") && val.endsWith(\"'\"))) {
                 val = val.slice(1, -1);
               }
 
@@ -232,7 +232,7 @@ jobs:
             if (requireProduction) {
               const nodeEnv = parsed.get('NODE_ENV');
               if (nodeEnv !== 'production') {
-                console.error('ERROR: Staging NODE_ENV must be strictly "production" (got: ' + nodeEnv + ')');
+                console.error('ERROR: Staging NODE_ENV must be strictly \"production\" (got: ' + nodeEnv + ')');
                 process.exit(1);
               }
             }
@@ -307,7 +307,6 @@ jobs:
           " "$ARTIFACTS_JSON"
 
       - name: Checkout Authorized Release Configuration Provenance
-        # Pinned immutably to official commit SHA for actions/checkout v4.2.2
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.commit_sha }}
@@ -326,12 +325,6 @@ jobs:
           fi
           echo "Configuration provenance verified at commit $CURRENT_HEAD."
 
-      - name: Validate Effective Staging Compose Configuration (Suppressed Output)
-        run: |
-          set -euo pipefail
-          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env config --quiet
-          echo "Effective Staging Compose configuration is valid."
-
       - name: Create Dedicated Secure Temporary Directory & Cryptographically Verify Release Manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -343,7 +336,6 @@ jobs:
           set -euo pipefail
           echo "=== VALIDATING DEDICATED RUNNER TEMP & CREATING SECURE TEMPORARY DIRECTORY ==="
 
-          # Enforce dedicated, writable RUNNER_TEMP (no fallback to general /tmp)
           if [ -z "${RUNNER_TEMP:-}" ] || [ ! -d "$RUNNER_TEMP" ] || [ -L "$RUNNER_TEMP" ] || [ ! -w "$RUNNER_TEMP" ]; then
             echo "ERROR: RUNNER_TEMP must be a defined, existing, non-symlink, writable directory."
             exit 1
@@ -363,7 +355,6 @@ jobs:
           chmod 700 "$SECURE_DIR"
           CANONICAL_SECURE_DIR=$(realpath "$SECURE_DIR")
 
-          # Path safety validation: ensure directory is strictly inside CANONICAL_RUNNER_TEMP and not a symlink
           if [[ "$CANONICAL_SECURE_DIR" != "$CANONICAL_RUNNER_TEMP/"* ]] || [ -L "$SECURE_DIR" ]; then
             echo "ERROR: Unsafe temporary directory path: $SECURE_DIR"
             exit 1
@@ -371,7 +362,6 @@ jobs:
 
           echo "MANIFEST_TMP_DIR=$CANONICAL_SECURE_DIR" >> "$GITHUB_ENV"
 
-          # Download manifest artifact from the authorized release run into secure temp dir
           gh run download "$INPUT_RELEASE_RUN_ID" --name "release-manifest-$INPUT_RELEASE_ID" --dir "$CANONICAL_SECURE_DIR"
 
           MANIFEST_FILE="$CANONICAL_SECURE_DIR/release-manifest.json"
@@ -380,7 +370,6 @@ jobs:
             exit 1
           fi
 
-          # Compute SHA-256 and compare against authorized input
           COMPUTED_SHA256=$(sha256sum "$MANIFEST_FILE" | awk '{print $1}')
           echo "Computed Manifest SHA-256: $COMPUTED_SHA256"
           echo "Expected Manifest SHA-256: $INPUT_MANIFEST_SHA256"
@@ -390,7 +379,6 @@ jobs:
             exit 1
           fi
 
-          # Safely parse and validate exact SP-8B manifest schema, exporting verified digests to GITHUB_ENV
           node -e "
             const fs = require('fs');
             const m = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
@@ -449,6 +437,8 @@ jobs:
 
             fs.appendFileSync(process.env.GITHUB_ENV, 'DEPLOY_BACKEND_REF=' + backendRef + '\n');
             fs.appendFileSync(process.env.GITHUB_ENV, 'DEPLOY_FRONTEND_REF=' + frontendRef + '\n');
+            fs.appendFileSync(process.env.GITHUB_ENV, 'SOCIALPULSE_BACKEND_IMAGE=' + backendRef + '\n');
+            fs.appendFileSync(process.env.GITHUB_ENV, 'SOCIALPULSE_FRONTEND_IMAGE=' + frontendRef + '\n');
             fs.appendFileSync(process.env.GITHUB_ENV, 'DEPLOY_BACKEND_DIGEST=' + m.backend.digest + '\n');
             fs.appendFileSync(process.env.GITHUB_ENV, 'DEPLOY_FRONTEND_DIGEST=' + m.frontend.digest + '\n');
             console.log('Manifest identity fields fully verified against SP-8B schema. Image refs derived directly from manifest.');
@@ -456,11 +446,22 @@ jobs:
 
           echo "=== RELEASE MANIFEST CRYPTOGRAPHICALLY BOUND & VERIFIED ==="
 
+      - name: Validate Effective Staging Compose Configuration (Suppressed Output)
+        env:
+          SOCIALPULSE_BACKEND_IMAGE: ${{ env.SOCIALPULSE_BACKEND_IMAGE }}
+          SOCIALPULSE_FRONTEND_IMAGE: ${{ env.SOCIALPULSE_FRONTEND_IMAGE }}
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env config --quiet
+          echo "Effective Staging Compose configuration is valid."
+
       - name: Deploy to Local Staging Host via Docker Compose with Fail-Safe Rollback
         env:
           INPUT_RELEASE_ID: ${{ inputs.release_id }}
           INPUT_AUTHORIZATION_REFERENCE: ${{ inputs.authorization_reference }}
           INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+          DEPLOY_BACKEND_REF: ${{ env.DEPLOY_BACKEND_REF }}
+          DEPLOY_FRONTEND_REF: ${{ env.DEPLOY_FRONTEND_REF }}
         run: |
           set -euo pipefail
           set -E

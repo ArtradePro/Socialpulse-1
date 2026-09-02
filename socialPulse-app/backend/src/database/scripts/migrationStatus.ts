@@ -14,6 +14,12 @@ export interface MigrationFileEntry {
     checksumInDb?: string;
 }
 
+export interface DatabaseEmptiness {
+    isCleanEmpty: boolean;
+    userTableCount: number;
+    userTables: string[];
+}
+
 export interface MigrationPreflightReport {
     timestamp: string;
     ledgerStatus: 'active' | 'absent';
@@ -21,6 +27,7 @@ export interface MigrationPreflightReport {
     totalDiscovered: number;
     discoveredFiles: string[];
     migrations: MigrationFileEntry[];
+    databaseEmptiness: DatabaseEmptiness;
     preflightChecks: {
         duplicateMigrationIds: string[];
         destructiveStatementsFound: string[];
@@ -78,9 +85,19 @@ export async function checkMigrationStatus(customPool?: any): Promise<MigrationP
     let duplicateStripeSessions = 0;
     let hasStripeUniqueIndex = false;
     const migrations: MigrationFileEntry[] = [];
+    let userTables: string[] = [];
 
     const client = await activePool.connect();
     try {
+        // Query PostgreSQL catalog for all user base tables in public schema
+        const userTablesCheck = await client.query(`
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+            ORDER BY table_name ASC;
+        `);
+        userTables = userTablesCheck.rows.map((r: any) => r.table_name);
+
         // Check if schema_migrations table exists (strictly read-only SELECT)
         const ledgerCheck = await client.query(`
             SELECT EXISTS (
@@ -225,6 +242,7 @@ export async function checkMigrationStatus(customPool?: any): Promise<MigrationP
         ? 'blocked_by_duplicates'
         : hasStripeUniqueIndex ? 'present' : 'pending_migration';
 
+    const isCleanEmpty = userTables.length === 0;
     const safeToApply = hasLedgerTable && blockers.length === 0;
 
     return {
@@ -234,6 +252,11 @@ export async function checkMigrationStatus(customPool?: any): Promise<MigrationP
         totalDiscovered: files.length,
         discoveredFiles: files,
         migrations,
+        databaseEmptiness: {
+            isCleanEmpty,
+            userTableCount: userTables.length,
+            userTables
+        },
         preflightChecks: {
             duplicateMigrationIds,
             destructiveStatementsFound,
@@ -247,71 +270,126 @@ export async function checkMigrationStatus(customPool?: any): Promise<MigrationP
     };
 }
 
-export function verifyMigrationCurrent(report: MigrationPreflightReport): { isCurrent: boolean; reasons: string[] } {
+export function verifyMigrationModeState(
+    report: MigrationPreflightReport,
+    mode: 'bootstrap' | 'incremental' = 'incremental',
+    requireCurrent = false
+): { isValid: boolean; reasons: string[] } {
     const reasons: string[] = [];
 
-    if (report.ledgerStatus !== 'active') {
-        reasons.push('Migration ledger is absent (schema_migrations table missing)');
+    // Structural anomalies always fail validation in any mode
+    if (report.preflightChecks.duplicateMigrationIds.length > 0) {
+        reasons.push(`Duplicate migration prefixes detected: ${report.preflightChecks.duplicateMigrationIds.join(', ')}`);
+    }
+    if (report.preflightChecks.destructiveStatementsFound.length > 0) {
+        reasons.push(`Destructive SQL statements detected in migrations: ${report.preflightChecks.destructiveStatementsFound.join(', ')}`);
+    }
+    if (report.preflightChecks.duplicateStripeSessions > 0) {
+        reasons.push(`Duplicate Stripe sessions detected: ${report.preflightChecks.duplicateStripeSessions} duplicate(s)`);
     }
 
-    if (report.blockers && report.blockers.length > 0) {
-        reasons.push(...report.blockers);
+    const queryErrorBlockers = report.blockers.filter((b) => b.startsWith('QUERY_ERROR:'));
+    if (queryErrorBlockers.length > 0) {
+        reasons.push(...queryErrorBlockers);
     }
 
-    const pending = report.migrations.filter((m) => m.status === 'pending');
-    if (pending.length > 0) {
-        reasons.push(`Database has ${pending.length} pending migration(s): ${pending.map((p) => p.filename).join(', ')}`);
-    }
+    if (mode === 'bootstrap') {
+        // Bootstrap requires completely empty database: 0 user tables and ledger absent
+        if (!report.databaseEmptiness.isCleanEmpty) {
+            reasons.push(`Bootstrap mode rejected: Database is not empty. Found ${report.databaseEmptiness.userTableCount} existing table(s): ${report.databaseEmptiness.userTables.join(', ')}`);
+        }
+        if (report.ledgerStatus === 'active') {
+            reasons.push('Bootstrap mode rejected: Migration ledger (schema_migrations) already exists. Use incremental mode instead.');
+        }
+        if (report.totalDiscovered === 0) {
+            reasons.push('No migration files discovered in migrations directory.');
+        }
+    } else if (mode === 'incremental') {
+        // Incremental requires active ledger, zero drift, zero unknown migrations, safeToApply
+        if (report.ledgerStatus !== 'active') {
+            reasons.push('Incremental mode rejected: Migration ledger is absent (schema_migrations missing). Initial bootstrap required.');
+        }
+        const drift = report.migrations.filter((m) => m.status === 'drift_detected');
+        if (drift.length > 0) {
+            reasons.push(`Database has ${drift.length} drift detected migration(s): ${drift.map((d) => d.filename).join(', ')}`);
+        }
+        const unknown = report.migrations.filter((m) => m.status === 'unknown_in_db');
+        if (unknown.length > 0) {
+            reasons.push(`Database ledger has ${unknown.length} unknown migration(s): ${unknown.map((u) => u.filename).join(', ')}`);
+        }
 
-    const drift = report.migrations.filter((m) => m.status === 'drift_detected');
-    if (drift.length > 0) {
-        reasons.push(`Database has ${drift.length} drift detected migration(s): ${drift.map((d) => d.filename).join(', ')}`);
-    }
-
-    const unknown = report.migrations.filter((m) => m.status === 'unknown_in_db');
-    if (unknown.length > 0) {
-        reasons.push(`Database ledger has ${unknown.length} unknown migration(s): ${unknown.map((u) => u.filename).join(', ')}`);
-    }
-
-    if (report.totalDiscovered === 0) {
-        reasons.push('No migration files discovered in migrations directory');
-    }
-
-    const applied = report.migrations.filter((m) => m.status === 'applied');
-    if (applied.length !== report.totalDiscovered) {
-        reasons.push(`Applied migrations count (${applied.length}) does not match total discovered (${report.totalDiscovered})`);
+        if (requireCurrent) {
+            const pending = report.migrations.filter((m) => m.status === 'pending');
+            if (pending.length > 0) {
+                reasons.push(`Database has ${pending.length} pending migration(s): ${pending.map((p) => p.filename).join(', ')}`);
+            }
+            const applied = report.migrations.filter((m) => m.status === 'applied');
+            if (applied.length !== report.totalDiscovered) {
+                reasons.push(`Applied migrations count (${applied.length}) does not match total discovered (${report.totalDiscovered})`);
+            }
+        }
+    } else {
+        reasons.push(`Unknown migration mode: ${mode}`);
     }
 
     return {
-        isCurrent: reasons.length === 0,
+        isValid: reasons.length === 0,
         reasons
     };
 }
 
+export function verifyMigrationCurrent(report: MigrationPreflightReport): { isCurrent: boolean; reasons: string[] } {
+    const res = verifyMigrationModeState(report, 'incremental', true);
+    return {
+        isCurrent: res.isValid,
+        reasons: res.reasons
+    };
+}
+
 if (require.main === module) {
-    const requireCurrent = process.argv.includes('--require-current');
-    checkMigrationStatus()
-        .then((report) => {
+    const args = process.argv.slice(2);
+    const requireCurrent = args.includes('--require-current');
+    const isStrict = args.includes('--strict');
+    let mode: 'bootstrap' | 'incremental' = 'incremental';
+
+    for (let i = 0; i < args.length; i++) {
+        if (args[i].startsWith('--mode=')) {
+            const val = args[i].split('=')[1].toLowerCase();
+            if (val === 'bootstrap' || val === 'incremental') mode = val as any;
+        } else if (args[i] === '--mode' && args[i + 1]) {
+            const val = args[i + 1].toLowerCase();
+            if (val === 'bootstrap' || val === 'incremental') mode = val as any;
+        }
+    }
+
+    let exitCode = 0;
+    (async () => {
+        try {
+            const report = await checkMigrationStatus();
             console.log('\n--- READ-ONLY MIGRATION PREFLIGHT REPORT ---');
             console.log(JSON.stringify(report, null, 2));
 
-            if (requireCurrent) {
-                const verification = verifyMigrationCurrent(report);
-                if (!verification.isCurrent) {
-                    console.error('\nERROR: Migration status is NOT current (failed --require-current check):');
-                    verification.reasons.forEach((r) => console.error(`  - ${r}`));
-                    pool.end();
-                    process.exit(1);
+            const verification = verifyMigrationModeState(report, mode, requireCurrent);
+            if (!verification.isValid) {
+                console.error(`\nERROR: Migration preflight failed validation (mode: ${mode}, requireCurrent: ${requireCurrent}):`);
+                verification.reasons.forEach((r) => console.error(`  - ${r}`));
+                if (isStrict || requireCurrent) {
+                    exitCode = 1;
                 }
-                console.log('\nSUCCESS: Database migration state is fully current and verified.');
+            } else {
+                console.log(`\nSUCCESS: Database migration state validated successfully for mode '${mode}'.`);
             }
-
-            pool.end();
-            process.exit(0);
-        })
-        .catch((err) => {
-            console.error('Preflight check failed:', err);
-            pool.end();
-            process.exit(1);
-        });
+        } catch (err: any) {
+            console.error('Preflight check failed with error:', err);
+            exitCode = 1;
+        } finally {
+            try {
+                await pool.end();
+            } catch (poolErr: any) {
+                console.error('Error closing database pool:', poolErr);
+                exitCode = 1;
+            }
+            process.exitCode = exitCode;
+        }
+    })();
 }
