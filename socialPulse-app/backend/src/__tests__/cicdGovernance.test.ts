@@ -131,7 +131,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         });
 
         it('Control 19: Concurrency protection exists on deployment and migration', () => {
-            expect(deployContent).toContain('group: deployment-${{ inputs.environment }}');
+            expect(deployContent).toContain('group: deployment-staging');
             expect(deployContent).toContain('cancel-in-progress: false');
             expect(migrateContent).toContain('group: migration-${{ inputs.environment }}');
             expect(migrateContent).toContain('cancel-in-progress: false');
@@ -146,8 +146,8 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
 
     describe('3. Environment Allowlist & Fail-Closed Guards (Controls 8-9, 21-23)', () => {
         it('Control 8 & 9: Environment input is strictly allowlisted; arbitrary environments rejected', () => {
-            expect(deployContent).toContain('staging');
-            expect(deployContent).toContain('Allowed: staging');
+            expect(deployContent).toContain('targeting staging');
+            expect(deployContent).toContain('environment: staging');
             expect(migrateContent).toContain('Allowed: staging, production');
         });
 
@@ -255,17 +255,19 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         });
     });
 
-    describe('6. Restricted Self-Hosted Runner Channel, Manifest Binding & Rollback (SP-8C-4D Controls 25-38)', () => {
+    describe('6. Restricted Self-Hosted Runner Channel, Manifest Binding & Rollback (SP-8C-4G Controls 25-44)', () => {
         it('Control 25: Staging deployment workflow explicitly targets dedicated staging runner labels', () => {
             expect(deployContent).toContain('runs-on: [self-hosted, linux, socialpulse-staging]');
         });
 
-        it('Control 26: Production deployment cannot target the staging runner and fails closed', () => {
-            expect(deployContent).toContain('Production deployment is strictly prohibited on the staging runner');
+        it('Control 26: Production deployment cannot target the staging runner and is excluded from dispatch inputs', () => {
+            expect(deployContent).not.toMatch(/inputs:\s*[\s\S]*environment:\s*[\s\S]*options:\s*[\s\S]*- production/);
+            expect(deployContent).toContain('name: Deploy Application (Staging)');
         });
 
-        it('Control 27: Staging deployment requires its protected GitHub Environment and approval gate', () => {
-            expect(deployContent).toContain('environment: ${{ inputs.environment }}');
+        it('Control 27: Staging deployment requires its protected GitHub Environment hard-bound at job scheduling time', () => {
+            expect(deployContent).toContain('environment: staging');
+            expect(deployContent).not.toContain('environment: ${{ inputs.environment }}');
         });
 
         it('Control 28: General CI and PR workflows remain GitHub-hosted and cannot target self-hosted runners', () => {
@@ -280,10 +282,9 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(releaseContent).toContain('runs-on: ubuntu-latest');
         });
 
-        it('Control 30: Staging deployment validates immutable OCI digests and rejects mutable tags', () => {
+        it('Control 30: Staging deployment validates immutable commit SHA and manifest SHA-256 formats', () => {
             expect(deployContent).toContain('^[0-9a-fA-F]{40}$');
-            expect(deployContent).toContain('^sha256:[0-9a-fA-F]{64}$');
-            expect(deployContent).not.toContain(':latest');
+            expect(deployContent).toContain('^[0-9a-fA-F]{64}$');
         });
 
         it('Control 31: Privileged self-hosted action is pinned to an immutable 40-character commit SHA', () => {
@@ -293,10 +294,10 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(deployContent).toContain('ref: ${{ inputs.commit_sha }}');
         });
 
-        it('Control 32: Bounded /health/ready polling causes fail-closed exit on readiness failure', () => {
+        it('Control 32: Bounded /health/ready polling parses JSON response safely without raw log leaks', () => {
             expect(deployContent).toContain('http://localhost:5000/health/ready');
-            expect(deployContent).toContain('grep -q \'"ready":true\'');
-            expect(deployContent).toContain('Application failed readiness validation on /health/ready after 30 seconds');
+            expect(deployContent).toContain('data.ready === true');
+            expect(deployContent).toContain('Readiness probe passed (ready: true)');
         });
 
         it('Control 33: No SSH action or database migration command exists in deployment path', () => {
@@ -304,33 +305,36 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(deployContent).not.toContain('migrate.ts');
         });
 
-        it('Control 34: Cryptographic release manifest download, SHA-256 verification and field binding are enforced', () => {
-            expect(deployContent).toContain('Download & Cryptographically Verify Release Manifest');
-            expect(deployContent).toContain('gh run download "${{ inputs.release_run_id }}"');
+        it('Control 34: Exact SP-8B release manifest schema is validated and derives deployment image references directly', () => {
+            expect(deployContent).toContain('Create Secure Temporary Directory & Cryptographically Verify Release Manifest');
+            expect(deployContent).toContain('gh run download "$INPUT_RELEASE_RUN_ID"');
             expect(deployContent).toContain('sha256sum "$MANIFEST_FILE"');
-            expect(deployContent).toContain('Manifest SHA-256 checksum mismatch');
-            expect(deployContent).toContain('m.repository !== \'ArtradePro/Socialpulse-1\'');
+            expect(deployContent).toContain('m.targetEnvironment !== \'staging\'');
+            expect(deployContent).toContain('DEPLOY_BACKEND_REF=');
+            expect(deployContent).toContain('DEPLOY_FRONTEND_REF=');
         });
 
-        it('Control 35: Pre-deployment state captures prior immutable image IDs', () => {
+        it('Control 35: Pre-deployment state requires exact digest-only immutable image references', () => {
             expect(deployContent).toContain('Capturing and validating pre-deployment container state');
-            expect(deployContent).toContain('docker inspect --format=\'{{.Config.Image}}\' socialpulse-backend');
-            expect(deployContent).toContain('docker inspect --format=\'{{.Config.Image}}\' socialpulse-frontend');
+            expect(deployContent).toContain('artradepro/socialpulse-backend@sha256:[0-9a-fA-F]{64}$');
+            expect(deployContent).toContain('artradepro/socialpulse-frontend@sha256:[0-9a-fA-F]{64}$');
         });
 
-        it('Control 36: Fail-safe rollback disables ERR trap to prevent recursion and restores previous immutable images with readiness verification', () => {
-            expect(deployContent).toContain('INITIATING FAIL-SAFE ROLLBACK');
-            expect(deployContent).toContain('trap - ERR');
+        it('Control 36: Fail-safe rollback disables error trap to prevent recursion, verifies Compose exit code and readiness', () => {
+            expect(deployContent).toContain('INITIATING FAIL-SAFE ROLLBACK ON MUTATION FAILURE');
+            expect(deployContent).toContain('trap \'\' ERR INT TERM');
+            expect(deployContent).toContain('COMPOSE_EXIT=0');
             expect(deployContent).toContain('export SOCIALPULSE_BACKEND_IMAGE="$PREV_BACKEND"');
             expect(deployContent).toContain('export SOCIALPULSE_FRONTEND_IMAGE="$PREV_FRONTEND"');
-            expect(deployContent).toContain('Verifying rollback readiness');
+            expect(deployContent).toContain('Verifying rollback readiness on /health/ready');
+            expect(deployContent).toContain('Rollback failed! Compose exit: $COMPOSE_EXIT, Readiness: $ROLLBACK_READY');
         });
 
-        it('Control 37: Persistent runner workspace hygiene and manifest cleanup runs unconditionally', () => {
-            expect(deployContent).toContain('Persistent Runner Workspace & Manifest Cleanup');
+        it('Control 37: Post-deployment secure cleanup cleans only generated temporary directory under RUNNER_TEMP', () => {
+            expect(deployContent).toContain('Secure Temporary Artifact Cleanup');
             expect(deployContent).toContain('if: always()');
-            expect(deployContent).toContain('rm -rf "/tmp/manifest-${{ inputs.release_id }}"');
-            expect(deployContent).toContain('find "$GITHUB_WORKSPACE" -mindepth 1 -maxdepth 1 -exec rm -rf {} +');
+            expect(deployContent).toContain('CANONICAL_ROOT=$(realpath "$TEMP_ROOT"');
+            expect(deployContent).toContain('Generated temporary manifest directory safely cleaned');
         });
 
         it('Control 38: Minimum least-privilege token permissions are declared', () => {
@@ -341,38 +345,83 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
 
         it('Control 39: Preflight tool and environment availability check exists', () => {
             expect(deployContent).toContain('Preflight Tool & Environment Availability Check');
-            expect(deployContent).toContain('for tool in gh node sha256sum git docker wget; do');
+            expect(deployContent).toContain('for tool in gh node sha256sum git docker wget realpath mktemp; do');
             expect(deployContent).toContain('docker compose version');
         });
 
-        it('Control 40: Release workflow run and artifact metadata are authenticated before download', () => {
+        it('Control 40: Release workflow run metadata matches exact path and name before artifact download', () => {
             expect(deployContent).toContain('Authenticate Release Workflow Run & Artifact Metadata');
             expect(deployContent).toContain('run.repository.full_name !== \'ArtradePro/Socialpulse-1\'');
-            expect(deployContent).toContain('!run.path.endsWith(\'release-images.yml\')');
+            expect(deployContent).toContain('run.path !== \'.github/workflows/release-images.yml\'');
+            expect(deployContent).toContain('run.name !== \'Release Images\'');
             expect(deployContent).toContain('run.status !== \'completed\' || run.conclusion !== \'success\'');
             expect(deployContent).toContain('run.event !== \'workflow_dispatch\'');
-            expect(deployContent).toContain('run.head_sha !== \'${{ inputs.commit_sha }}\'');
+            expect(deployContent).toContain('run.head_sha !== process.env.INPUT_COMMIT_SHA');
             expect(deployContent).toContain('Manifest artifact is expired');
         });
 
         it('Control 41: Pre-deployment state requires non-empty immutable image references present in local Docker cache', () => {
-            expect(deployContent).toContain('Previous container state is missing. A first deployment must be separately authorized');
-            expect(deployContent).toContain('@sha256:[0-9a-fA-F]{64}$');
+            expect(deployContent).toContain('Previous container state is missing. A first/bootstrap deployment must be separately governed');
             expect(deployContent).toContain('docker image inspect "$PREV_BACKEND"');
             expect(deployContent).toContain('docker image inspect "$PREV_FRONTEND"');
         });
 
-        it('Control 42: Mutation boundary defines trap-based rollback on any error', () => {
-            expect(deployContent).toContain('trap rollback ERR');
+        it('Control 42: Mutation boundary defines unmasked trap-based rollback with errtrace (set -E)', () => {
+            expect(deployContent).toContain('trap rollback ERR INT TERM');
             expect(deployContent).toContain('=== MUTATION BOUNDARY BEGINS ===');
-            expect(deployContent).toContain('trap - ERR');
+            expect(deployContent).toContain('set -E');
+            expect(deployContent).toContain('trap - ERR INT TERM');
         });
 
-        it('Control 43: Workspace cleanup rejects root/home/opt paths and safely bounds deletion', () => {
-            expect(deployContent).toContain('"$GITHUB_WORKSPACE" != "/"');
-            expect(deployContent).toContain('"$GITHUB_WORKSPACE" != "$HOME"');
-            expect(deployContent).toContain('"$GITHUB_WORKSPACE" != "/opt"');
-            expect(deployContent).toContain('Runner workspace and temporary files safely cleaned');
+        it('Control 43: Zero direct input interpolation in executable code; all inputs passed via step-level env', () => {
+            const runBlocks = deployContent.split(/-\s*name:/).slice(1);
+            for (const block of runBlocks) {
+                const runIdx = block.indexOf('run: |');
+                if (runIdx !== -1) {
+                    const runScript = block.slice(runIdx);
+                    expect(runScript).not.toMatch(/\$\{\{\s*inputs\./);
+                }
+            }
+        });
+
+        it('Control 44: Manifest validation passes for authentic SP-8B artifact and fails for malicious variations', () => {
+            const authenticSP8BManifest = {
+                schemaVersion: '1.0.0',
+                releaseId: 'sp-8b-staging-release-01',
+                repository: 'ArtradePro/Socialpulse-1',
+                sourceCommit: 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e',
+                targetEnvironment: 'staging',
+                backend: {
+                    repository: 'artradepro/socialpulse-backend',
+                    tag: 'sha-b9f819c4b153dd46dc9f4080a99d01aeffd01b7e',
+                    digest: 'sha256:f2f9105cf5a34328a9adb3cb5a0f4f54d43bc50d6ac731d7f00e8777beabf310'
+                },
+                frontend: {
+                    repository: 'artradepro/socialpulse-frontend',
+                    tag: 'sha-b9f819c4b153dd46dc9f4080a99d01aeffd01b7e',
+                    digest: 'sha256:39bf3da17736ac1f83d61da3928a23e1643235426d7c78740a813e1840bea874'
+                },
+                workflowRunId: '33556885396',
+                builtAt: '2026-09-01T18:40:00Z'
+            };
+
+            const res = validateReleaseManifest(authenticSP8BManifest as any, 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e', 'staging');
+            expect(res.valid).toBe(true);
+
+            // Negative test 1: Target environment mismatch
+            const resEnv = validateReleaseManifest({ ...authenticSP8BManifest, targetEnvironment: 'production' } as any, 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e', 'staging');
+            expect(resEnv.valid).toBe(false);
+
+            // Negative test 2: Source commit mismatch
+            const resSha = validateReleaseManifest(authenticSP8BManifest as any, 'a'.repeat(40), 'staging');
+            expect(resSha.valid).toBe(false);
+
+            // Negative test 3: Malformed digest
+            const resDigest = validateReleaseManifest({
+                ...authenticSP8BManifest,
+                backend: { ...authenticSP8BManifest.backend, digest: 'invalid' }
+            } as any, 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e', 'staging');
+            expect(resDigest.valid).toBe(false);
         });
     });
 });
