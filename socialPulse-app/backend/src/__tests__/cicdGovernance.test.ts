@@ -318,10 +318,12 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(deployContent).toContain('docker inspect --format=\'{{.Config.Image}}\' socialpulse-frontend');
         });
 
-        it('Control 36: Fail-safe rollback restores previous immutable images upon readiness failure', () => {
+        it('Control 36: Fail-safe rollback disables ERR trap to prevent recursion and restores previous immutable images with readiness verification', () => {
             expect(deployContent).toContain('INITIATING FAIL-SAFE ROLLBACK');
+            expect(deployContent).toContain('trap - ERR');
             expect(deployContent).toContain('export SOCIALPULSE_BACKEND_IMAGE="$PREV_BACKEND"');
             expect(deployContent).toContain('export SOCIALPULSE_FRONTEND_IMAGE="$PREV_FRONTEND"');
+            expect(deployContent).toContain('Verifying rollback readiness');
         });
 
         it('Control 37: Persistent runner workspace hygiene and manifest cleanup runs unconditionally', () => {
