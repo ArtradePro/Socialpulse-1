@@ -52,25 +52,64 @@ export function validateReleaseManifest(manifest: ReleaseManifest, requestedComm
         errors.push(`Disallowed environment: '${requestedEnv}'`);
     }
 
+    // Repository matching
+    if (!manifest.backend || manifest.backend.repository !== 'artradepro/socialpulse-backend') {
+        errors.push(`Invalid backend repository: '${manifest.backend?.repository}'`);
+    }
+    if (!manifest.frontend || manifest.frontend.repository !== 'artradepro/socialpulse-frontend') {
+        errors.push(`Invalid frontend repository: '${manifest.frontend?.repository}'`);
+    }
+
+    // Tag matching (exact sha-<commit>)
+    const expectedTag = `sha-${manifest.sourceCommit}`;
+    if (!manifest.backend || manifest.backend.tag !== expectedTag) {
+        errors.push(`Backend tag '${manifest.backend?.tag}' does not match expected '${expectedTag}'`);
+    }
+    if (!manifest.frontend || manifest.frontend.tag !== expectedTag) {
+        errors.push(`Frontend tag '${manifest.frontend?.tag}' does not match expected '${expectedTag}'`);
+    }
+
     // Digest validation (sha256:<64-hex>)
     const digestRegex = /^sha256:[0-9a-fA-F]{64}$/;
-    if (!digestRegex.test(manifest.backend.digest)) {
-        errors.push(`Invalid backend digest format: '${manifest.backend.digest}'`);
+    if (!manifest.backend || !digestRegex.test(manifest.backend.digest)) {
+        errors.push(`Invalid backend digest format: '${manifest.backend?.digest}'`);
     }
-    if (!digestRegex.test(manifest.frontend.digest)) {
-        errors.push(`Invalid frontend digest format: '${manifest.frontend.digest}'`);
-    }
-
-    // Reject :latest in tags
-    if (manifest.backend.tag.includes('latest') || manifest.frontend.tag.includes('latest')) {
-        errors.push('Mutable :latest tag is strictly prohibited in release manifest');
+    if (!manifest.frontend || !digestRegex.test(manifest.frontend.digest)) {
+        errors.push(`Invalid frontend digest format: '${manifest.frontend?.digest}'`);
     }
 
-    // Tag SHA matching
-    if (!manifest.backend.tag.endsWith(manifest.sourceCommit) || !manifest.frontend.tag.endsWith(manifest.sourceCommit)) {
-        errors.push('Image tags must encode the exact source commit SHA');
-    }
+    return {
+        valid: errors.length === 0,
+        errors
+    };
+}
 
+export function validateReleaseRunProvenance(run: any, expectedSha: string): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    if (!run || !run.repository || run.repository.full_name !== 'ArtradePro/Socialpulse-1') {
+        errors.push('Run repository mismatch');
+    }
+    if (!run || !run.head_repository || run.head_repository.full_name !== 'ArtradePro/Socialpulse-1') {
+        errors.push('Forked or unauthorized head repository');
+    }
+    if (!run || run.path !== '.github/workflows/release-images.yml') {
+        errors.push('Run is not exact .github/workflows/release-images.yml');
+    }
+    if (!run || run.name !== 'Release Images') {
+        errors.push('Run name mismatch');
+    }
+    if (!run || run.status !== 'completed' || run.conclusion !== 'success') {
+        errors.push('Release run did not complete successfully');
+    }
+    if (!run || run.event !== 'workflow_dispatch') {
+        errors.push('Release run was not triggered via manual workflow_dispatch');
+    }
+    if (!run || run.head_branch !== 'main') {
+        errors.push('Release run did not originate from protected main branch');
+    }
+    if (!run || run.head_sha !== expectedSha) {
+        errors.push('Release run head SHA mismatch');
+    }
     return {
         valid: errors.length === 0,
         errors
@@ -255,7 +294,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         });
     });
 
-    describe('6. Restricted Self-Hosted Runner Channel, Manifest Binding & Rollback (SP-8C-4G Controls 25-44)', () => {
+    describe('6. Restricted Self-Hosted Runner Channel, Manifest Binding & Rollback (SP-8C-4H Controls 25-44)', () => {
         it('Control 25: Staging deployment workflow explicitly targets dedicated staging runner labels', () => {
             expect(deployContent).toContain('runs-on: [self-hosted, linux, socialpulse-staging]');
         });
@@ -306,18 +345,24 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         });
 
         it('Control 34: Exact SP-8B release manifest schema is validated and derives deployment image references directly', () => {
-            expect(deployContent).toContain('Create Secure Temporary Directory & Cryptographically Verify Release Manifest');
+            expect(deployContent).toContain('Create Dedicated Secure Temporary Directory & Cryptographically Verify Release Manifest');
             expect(deployContent).toContain('gh run download "$INPUT_RELEASE_RUN_ID"');
             expect(deployContent).toContain('sha256sum "$MANIFEST_FILE"');
             expect(deployContent).toContain('m.targetEnvironment !== \'staging\'');
+            expect(deployContent).toContain('m.backend.tag !== \'sha-\' + process.env.INPUT_COMMIT_SHA');
+            expect(deployContent).toContain('m.frontend.tag !== \'sha-\' + process.env.INPUT_COMMIT_SHA');
             expect(deployContent).toContain('DEPLOY_BACKEND_REF=');
             expect(deployContent).toContain('DEPLOY_FRONTEND_REF=');
         });
 
-        it('Control 35: Pre-deployment state requires exact digest-only immutable image references', () => {
+        it('Control 35: Pre-deployment state requires exact digest-only immutable image references and pulls digests prior to mutation', () => {
             expect(deployContent).toContain('Capturing and validating pre-deployment container state');
             expect(deployContent).toContain('artradepro/socialpulse-backend@sha256:[0-9a-fA-F]{64}$');
             expect(deployContent).toContain('artradepro/socialpulse-frontend@sha256:[0-9a-fA-F]{64}$');
+            const pullIdx = deployContent.indexOf('Pulling verified immutable digests');
+            const mutationIdx = deployContent.indexOf('=== SERVICE MUTATION BOUNDARY BEGINS ===');
+            expect(pullIdx).toBeGreaterThan(-1);
+            expect(mutationIdx).toBeGreaterThan(pullIdx);
         });
 
         it('Control 36: Fail-safe rollback disables error trap to prevent recursion, verifies Compose exit code and readiness', () => {
@@ -330,10 +375,11 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(deployContent).toContain('Rollback failed! Compose exit: $COMPOSE_EXIT, Readiness: $ROLLBACK_READY');
         });
 
-        it('Control 37: Post-deployment secure cleanup cleans only generated temporary directory under RUNNER_TEMP', () => {
+        it('Control 37: Dedicated RUNNER_TEMP isolation rejects root/home/tmp/opt/workspace and cleans only generated temp directory', () => {
             expect(deployContent).toContain('Secure Temporary Artifact Cleanup');
             expect(deployContent).toContain('if: always()');
-            expect(deployContent).toContain('CANONICAL_ROOT=$(realpath "$TEMP_ROOT"');
+            expect(deployContent).toContain('CANONICAL_RUNNER_TEMP=$(realpath "$RUNNER_TEMP")');
+            expect(deployContent).toContain('RUNNER_TEMP ($CANONICAL_RUNNER_TEMP) cannot be root, home, /tmp, /opt, or workspace root');
             expect(deployContent).toContain('Generated temporary manifest directory safely cleaned');
         });
 
@@ -343,15 +389,20 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(deployContent).toContain('actions: read');
         });
 
-        it('Control 39: Preflight tool and environment availability check exists', () => {
+        it('Control 39: Preflight tool and environment availability check exists including chmod and mktemp', () => {
             expect(deployContent).toContain('Preflight Tool & Environment Availability Check');
-            expect(deployContent).toContain('for tool in gh node sha256sum git docker wget realpath mktemp; do');
+            expect(deployContent).toContain('for tool in gh node sha256sum git docker wget realpath mktemp chmod; do');
             expect(deployContent).toContain('docker compose version');
         });
 
-        it('Control 40: Release workflow run metadata matches exact path and name before artifact download', () => {
-            expect(deployContent).toContain('Authenticate Release Workflow Run & Artifact Metadata');
+        it('Control 40: Protected-main release workflow run and artifact metadata are authenticated prior to checkout', () => {
+            const authIdx = deployContent.indexOf('Authenticate Protected-Main Release Workflow Run & Artifact Metadata');
+            const checkoutIdx = deployContent.indexOf('Checkout Authorized Release Configuration Provenance');
+            expect(authIdx).toBeGreaterThan(-1);
+            expect(checkoutIdx).toBeGreaterThan(authIdx);
+            expect(deployContent).toContain('run.head_branch !== \'main\'');
             expect(deployContent).toContain('run.repository.full_name !== \'ArtradePro/Socialpulse-1\'');
+            expect(deployContent).toContain('!run.head_repository || run.head_repository.full_name !== \'ArtradePro/Socialpulse-1\'');
             expect(deployContent).toContain('run.path !== \'.github/workflows/release-images.yml\'');
             expect(deployContent).toContain('run.name !== \'Release Images\'');
             expect(deployContent).toContain('run.status !== \'completed\' || run.conclusion !== \'success\'');
@@ -366,14 +417,14 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(deployContent).toContain('docker image inspect "$PREV_FRONTEND"');
         });
 
-        it('Control 42: Mutation boundary defines unmasked trap-based rollback with errtrace (set -E)', () => {
+        it('Control 42: Service mutation boundary begins immediately before docker compose and defines unmasked trap-based rollback with errtrace (set -E)', () => {
             expect(deployContent).toContain('trap rollback ERR INT TERM');
-            expect(deployContent).toContain('=== MUTATION BOUNDARY BEGINS ===');
+            expect(deployContent).toContain('=== SERVICE MUTATION BOUNDARY BEGINS ===');
             expect(deployContent).toContain('set -E');
             expect(deployContent).toContain('trap - ERR INT TERM');
         });
 
-        it('Control 43: Zero direct input interpolation in executable code; all inputs passed via step-level env', () => {
+        it('Control 43: Zero direct input interpolation in executable code; manifest-derived runtime variables consumed safely', () => {
             const runBlocks = deployContent.split(/-\s*name:/).slice(1);
             for (const block of runBlocks) {
                 const runIdx = block.indexOf('run: |');
@@ -382,6 +433,10 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
                     expect(runScript).not.toMatch(/\$\{\{\s*inputs\./);
                 }
             }
+            // Ensure runtime image references are not remapped through ${{ env.DEPLOY_* }} in step-level env
+            const deployStep = deployContent.slice(deployContent.indexOf('Deploy to Local Staging Host'));
+            expect(deployStep).not.toContain('TARGET_BACKEND_REF: ${{ env.DEPLOY_BACKEND_REF }}');
+            expect(deployStep).not.toContain('TARGET_FRONTEND_REF: ${{ env.DEPLOY_FRONTEND_REF }}');
         });
 
         it('Control 44: Manifest validation passes for authentic SP-8B artifact and fails for malicious variations', () => {
@@ -422,6 +477,63 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
                 backend: { ...authenticSP8BManifest.backend, digest: 'invalid' }
             } as any, 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e', 'staging');
             expect(resDigest.valid).toBe(false);
+
+            // Negative test 4: Tag mismatch
+            const resTag = validateReleaseManifest({
+                ...authenticSP8BManifest,
+                backend: { ...authenticSP8BManifest.backend, tag: 'sha-wrongcommit' }
+            } as any, 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e', 'staging');
+            expect(resTag.valid).toBe(false);
+
+            // Negative test 5: Repository mismatch
+            const resRepo = validateReleaseManifest({
+                ...authenticSP8BManifest,
+                backend: { ...authenticSP8BManifest.backend, repository: 'evil/socialpulse-backend' }
+            } as any, 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e', 'staging');
+            expect(resRepo.valid).toBe(false);
+        });
+
+        it('Control 45: Focused release run provenance negative tests reject unauthenticated or non-main runs', () => {
+            const validRun = {
+                repository: { full_name: 'ArtradePro/Socialpulse-1' },
+                head_repository: { full_name: 'ArtradePro/Socialpulse-1' },
+                path: '.github/workflows/release-images.yml',
+                name: 'Release Images',
+                status: 'completed',
+                conclusion: 'success',
+                event: 'workflow_dispatch',
+                head_branch: 'main',
+                head_sha: 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e'
+            };
+
+            const resValid = validateReleaseRunProvenance(validRun, 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e');
+            expect(resValid.valid).toBe(true);
+
+            // Negative test 1: Correct workflow path on wrong branch
+            const resBranch = validateReleaseRunProvenance({ ...validRun, head_branch: 'feature/untrusted' }, 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e');
+            expect(resBranch.valid).toBe(false);
+            expect(resBranch.errors.some(e => e.includes('protected main branch'))).toBe(true);
+
+            // Negative test 2: Correct SHA from a fork
+            const resFork = validateReleaseRunProvenance({ ...validRun, head_repository: { full_name: 'Attacker/Socialpulse-1' } }, 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e');
+            expect(resFork.valid).toBe(false);
+            expect(resFork.errors.some(e => e.includes('Forked or unauthorized'))).toBe(true);
+
+            // Negative test 3: Tag-based run (null branch)
+            const resTag = validateReleaseRunProvenance({ ...validRun, head_branch: null }, 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e');
+            expect(resTag.valid).toBe(false);
+
+            // Negative test 4: Incomplete / in-progress run
+            const resInProgress = validateReleaseRunProvenance({ ...validRun, status: 'in_progress', conclusion: null }, 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e');
+            expect(resInProgress.valid).toBe(false);
+
+            // Negative test 5: Failed run
+            const resFailed = validateReleaseRunProvenance({ ...validRun, conclusion: 'failure' }, 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e');
+            expect(resFailed.valid).toBe(false);
+
+            // Negative test 6: Lookalike workflow path
+            const resLookalike = validateReleaseRunProvenance({ ...validRun, path: '.github/workflows/deploy.yml' }, 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e');
+            expect(resLookalike.valid).toBe(false);
         });
     });
 });
