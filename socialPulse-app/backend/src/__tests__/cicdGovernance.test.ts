@@ -585,10 +585,14 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(migrateContent).toContain(`docker compose ${requiredComposeArgs} ${requiredEnvFlag} run --rm migrate npx ts-node src/database/migrate.ts`);
         });
 
-        it('Control 51: Staging configuration preflight verifies /opt/socialpulse/.env is regular, non-symlink and readable', () => {
+        it('Control 51: Staging configuration preflight verifies /opt/socialpulse/.env exact ownership (root), group (github-runner), mode (0640), non-symlink and isolation', () => {
             for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
                 expect(content).toContain('STAGING_ENV_FILE="/opt/socialpulse/.env"');
                 expect(content).toContain('[ ! -f "$STAGING_ENV_FILE" ] || [ -L "$STAGING_ENV_FILE" ]');
+                expect(content).toContain('ENV_OWNER=$(stat -c \'%U\' "$STAGING_ENV_FILE"');
+                expect(content).toContain('ENV_GROUP=$(stat -c \'%G\' "$STAGING_ENV_FILE"');
+                expect(content).toContain('ENV_MODE=$(stat -c \'%a\' "$STAGING_ENV_FILE")');
+                expect(content).toContain('[ "$ENV_MODE" != "640" ] && [ "$ENV_MODE" != "0640" ]');
                 expect(content).toContain('[ ! -r "$STAGING_ENV_FILE" ]');
             }
         });
@@ -619,23 +623,32 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(composeStagingContent).toContain('redis@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf');
         });
 
-        it('Control 56: Staging application ports are bound to loopback only (127.0.0.1) and databases are not exposed', () => {
+        it('Control 56: Staging application ports are bound to loopback only (127.0.0.1) and databases are not exposed using !override semantics', () => {
             expect(composeStagingContent).toContain('"127.0.0.1:5000:5000"');
             expect(composeStagingContent).toContain('"127.0.0.1:3000:3000"');
-            expect(composeStagingContent).toMatch(/postgres:[\s\S]*?ports:\s*\[\]/);
-            expect(composeStagingContent).toMatch(/redis:[\s\S]*?ports:\s*\[\]/);
+            expect(composeStagingContent).toMatch(/postgres:[\s\S]*?ports:\s*!override\s*\[\]/);
+            expect(composeStagingContent).toMatch(/redis:[\s\S]*?ports:\s*!override\s*\[\]/);
+            expect(composeStagingContent).toMatch(/server:[\s\S]*?volumes:\s*!override\s*\[\]/);
+            expect(composeStagingContent).toMatch(/client:[\s\S]*?volumes:\s*!override\s*\[\]/);
         });
 
-        it('Control 57: Effective static Compose model validation confirms exact port and volume boundaries', () => {
+        it('Control 57: Effective static Compose model validation confirms exact port and volume boundaries with !override support', () => {
             const yaml = require('js-yaml');
-            const composeBase = yaml.load(readFileSync(join(rootDir, 'docker-compose.yml'), 'utf-8')) as any;
-            const composeStaging = yaml.load(composeStagingContent) as any;
+            const OverrideSeq = new yaml.Type('!override', { kind: 'sequence', construct: (data: any) => data });
+            const OverrideMap = new yaml.Type('!override', { kind: 'mapping', construct: (data: any) => data });
+            const OverrideScalar = new yaml.Type('!override', { kind: 'scalar', construct: (data: any) => data });
+            const COMPOSE_SCHEMA = new yaml.Schema({ include: [yaml.DEFAULT_SCHEMA], explicit: [OverrideSeq, OverrideMap, OverrideScalar] });
 
-            // In Compose override rules: ports in staging overlay override base ports
+            const composeBase = yaml.load(readFileSync(join(rootDir, 'docker-compose.yml'), 'utf-8'), { schema: COMPOSE_SCHEMA }) as any;
+            const composeStaging = yaml.load(composeStagingContent, { schema: COMPOSE_SCHEMA }) as any;
+
+            // In Compose override rules: !override in staging overlay resets/overrides base ports and volumes
             expect(composeStaging.services.server.ports).toEqual(['127.0.0.1:5000:5000']);
             expect(composeStaging.services.client.ports).toEqual(['127.0.0.1:3000:3000']);
             expect(composeStaging.services.postgres.ports).toEqual([]);
             expect(composeStaging.services.redis.ports).toEqual([]);
+            expect(composeStaging.services.server.volumes).toEqual([]);
+            expect(composeStaging.services.client.volumes).toEqual([]);
             expect(composeStaging.volumes).toHaveProperty('postgres_data');
             expect(composeStaging.volumes).toHaveProperty('redis_data');
         });

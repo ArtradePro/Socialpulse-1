@@ -106,15 +106,47 @@ jobs:
             echo "ERROR: Docker Compose is not available on runner. Aborting."
             exit 1
           fi
-
           echo "=== STAGING ENVIRONMENT CONFIGURATION PREFLIGHT ==="
           STAGING_ENV_FILE="/opt/socialpulse/.env"
           if [ ! -f "$STAGING_ENV_FILE" ] || [ -L "$STAGING_ENV_FILE" ]; then
             echo "ERROR: Staging environment file '$STAGING_ENV_FILE' must exist as a regular non-symlink file."
             exit 1
           fi
+
+          # 1. Canonical path isolation check
+          CANONICAL_ENV_FILE=$(realpath "$STAGING_ENV_FILE")
+          if [ -n "${GITHUB_WORKSPACE:-}" ] && [[ "$CANONICAL_ENV_FILE" == "${GITHUB_WORKSPACE}"* ]]; then
+            echo "ERROR: Staging environment file cannot reside inside checkout workspace."
+            exit 1
+          fi
+
+          # 2. Strict owner verification (must be root / uid 0)
+          ENV_OWNER=$(stat -c '%U' "$STAGING_ENV_FILE" 2>/dev/null || stat -c '%u' "$STAGING_ENV_FILE")
+          if [ "$ENV_OWNER" != "root" ] && [ "$ENV_OWNER" != "0" ]; then
+            echo "ERROR: Staging environment file owner must be 'root' (got: $ENV_OWNER)."
+            exit 1
+          fi
+
+          # 3. Strict group verification (must be github-runner / gid 1001)
+          ENV_GROUP=$(stat -c '%G' "$STAGING_ENV_FILE" 2>/dev/null || stat -c '%g' "$STAGING_ENV_FILE")
+          if [ "$ENV_GROUP" != "github-runner" ] && [ "$ENV_GROUP" != "1001" ]; then
+            echo "ERROR: Staging environment file group must be 'github-runner' (got: $ENV_GROUP)."
+            exit 1
+          fi
+
+          # 4. Strict permission mode verification (must be exactly 0640 / 640)
+          ENV_MODE=$(stat -c '%a' "$STAGING_ENV_FILE")
+          if [ "$ENV_MODE" != "640" ] && [ "$ENV_MODE" != "0640" ]; then
+            echo "ERROR: Staging environment file mode must be 0640 (got: $ENV_MODE)."
+            exit 1
+          fi
+
+          # 5. Readability verification
           if [ ! -r "$STAGING_ENV_FILE" ]; then
             echo "ERROR: Staging environment file '$STAGING_ENV_FILE' is not readable by runner identity."
+            exit 1
+          fi
+          echo "Staging environment configuration file verified (Owner: root, Group: github-runner, Mode: 0640)."le '$STAGING_ENV_FILE' is not readable by runner identity."
             exit 1
           fi
 
