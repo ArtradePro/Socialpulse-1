@@ -1,0 +1,153 @@
+name: Bootstrap Staging Infrastructure
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  workflow_dispatch:
+    inputs:
+      authorization_reference:
+        description: "Executive written authorization identifier (e.g. AUTH-VERNON-20260902-INFRA)"
+        required: true
+        type: string
+      confirm_bootstrap:
+        description: "I confirm authorization to bootstrap staging PostgreSQL and Redis containers"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deployment-staging-infra
+  cancel-in-progress: false
+
+jobs:
+  bootstrap-infra:
+    name: Bootstrap Staging Infrastructure (postgres & redis)
+    runs-on: [self-hosted, linux, socialpulse-staging]
+    environment: staging
+
+    steps:
+      - name: Validate Inputs & Authorization Guards
+        env:
+          INPUT_CONFIRM_BOOTSTRAP: ${{ inputs.confirm_bootstrap }}
+          INPUT_AUTHORIZATION_REFERENCE: ${{ inputs.authorization_reference }}
+        run: |
+          set -euo pipefail
+          echo "=== VALIDATING INFRASTRUCTURE BOOTSTRAP AUTHORIZATION ==="
+
+          if [ "$INPUT_CONFIRM_BOOTSTRAP" != "true" ]; then
+            echo "ERROR: Infrastructure bootstrap not confirmed. Aborting."
+            exit 1
+          fi
+
+          if ! [[ "$INPUT_AUTHORIZATION_REFERENCE" =~ ^[a-zA-Z0-9._\ -]{1,128}$ ]]; then
+            echo "ERROR: Invalid authorization reference format."
+            exit 1
+          fi
+
+          echo "Infrastructure bootstrap authorization verified: $INPUT_AUTHORIZATION_REFERENCE"
+
+      - name: Preflight Tools & Host Environment Isolation Check
+        run: |
+          set -euo pipefail
+          echo "=== PREFLIGHT TOOL & ENVIRONMENT ISOLATION CHECK ==="
+
+          for tool in git docker realpath chmod; do
+            if ! command -v "$tool" &>/dev/null; then
+              echo "ERROR: Required tool '$tool' is not available on runner. Aborting."
+              exit 1
+            fi
+          done
+
+          if ! docker compose version &>/dev/null; then
+            echo "ERROR: Docker Compose is not available on runner. Aborting."
+            exit 1
+          fi
+
+          echo "=== STAGING ENVIRONMENT SECRET FILE PREFLIGHT ==="
+          STAGING_ENV_FILE="/opt/socialpulse/.env"
+          if [ ! -f "$STAGING_ENV_FILE" ] || [ -L "$STAGING_ENV_FILE" ]; then
+            echo "ERROR: Staging environment file '$STAGING_ENV_FILE' must exist as a regular non-symlink file."
+            exit 1
+          fi
+          if [ ! -r "$STAGING_ENV_FILE" ]; then
+            echo "ERROR: Staging environment file '$STAGING_ENV_FILE' is not readable by runner identity."
+            exit 1
+          fi
+
+          echo "=== VERIFYING NO APPLICATION CONTAINERS ARE UNEXPECTEDLY RUNNING ==="
+          EXISTING_BACKEND=$(docker inspect --format='{{.Config.Image}}' socialpulse-backend 2>/dev/null || true)
+          EXISTING_FRONTEND=$(docker inspect --format='{{.Config.Image}}' socialpulse-frontend 2>/dev/null || true)
+
+          if [ -n "$EXISTING_BACKEND" ] || [ -n "$EXISTING_FRONTEND" ]; then
+            echo "ERROR: Application containers (backend/frontend) are already present on host. Use standard deploy workflow."
+            exit 1
+          fi
+
+          echo "Preflight completed successfully. Host is in clean bootstrap state."
+
+      - name: Checkout Authorized Release Configuration Provenance
+        # Pinned immutably to official commit SHA for actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Pull Immutable Verified Infrastructure Digests & Start Postgres and Redis
+        run: |
+          set -euo pipefail
+          echo "=== PULLING IMMUTABLE INFRASTRUCTURE IMAGES BY DIGEST ==="
+
+          POSTGRES_DIGEST="postgres@sha256:fe0737ba566a2c5b2a28f34433c0a423261900ec17b9bf7ad115e1aae7e57f1b"
+          REDIS_DIGEST="redis@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf"
+
+          docker pull "$POSTGRES_DIGEST"
+          docker pull "$REDIS_DIGEST"
+
+          echo "=== STARTING POSTGRESQL & REDIS CONTAINERS VIA DOCKER COMPOSE ==="
+          export SOCIALPULSE_POSTGRES_IMAGE="$POSTGRES_DIGEST"
+          export SOCIALPULSE_REDIS_IMAGE="$REDIS_DIGEST"
+          export SOCIALPULSE_BACKEND_IMAGE="artradepro/socialpulse-backend@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          export SOCIALPULSE_FRONTEND_IMAGE="artradepro/socialpulse-frontend@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env up -d postgres redis
+
+          echo "=== VERIFYING INFRASTRUCTURE CONTAINER HEALTH ==="
+          PG_HEALTHY=0
+          for attempt in {1..12}; do
+            echo "Checking PostgreSQL health (attempt $attempt of 12)..."
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' socialpulse-1-postgres-1 2>/dev/null || docker inspect --format='{{.State.Health.Status}}' postgres 2>/dev/null || echo "unhealthy")
+            if [ "$STATUS" = "healthy" ]; then
+              PG_HEALTHY=1
+              echo "PostgreSQL container is healthy."
+              break
+            fi
+            sleep 5
+          done
+
+          if [ "$PG_HEALTHY" -ne 1 ]; then
+            echo "ERROR: PostgreSQL container failed health check within 60 seconds."
+            exit 1
+          fi
+
+          REDIS_HEALTHY=0
+          for attempt in {1..12}; do
+            echo "Checking Redis health (attempt $attempt of 12)..."
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' socialpulse-1-redis-1 2>/dev/null || docker inspect --format='{{.State.Health.Status}}' redis 2>/dev/null || echo "unhealthy")
+            if [ "$STATUS" = "healthy" ]; then
+              REDIS_HEALTHY=1
+              echo "Redis container is healthy."
+              break
+            fi
+            sleep 5
+          done
+
+          if [ "$REDIS_HEALTHY" -ne 1 ]; then
+            echo "ERROR: Redis container failed health check within 60 seconds."
+            exit 1
+          fi
+
+          echo "=== STAGING INFRASTRUCTURE BOOTSTRAP COMPLETED SUCCESSFULLY ==="

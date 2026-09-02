@@ -172,7 +172,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         it('Control 19: Concurrency protection exists on deployment and migration', () => {
             expect(deployContent).toContain('group: deployment-staging');
             expect(deployContent).toContain('cancel-in-progress: false');
-            expect(migrateContent).toContain('group: migration-${{ inputs.environment }}');
+            expect(migrateContent).toContain('group: migration-staging');
             expect(migrateContent).toContain('cancel-in-progress: false');
         });
 
@@ -187,7 +187,8 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         it('Control 8 & 9: Environment input is strictly allowlisted; arbitrary environments rejected', () => {
             expect(deployContent).toContain('targeting staging');
             expect(deployContent).toContain('environment: staging');
-            expect(migrateContent).toContain('Allowed: staging, production');
+            expect(migrateContent).toContain('environment: staging');
+            expect(migrateContent).toContain('staging only');
         });
 
         it('Control 21: Migration preflight precedes execution', () => {
@@ -334,7 +335,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         });
 
         it('Control 32: Bounded /health/ready polling parses JSON response safely without raw log leaks', () => {
-            expect(deployContent).toContain('http://localhost:5000/health/ready');
+            expect(deployContent).toContain('http://127.0.0.1:5000/health/ready');
             expect(deployContent).toContain('data.ready === true');
             expect(deployContent).toContain('Readiness probe passed (ready: true)');
         });
@@ -371,7 +372,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(deployContent).toContain('COMPOSE_EXIT=0');
             expect(deployContent).toContain('export SOCIALPULSE_BACKEND_IMAGE="$PREV_BACKEND"');
             expect(deployContent).toContain('export SOCIALPULSE_FRONTEND_IMAGE="$PREV_FRONTEND"');
-            expect(deployContent).toContain('Verifying rollback readiness on /health/ready');
+            expect(deployContent).toContain('Verifying rollback readiness on http://127.0.0.1:5000/health/ready');
             expect(deployContent).toContain('Rollback failed! Compose exit: $COMPOSE_EXIT, Readiness: $ROLLBACK_READY');
         });
 
@@ -534,6 +535,122 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             // Negative test 6: Lookalike workflow path
             const resLookalike = validateReleaseRunProvenance({ ...validRun, path: '.github/workflows/deploy.yml' }, 'b9f819c4b153dd46dc9f4080a99d01aeffd01b7e');
             expect(resLookalike.valid).toBe(false);
+        });
+    });
+
+    describe('7. Staging Bootstrap, Migration & Environment-File Governance Controls (SP-8C-5C Controls 46-60)', () => {
+        const bootstrapInfraPath = join(workflowsDir, 'bootstrap-infra.yml');
+        const bootstrapAppPath = join(workflowsDir, 'bootstrap-app.yml');
+
+        const bootstrapInfraContent = readFileSync(bootstrapInfraPath, 'utf-8');
+        const bootstrapAppContent = readFileSync(bootstrapAppPath, 'utf-8');
+
+        it('Control 46: All three staging workflows are manual-only and target protected staging environment', () => {
+            for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
+                expect(content).toContain('workflow_dispatch:');
+                expect(content).toContain('environment: staging');
+                expect(content).not.toContain('on:\n  push:');
+                expect(content).not.toContain('on:\n  pull_request:');
+            }
+        });
+
+        it('Control 47: All self-hosted jobs target the dedicated staging runner labels', () => {
+            for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
+                expect(content).toContain('runs-on: [self-hosted, linux, socialpulse-staging]');
+                expect(content).not.toContain('socialpulse-production');
+            }
+        });
+
+        it('Control 48: No SSH action exists in any staging workflow path', () => {
+            for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
+                expect(content).not.toContain('appleboy/ssh-action');
+                expect(content).not.toContain('DEPLOY_SSH_KEY');
+            }
+        });
+
+        it('Control 49: All actions/checkout invocations are pinned to full commit SHA', () => {
+            for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
+                expect(content).toMatch(/uses:\s*actions\/checkout@11bd71901bbe5b1630ceea73d27597364c9af683/);
+            }
+        });
+
+        it('Control 50: Explicit staging environment file binding exists across all Compose commands', () => {
+            const requiredEnvFlag = '--env-file /opt/socialpulse/.env';
+            expect(deployContent).toContain(`docker compose -f docker-compose.yml -f docker-compose.prod.yml ${requiredEnvFlag} up -d --no-build server client`);
+            expect(bootstrapInfraContent).toContain(`docker compose -f docker-compose.yml -f docker-compose.prod.yml ${requiredEnvFlag} up -d postgres redis`);
+            expect(bootstrapAppContent).toContain(`docker compose -f docker-compose.yml -f docker-compose.prod.yml ${requiredEnvFlag} up -d --no-build server client`);
+            expect(migrateContent).toContain(`docker compose -f docker-compose.yml -f docker-compose.prod.yml ${requiredEnvFlag} run --rm migrate npx ts-node src/database/migrate.ts`);
+        });
+
+        it('Control 51: Staging configuration preflight verifies /opt/socialpulse/.env is regular, non-symlink and readable', () => {
+            for (const content of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
+                expect(content).toContain('STAGING_ENV_FILE="/opt/socialpulse/.env"');
+                expect(content).toContain('[ ! -f "$STAGING_ENV_FILE" ] || [ -L "$STAGING_ENV_FILE" ]');
+                expect(content).toContain('[ ! -r "$STAGING_ENV_FILE" ]');
+            }
+        });
+
+        it('Control 52: Infrastructure bootstrap cannot deploy application services or execute migrations', () => {
+            expect(bootstrapInfraContent).not.toContain('up -d server client');
+            expect(bootstrapInfraContent).not.toContain('migrate.ts');
+            expect(bootstrapInfraContent).toContain('VERIFYING NO APPLICATION CONTAINERS ARE UNEXPECTEDLY RUNNING');
+        });
+
+        it('Control 53: Application bootstrap fails closed if application containers already exist', () => {
+            expect(bootstrapAppContent).toContain('VERIFYING NO APPLICATION CONTAINERS ARE ALREADY RUNNING');
+            expect(bootstrapAppContent).toContain('An initial bootstrap is not allowed when containers exist');
+        });
+
+        it('Control 54: Application bootstrap cleanup removes failed app containers while preserving database and redis', () => {
+            expect(bootstrapAppContent).toContain('cleanup_failed_bootstrap');
+            expect(bootstrapAppContent).toContain('docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env stop server client');
+            expect(bootstrapAppContent).toContain('docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env rm -f server client');
+            expect(bootstrapAppContent).not.toContain('down -v');
+            expect(bootstrapAppContent).not.toContain('rm -f postgres');
+        });
+
+        it('Control 55: Infrastructure images are digest-bound in production/staging compose overlay', () => {
+            expect(composeProdContent).toContain('postgres@sha256:fe0737ba566a2c5b2a28f34433c0a423261900ec17b9bf7ad115e1aae7e57f1b');
+            expect(composeProdContent).toContain('redis@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf');
+            expect(composeProdContent).toContain('nginx@sha256:516475cc129da42866742567714ddc681e5eed7b9ee0b9e9c015e464b4221a00');
+        });
+
+        it('Control 56: Application ports are bound to loopback only (127.0.0.1) and databases are not exposed', () => {
+            expect(composeProdContent).toContain('"127.0.0.1:5000:5000"');
+            expect(composeProdContent).toContain('"127.0.0.1:3000:3000"');
+            expect(composeProdContent).toMatch(/postgres:[\s\S]*?ports:\s*\[\]/);
+            expect(composeProdContent).toMatch(/redis:[\s\S]*?ports:\s*\[\]/);
+        });
+
+        it('Control 57: Provider safety under NODE_ENV=production fails closed and forbids simulation', async () => {
+            const { EmailProviderService } = require('../services/marketing/emailProvider.service');
+            const { SmsProviderService } = require('../services/marketing/smsProvider.service');
+
+            const originalEnv = process.env.NODE_ENV;
+            const originalSg = process.env.SENDGRID_API_KEY;
+            const originalTwilio = process.env.TWILIO_ACCOUNT_SID;
+            const originalSim = process.env.ALLOW_SIMULATED_DELIVERY;
+
+            try {
+                process.env.NODE_ENV = 'production';
+                delete process.env.SENDGRID_API_KEY;
+                delete process.env.SMTP_PASS;
+                delete process.env.TWILIO_ACCOUNT_SID;
+                delete process.env.ALLOW_SIMULATED_DELIVERY;
+
+                // Email must throw PROVIDER_DELIVERY_FAILED
+                await expect(EmailProviderService.send('test@example.com', 'Subject', 'Body'))
+                    .rejects.toThrow('PROVIDER_DELIVERY_FAILED');
+
+                // SMS must throw PROVIDER_DELIVERY_FAILED
+                await expect(SmsProviderService.send('+15551234567', 'Test SMS'))
+                    .rejects.toThrow('PROVIDER_DELIVERY_FAILED');
+            } finally {
+                process.env.NODE_ENV = originalEnv;
+                if (originalSg) process.env.SENDGRID_API_KEY = originalSg;
+                if (originalTwilio) process.env.TWILIO_ACCOUNT_SID = originalTwilio;
+                if (originalSim) process.env.ALLOW_SIMULATED_DELIVERY = originalSim;
+            }
         });
     });
 });

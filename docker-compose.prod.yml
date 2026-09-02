@@ -13,6 +13,7 @@ version: '3.8'
 services:
 
   postgres:
+    image: ${SOCIALPULSE_POSTGRES_IMAGE:-postgres@sha256:fe0737ba566a2c5b2a28f34433c0a423261900ec17b9bf7ad115e1aae7e57f1b}
     restart: unless-stopped
     ports: []                     # remove host exposure — only internal traffic
     environment:
@@ -24,6 +25,7 @@ services:
       retries: 5
 
   redis:
+    image: ${SOCIALPULSE_REDIS_IMAGE:-redis@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf}
     restart: unless-stopped
     ports: []                     # not exposed to host
     command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
@@ -36,6 +38,8 @@ services:
   server:
     image: ${SOCIALPULSE_BACKEND_IMAGE:?SOCIALPULSE_BACKEND_IMAGE environment variable is strictly required}
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:5000:5000"      # loopback only — not exposed on public interfaces
     volumes: []                   # no source mounts in production
     environment:
       NODE_ENV: production
@@ -98,7 +102,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:5000/health/live || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5000/health/live || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -106,10 +110,12 @@ services:
   client:
     image: ${SOCIALPULSE_FRONTEND_IMAGE:?SOCIALPULSE_FRONTEND_IMAGE environment variable is strictly required}
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"      # loopback only — not exposed on public interfaces
     volumes: []
 
   # One-shot migration runner — executed via authorized migration workflow:
-  #   docker-compose -f docker-compose.yml -f docker-compose.prod.yml run --rm migrate
+  #   docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm migrate
   migrate:
     image: ${SOCIALPULSE_BACKEND_IMAGE:?SOCIALPULSE_BACKEND_IMAGE environment variable is strictly required}
     command: ["node", "dist/database/migrate.js"]
@@ -121,7 +127,7 @@ services:
     restart: "no"
 
   nginx:
-    image: nginx:1.25-alpine
+    image: ${SOCIALPULSE_NGINX_IMAGE:-nginx@sha256:516475cc129da42866742567714ddc681e5eed7b9ee0b9e9c015e464b4221a00}
     restart: unless-stopped
     ports:
       - "80:80"

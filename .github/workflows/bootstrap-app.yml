@@ -1,4 +1,4 @@
-name: Database Migrations
+name: Bootstrap Staging Application
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -6,14 +6,8 @@ env:
 on:
   workflow_dispatch:
     inputs:
-      environment:
-        description: 'Target database environment (strictly allowlisted)'
-        required: true
-        type: choice
-        options:
-          - staging
       commit_sha:
-        description: 'Exact 40-character commit SHA matching the authorized migration SQL'
+        description: 'Exact 40-character commit SHA verified and approved for release'
         required: true
         type: string
       release_id:
@@ -29,16 +23,11 @@ on:
         required: true
         type: string
       authorization_reference:
-        description: 'Executive written authorization identifier (e.g. AUTH-VERNON-20260902-MIGRATE)'
+        description: 'Executive written authorization identifier (e.g. AUTH-VERNON-20260902-BOOTSTRAP)'
         required: true
         type: string
-      backup_confirmed:
-        description: 'I confirm a full verified database backup was taken immediately prior to this operation'
-        required: true
-        type: boolean
-        default: false
-      confirm_execution:
-        description: 'I confirm authorization to execute pending transactional migrations'
+      confirm_bootstrap:
+        description: 'I confirm authorization to execute the initial staging application bootstrap'
         required: true
         type: boolean
         default: false
@@ -48,90 +37,71 @@ permissions:
   actions: read
 
 concurrency:
-  group: migration-staging
+  group: deployment-staging
   cancel-in-progress: false
 
 jobs:
-  migrate:
-    name: Execute Transactional Database Migrations (staging)
+  bootstrap-app:
+    name: Bootstrap Staging Application (server & client)
     runs-on: [self-hosted, linux, socialpulse-staging]
     environment: staging
 
     steps:
-      - name: Validate Preconditions, Allowlist & Confirmations
+      - name: Validate Inputs, Allowlist & Fail-Closed Guards
         env:
-          INPUT_CONFIRM_EXECUTION: ${{ inputs.confirm_execution }}
-          INPUT_BACKUP_CONFIRMED: ${{ inputs.backup_confirmed }}
+          INPUT_CONFIRM_BOOTSTRAP: ${{ inputs.confirm_bootstrap }}
           INPUT_AUTHORIZATION_REFERENCE: ${{ inputs.authorization_reference }}
-          INPUT_ENVIRONMENT: ${{ inputs.environment }}
           INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
           INPUT_RELEASE_ID: ${{ inputs.release_id }}
           INPUT_RELEASE_RUN_ID: ${{ inputs.release_run_id }}
           INPUT_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
         run: |
           set -euo pipefail
-          echo "=== VALIDATING MIGRATION AUTHORIZATION & GUARDS ==="
+          echo "=== VALIDATING INITIAL BOOTSTRAP INPUTS & AUTHORIZATION ==="
 
-          # 1. Require explicit execution confirmation
-          if [ "$INPUT_CONFIRM_EXECUTION" != "true" ]; then
-            echo "ERROR: Migration execution not confirmed. Aborting."
+          if [ "$INPUT_CONFIRM_BOOTSTRAP" != "true" ]; then
+            echo "ERROR: Application bootstrap not confirmed. Aborting."
             exit 1
           fi
 
-          # 2. Require explicit backup confirmation
-          if [ "$INPUT_BACKUP_CONFIRMED" != "true" ]; then
-            echo "ERROR: Database backup confirmation required prior to migration execution."
-            exit 1
-          fi
-
-          # 3. Require valid authorization reference
           if ! [[ "$INPUT_AUTHORIZATION_REFERENCE" =~ ^[a-zA-Z0-9._\ -]{1,128}$ ]]; then
-            echo "ERROR: Authorization reference is strictly required."
+            echo "ERROR: Invalid authorization reference format."
             exit 1
           fi
 
-          # 4. Strict staging-only environment allowlist
-          if [ "$INPUT_ENVIRONMENT" != "staging" ]; then
-            echo "ERROR: Environment '$INPUT_ENVIRONMENT' is not permit-listed for self-hosted execution (staging only)."
-            exit 1
-          fi
-
-          # 5. Commit SHA format validation
-          if ! [[ "$INPUT_COMMIT_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            echo "ERROR: Invalid commit SHA format."
-            exit 1
-          fi
-
-          # 6. Release ID format validation
           if ! [[ "$INPUT_RELEASE_ID" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$ ]]; then
             echo "ERROR: Invalid release ID format."
             exit 1
           fi
 
-          # 7. Release run ID format validation
+          if ! [[ "$INPUT_COMMIT_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "ERROR: Invalid commit SHA format."
+            exit 1
+          fi
+
           if ! [[ "$INPUT_RELEASE_RUN_ID" =~ ^[0-9]+$ ]]; then
             echo "ERROR: Invalid release run ID format."
             exit 1
           fi
 
-          # 8. Manifest SHA-256 checksum format validation
           if ! [[ "$INPUT_MANIFEST_SHA256" =~ ^[0-9a-fA-F]{64}$ ]]; then
             echo "ERROR: Manifest SHA-256 must be exactly 64 hexadecimal characters."
             exit 1
           fi
 
-          echo "Authorization verified for release '$INPUT_RELEASE_ID' on environment '$INPUT_ENVIRONMENT'."
+          echo "Bootstrap authorization verified for release '$INPUT_RELEASE_ID' on staging."
 
       - name: Preflight Tool & Environment Availability Check
         run: |
           set -euo pipefail
-          echo "=== PREFLIGHT TOOL AVAILABILITY CHECK ==="
-          for tool in gh node sha256sum git docker realpath mktemp chmod; do
+          echo "=== PREFLIGHT TOOL & ENVIRONMENT AVAILABILITY CHECK ==="
+          for tool in gh node sha256sum git docker wget realpath mktemp chmod; do
             if ! command -v "$tool" &>/dev/null; then
               echo "ERROR: Required tool '$tool' is not available on runner. Aborting."
               exit 1
             fi
           done
+
           if ! docker compose version &>/dev/null; then
             echo "ERROR: Docker Compose is not available on runner. Aborting."
             exit 1
@@ -147,8 +117,17 @@ jobs:
             echo "ERROR: Staging environment file '$STAGING_ENV_FILE' is not readable by runner identity."
             exit 1
           fi
-          echo "Staging environment configuration verified."
-          echo "All required migration tools are available."
+
+          echo "=== VERIFYING NO APPLICATION CONTAINERS ARE ALREADY RUNNING ==="
+          EXISTING_BACKEND=$(docker inspect --format='{{.Config.Image}}' socialpulse-backend 2>/dev/null || true)
+          EXISTING_FRONTEND=$(docker inspect --format='{{.Config.Image}}' socialpulse-frontend 2>/dev/null || true)
+
+          if [ -n "$EXISTING_BACKEND" ] || [ -n "$EXISTING_FRONTEND" ]; then
+            echo "ERROR: Application containers (backend/frontend) are already present on host. An initial bootstrap is not allowed when containers exist."
+            exit 1
+          fi
+
+          echo "Bootstrap preflight completed successfully."
 
       - name: Authenticate Protected-Main Release Workflow Run & Artifact Metadata
         env:
@@ -214,12 +193,24 @@ jobs:
             console.log('Manifest artifact authenticated and unexpired.');
           " "$ARTIFACTS_JSON"
 
-      - name: Checkout Authorized Commit
+      - name: Checkout Authorized Release Configuration Provenance
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.commit_sha }}
           persist-credentials: false
           clean: true
+
+      - name: Verify Configuration & Git Provenance
+        env:
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          CURRENT_HEAD=$(git rev-parse HEAD)
+          if [ "$CURRENT_HEAD" != "$INPUT_COMMIT_SHA" ]; then
+            echo "ERROR: Checked out HEAD ($CURRENT_HEAD) does not match authorized commit ($INPUT_COMMIT_SHA)."
+            exit 1
+          fi
+          echo "Configuration provenance verified at commit $CURRENT_HEAD."
 
       - name: Create Dedicated Secure Temporary Directory & Cryptographically Verify Release Manifest
         env:
@@ -291,6 +282,10 @@ jobs:
               console.error('ERROR: Manifest releaseId mismatch:', m.releaseId);
               process.exit(1);
             }
+            if (m.targetEnvironment !== 'staging') {
+              console.error('ERROR: Manifest targetEnvironment mismatch (expected staging):', m.targetEnvironment);
+              process.exit(1);
+            }
             if (m.sourceCommit !== process.env.INPUT_COMMIT_SHA) {
               console.error('ERROR: Manifest sourceCommit mismatch:', m.sourceCommit);
               process.exit(1);
@@ -311,41 +306,126 @@ jobs:
               console.error('ERROR: Invalid manifest backend digest:', m?.backend?.digest);
               process.exit(1);
             }
+            if (!m.frontend || m.frontend.repository !== 'artradepro/socialpulse-frontend') {
+              console.error('ERROR: Manifest frontend repository mismatch:', m?.frontend?.repository);
+              process.exit(1);
+            }
+            if (m.frontend.tag !== 'sha-' + process.env.INPUT_COMMIT_SHA) {
+              console.error('ERROR: Manifest frontend tag mismatch:', m?.frontend?.tag);
+              process.exit(1);
+            }
+            if (!/^sha256:[0-9a-fA-F]{64}$/.test(m.frontend.digest)) {
+              console.error('ERROR: Invalid manifest frontend digest:', m?.frontend?.digest);
+              process.exit(1);
+            }
 
             const backendRef = m.backend.repository + '@' + m.backend.digest;
-            fs.appendFileSync(process.env.GITHUB_ENV, 'MIGRATE_BACKEND_REF=' + backendRef + '\n');
-            console.log('Manifest backend migration image authenticated:', backendRef);
+            const frontendRef = m.frontend.repository + '@' + m.frontend.digest;
+
+            fs.appendFileSync(process.env.GITHUB_ENV, 'DEPLOY_BACKEND_REF=' + backendRef + '\n');
+            fs.appendFileSync(process.env.GITHUB_ENV, 'DEPLOY_FRONTEND_REF=' + frontendRef + '\n');
+            fs.appendFileSync(process.env.GITHUB_ENV, 'DEPLOY_BACKEND_DIGEST=' + m.backend.digest + '\n');
+            fs.appendFileSync(process.env.GITHUB_ENV, 'DEPLOY_FRONTEND_DIGEST=' + m.frontend.digest + '\n');
+            console.log('Manifest identity fields fully verified against SP-8B schema. Image refs derived directly from manifest.');
           " "$MANIFEST_FILE"
 
-      - name: Run Migration Preflight and Execution on Target Host
+          echo "=== RELEASE MANIFEST CRYPTOGRAPHICALLY BOUND & VERIFIED ==="
+
+      - name: Pull Verified Release Images & Execute Initial Application Bootstrap
+        env:
+          INPUT_RELEASE_ID: ${{ inputs.release_id }}
+          INPUT_AUTHORIZATION_REFERENCE: ${{ inputs.authorization_reference }}
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
         run: |
           set -euo pipefail
+          set -E
 
-          if [ -z "${MIGRATE_BACKEND_REF:-}" ] || ! [[ "$MIGRATE_BACKEND_REF" =~ ^artradepro/socialpulse-backend@sha256:[0-9a-fA-F]{64}$ ]]; then
-            echo "ERROR: Valid migration image reference missing from environment."
+          echo "=== INITIATING CONTROLLED STAGING APPLICATION BOOTSTRAP ==="
+          echo "Release ID: $INPUT_RELEASE_ID"
+          echo "Authorization: $INPUT_AUTHORIZATION_REFERENCE"
+          echo "Commit SHA: $INPUT_COMMIT_SHA"
+
+          if [ -z "${DEPLOY_BACKEND_REF:-}" ] || [ -z "${DEPLOY_FRONTEND_REF:-}" ]; then
+            echo "ERROR: Deployment image references are missing from environment."
             exit 1
           fi
 
-          echo "Pulling verified migration backend image..."
-          docker pull "$MIGRATE_BACKEND_REF"
+          if ! [[ "$DEPLOY_BACKEND_REF" =~ ^artradepro/socialpulse-backend@sha256:[0-9a-fA-F]{64}$ ]] || \
+             ! [[ "$DEPLOY_FRONTEND_REF" =~ ^artradepro/socialpulse-frontend@sha256:[0-9a-fA-F]{64}$ ]]; then
+            echo "ERROR: Deployment image references do not match exact immutable fixed-repository digest format."
+            exit 1
+          fi
 
-          export SOCIALPULSE_BACKEND_IMAGE="$MIGRATE_BACKEND_REF"
+          # 1. Pull verified immutable digests locally
+          echo "Pulling verified immutable digests derived from manifest..."
+          docker pull "$DEPLOY_BACKEND_REF"
+          docker pull "$DEPLOY_FRONTEND_REF"
 
-          echo "=== RUNNING PRE-MIGRATION STATUS INSPECTION ==="
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env run --rm migrate npx ts-node src/database/scripts/migrationStatus.ts
+          # 2. Verify infrastructure dependency health (postgres and redis)
+          echo "Verifying infrastructure dependency containers are healthy..."
+          PG_STATUS=$(docker inspect --format='{{.State.Health.Status}}' socialpulse-1-postgres-1 2>/dev/null || docker inspect --format='{{.State.Health.Status}}' postgres 2>/dev/null || echo "unhealthy")
+          REDIS_STATUS=$(docker inspect --format='{{.State.Health.Status}}' socialpulse-1-redis-1 2>/dev/null || docker inspect --format='{{.State.Health.Status}}' redis 2>/dev/null || echo "unhealthy")
 
-          echo "=== EXECUTING TRANSACTIONAL MIGRATIONS ==="
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env run --rm migrate npx ts-node src/database/migrate.ts
+          if [ "$PG_STATUS" != "healthy" ] || [ "$REDIS_STATUS" != "healthy" ]; then
+            echo "ERROR: Infrastructure containers must be healthy before application bootstrap. Postgres: $PG_STATUS, Redis: $REDIS_STATUS."
+            exit 1
+          fi
 
-          echo "=== VERIFYING POST-MIGRATION LEDGER STATE ==="
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env run --rm migrate npx ts-node src/database/scripts/migrationStatus.ts
+          # Define fail-safe bootstrap cleanup handler (removes failed application containers while preserving database and redis)
+          cleanup_failed_bootstrap() {
+            trap '' ERR INT TERM
+            set +e
+            echo "=== INITIATING CLEANUP OF FAILED APPLICATION BOOTSTRAP ==="
+            echo "Stopping and removing failed server and client containers (preserving postgres & redis volumes)..."
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env stop server client || true
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env rm -f server client || true
+            echo "Failed application containers removed safely. Infrastructure state preserved."
+            exit 1
+          }
 
-          echo "=== MIGRATION COMPLETED SUCCESSFULLY ==="
+          trap cleanup_failed_bootstrap ERR INT TERM
+
+          export SOCIALPULSE_BACKEND_IMAGE="$DEPLOY_BACKEND_REF"
+          export SOCIALPULSE_FRONTEND_IMAGE="$DEPLOY_FRONTEND_REF"
+
+          # 3. Initial start of application services with explicit immutable digests and env file
+          echo "Starting application containers with verified release and explicit env file..."
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env up -d --no-build server client
+
+          # 4. Bounded post-bootstrap readiness validation on loopback
+          echo "Running bounded post-bootstrap readiness validation on http://127.0.0.1:5000/health/ready..."
+          READY=0
+          for attempt in {1..6}; do
+            echo "Readiness probe attempt $attempt of 6..."
+            RESPONSE=$(wget -qO- --timeout=5 http://127.0.0.1:5000/health/ready 2>/dev/null || true)
+            if [ -n "$RESPONSE" ]; then
+              if node -e "
+                try {
+                  const data = JSON.parse(process.argv[1]);
+                  if (data.ready === true) process.exit(0);
+                } catch(e) {}
+                process.exit(1);
+              " "$RESPONSE" 2>/dev/null; then
+                echo "Readiness probe passed (ready: true)."
+                READY=1
+                break
+              fi
+            fi
+            sleep 5
+          done
+
+          if [ "$READY" -ne 1 ]; then
+            echo "ERROR: Application failed readiness validation on http://127.0.0.1:5000/health/ready after 30 seconds."
+            cleanup_failed_bootstrap
+          fi
+
+          trap - ERR INT TERM
+          echo "=== STAGING APPLICATION BOOTSTRAP COMPLETED SUCCESSFULLY ==="
 
       - name: Secure Temporary Artifact Cleanup
         if: always()
         run: |
-          echo "=== RUNNING POST-MIGRATION SECURE CLEANUP ==="
+          echo "=== RUNNING POST-BOOTSTRAP SECURE CLEANUP ==="
           if [ -n "${MANIFEST_TMP_DIR:-}" ] && [ -d "$MANIFEST_TMP_DIR" ]; then
             CANONICAL_TEMP_DIR=$(realpath "$MANIFEST_TMP_DIR" 2>/dev/null || true)
             if [ -n "${RUNNER_TEMP:-}" ] && [ -d "$RUNNER_TEMP" ]; then
@@ -360,3 +440,22 @@ jobs:
               fi
             fi
           fi
+
+      - name: Output Application Bootstrap Audit Summary
+        env:
+          INPUT_RELEASE_ID: ${{ inputs.release_id }}
+          INPUT_AUTHORIZATION_REFERENCE: ${{ inputs.authorization_reference }}
+          INPUT_COMMIT_SHA: ${{ inputs.commit_sha }}
+          DEPLOY_BACKEND_DIGEST: ${{ env.DEPLOY_BACKEND_DIGEST }}
+          DEPLOY_FRONTEND_DIGEST: ${{ env.DEPLOY_FRONTEND_DIGEST }}
+          INPUT_MANIFEST_SHA256: ${{ inputs.manifest_sha256 }}
+        run: |
+          echo "=== APPLICATION BOOTSTRAP AUDIT SUMMARY ==="
+          echo "Environment: staging"
+          echo "Release ID: $INPUT_RELEASE_ID"
+          echo "Authorization Ref: $INPUT_AUTHORIZATION_REFERENCE"
+          echo "Commit SHA: $INPUT_COMMIT_SHA"
+          echo "Backend Digest: $DEPLOY_BACKEND_DIGEST"
+          echo "Frontend Digest: $DEPLOY_FRONTEND_DIGEST"
+          echo "Manifest SHA-256: $INPUT_MANIFEST_SHA256"
+          echo "Triggered By: ${{ github.actor }}"

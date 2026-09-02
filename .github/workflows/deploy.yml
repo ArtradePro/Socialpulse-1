@@ -112,7 +112,19 @@ jobs:
             echo "ERROR: Docker Compose is not available on runner. Aborting."
             exit 1
           fi
-          echo "All required deployment tools are available."
+
+          echo "=== STAGING ENVIRONMENT CONFIGURATION PREFLIGHT ==="
+          STAGING_ENV_FILE="/opt/socialpulse/.env"
+          if [ ! -f "$STAGING_ENV_FILE" ] || [ -L "$STAGING_ENV_FILE" ]; then
+            echo "ERROR: Staging environment file '$STAGING_ENV_FILE' must exist as a regular non-symlink file."
+            exit 1
+          fi
+          if [ ! -r "$STAGING_ENV_FILE" ]; then
+            echo "ERROR: Staging environment file '$STAGING_ENV_FILE' is not readable by runner identity."
+            exit 1
+          fi
+          echo "Staging environment configuration file verified."
+          echo "All required deployment tools and configuration files are available."
 
       - name: Authenticate Protected-Main Release Workflow Run & Artifact Metadata
         env:
@@ -392,14 +404,14 @@ jobs:
             export SOCIALPULSE_BACKEND_IMAGE="$PREV_BACKEND"
             export SOCIALPULSE_FRONTEND_IMAGE="$PREV_FRONTEND"
 
-            echo "Recreating services with prior verified immutable images..."
+            echo "Recreating services with prior verified immutable images and explicit env file..."
             COMPOSE_EXIT=0
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build server client || COMPOSE_EXIT=$?
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env up -d --no-build server client || COMPOSE_EXIT=$?
 
-            echo "Verifying rollback readiness on /health/ready..."
+            echo "Verifying rollback readiness on http://127.0.0.1:5000/health/ready..."
             ROLLBACK_READY=0
             for r_attempt in {1..6}; do
-              RESPONSE=$(wget -qO- --timeout=5 http://localhost:5000/health/ready 2>/dev/null || true)
+              RESPONSE=$(wget -qO- --timeout=5 http://127.0.0.1:5000/health/ready 2>/dev/null || true)
               if [ -n "$RESPONSE" ]; then
                 if node -e "
                   try {
@@ -430,16 +442,16 @@ jobs:
           export SOCIALPULSE_BACKEND_IMAGE="$DEPLOY_BACKEND_REF"
           export SOCIALPULSE_FRONTEND_IMAGE="$DEPLOY_FRONTEND_REF"
 
-          # 4. Rolling update of application services with explicit immutable digests
-          echo "Restarting application containers with verified release..."
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build server client
+          # 4. Rolling update of application services with explicit immutable digests and explicit env file
+          echo "Restarting application containers with verified release and explicit env file..."
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file /opt/socialpulse/.env up -d --no-build server client
 
           # 5. Bounded post-deployment readiness validation with JSON response verification
-          echo "Running bounded post-deployment readiness validation on /health/ready..."
+          echo "Running bounded post-deployment readiness validation on http://127.0.0.1:5000/health/ready..."
           READY=0
           for attempt in {1..6}; do
             echo "Readiness probe attempt $attempt of 6..."
-            RESPONSE=$(wget -qO- --timeout=5 http://localhost:5000/health/ready 2>/dev/null || true)
+            RESPONSE=$(wget -qO- --timeout=5 http://127.0.0.1:5000/health/ready 2>/dev/null || true)
             if [ -n "$RESPONSE" ]; then
               if node -e "
                 try {
