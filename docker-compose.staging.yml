@@ -112,7 +112,7 @@ services:
     image: ${SOCIALPULSE_FRONTEND_IMAGE:?SOCIALPULSE_FRONTEND_IMAGE environment variable is strictly required}
     restart: unless-stopped
     ports: !override
-      - "127.0.0.1:3000:3000"      # loopback only — not exposed on public interfaces
+      - "127.0.0.1:3001:3000"      # loopback only — host port 3001 mapped to container port 3000
     volumes: !override []         # strip local dev source mounts in staging
 
   # One-shot migration runner — executed via authorized migration workflow:

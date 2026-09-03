@@ -647,7 +647,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
 
         it('Control 56: Staging application ports are bound to loopback only (127.0.0.1) and databases are not exposed using !override semantics', () => {
             expect(composeStagingContent).toContain('"127.0.0.1:5000:5000"');
-            expect(composeStagingContent).toContain('"127.0.0.1:3000:3000"');
+            expect(composeStagingContent).toContain('"127.0.0.1:3001:3000"');
             expect(composeStagingContent).toMatch(/postgres:[\s\S]*?ports:\s*!override\s*\[\]/);
             expect(composeStagingContent).toMatch(/redis:[\s\S]*?ports:\s*!override\s*\[\]/);
             expect(composeStagingContent).toMatch(/server:[\s\S]*?volumes:\s*!override\s*\[\]/);
@@ -665,7 +665,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
 
             expect(composeStaging.name).toBe('socialpulse-staging');
             expect(composeStaging.services.server.ports).toEqual(['127.0.0.1:5000:5000']);
-            expect(composeStaging.services.client.ports).toEqual(['127.0.0.1:3000:3000']);
+            expect(composeStaging.services.client.ports).toEqual(['127.0.0.1:3001:3000']);
             expect(composeStaging.services.postgres.ports).toEqual([]);
             expect(composeStaging.services.redis.ports).toEqual([]);
             expect(composeStaging.services.server.volumes).toEqual([]);
@@ -745,7 +745,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
 
         it('Control 64: All four staging mutation workflows share single concurrency group socialpulse-staging-mutation', () => {
             for (const c of [deployContent, bootstrapInfraContent, bootstrapAppContent, migrateContent]) {
-                expect(c).toContain('concurrency:\n  group: socialpulse-staging-mutation\n  cancel-in-progress: false');
+                expect(c.replace(/\r\n/g, '\n')).toContain('concurrency:\n  group: socialpulse-staging-mutation\n  cancel-in-progress: false');
             }
         });
 
