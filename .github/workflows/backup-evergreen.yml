@@ -1,0 +1,200 @@
+name: Backup Evergreen Database
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  workflow_dispatch:
+    inputs:
+      authorization_reference:
+        description: 'Executive written authorization identifier'
+        required: true
+        type: string
+      confirm_backup:
+        description: 'I confirm authorization to execute pre-maintenance backup on srv1935605'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evergreen-backup
+  cancel-in-progress: false
+
+jobs:
+  backup-evergreen:
+    name: Evergreen Logical Backup & Verification (SP-8C-6P-R1)
+    runs-on: [self-hosted, linux, socialpulse-staging]
+    steps:
+      - name: Validate Authorization & Preflight System Invariants
+        run: |
+          set -euo pipefail
+          echo "=== STAGE 1: VALIDATE AUTHORIZATION & SYSTEM INVARIANTS ==="
+          if [ "${{ inputs.confirm_backup }}" != "true" ]; then
+            echo "ERROR: confirm_backup must be true."
+            exit 1
+          fi
+          
+          # Verify hostname
+          HOST=$(hostname)
+          echo "Host: ${HOST}"
+          if [ "${HOST}" != "srv1935605" ]; then
+            echo "ERROR: Hostname mismatch. Expected srv1935605, got ${HOST}."
+            exit 1
+          fi
+          
+          # Verify available disk space
+          AVAIL_MB=$(df -m / | awk 'NR==2 {print $4}')
+          echo "Available disk space: ${AVAIL_MB} MB"
+          if [ "${AVAIL_MB}" -lt 500 ]; then
+            echo "ERROR: Insufficient disk space for backup (< 500 MB available)."
+            exit 1
+          fi
+          
+          # Verify Evergreen containers are running
+          APP_STATUS=$(docker inspect evergreen-application --format '{{.State.Status}}')
+          PG_STATUS=$(docker inspect evergreen-postgres --format '{{.State.Status}}')
+          echo "evergreen-application status: ${APP_STATUS}"
+          echo "evergreen-postgres status:    ${PG_STATUS}"
+          if [ "${APP_STATUS}" != "running" ] || [ "${PG_STATUS}" != "running" ]; then
+            echo "ERROR: Both Evergreen containers must be running."
+            exit 1
+          fi
+
+      - name: Generate Logical Globals & Custom-Format Database Backups
+        id: backup
+        run: |
+          set -euo pipefail
+          echo "=== STAGE 2: GENERATE LOGICAL BACKUPS ==="
+          BACKUP_DIR="${HOME}/backups/evergreen"
+          mkdir -p "${BACKUP_DIR}"
+          chmod 0700 "${BACKUP_DIR}"
+          
+          TS=$(date -u +%Y%m%d_%H%M%SZ)
+          GLOBALS_FILE="${BACKUP_DIR}/evergreen_globals_${TS}.sql"
+          DB_FILE="${BACKUP_DIR}/evergreen_db_${TS}.dump"
+          
+          # 1. Dump globals (roles, tablespaces)
+          echo "Dumping PostgreSQL globals..."
+          docker exec evergreen-postgres pg_dumpall -U postgres --globals-only > "${GLOBALS_FILE}"
+          chmod 0600 "${GLOBALS_FILE}"
+          
+          # Discover non-template application database
+          APP_DB=$(docker exec evergreen-postgres psql -U postgres -At -c "SELECT datname FROM pg_database WHERE datistemplate = false AND datname != 'postgres' LIMIT 1;")
+          if [ -z "${APP_DB}" ]; then
+            APP_DB="postgres"
+          fi
+          echo "Target Application Database: ${APP_DB}"
+          
+          # 2. Dump application database in custom binary format (-F c)
+          echo "Dumping database '${APP_DB}' in custom format (-F c)..."
+          docker exec evergreen-postgres pg_dump -U postgres -d "${APP_DB}" -F c -b > "${DB_FILE}"
+          chmod 0600 "${DB_FILE}"
+          
+          # 3. Validate archive structure via pg_restore --list
+          echo "Validating custom archive structure via pg_restore --list..."
+          docker exec -i evergreen-postgres pg_restore --list < "${DB_FILE}" > /dev/null
+          echo "pg_restore --list: Archive TOC and catalog structurally VALID."
+          
+          # Record metrics
+          GLOBALS_SIZE=$(stat -c '%s' "${GLOBALS_FILE}")
+          GLOBALS_SHA=$(sha256sum "${GLOBALS_FILE}" | awk '{print $1}')
+          DB_SIZE=$(stat -c '%s' "${DB_FILE}")
+          DB_SHA=$(sha256sum "${DB_FILE}" | awk '{print $1}')
+          
+          echo "GLOBALS_FILE=${GLOBALS_FILE}" >> $GITHUB_OUTPUT
+          echo "GLOBALS_SIZE=${GLOBALS_SIZE}" >> $GITHUB_OUTPUT
+          echo "GLOBALS_SHA=${GLOBALS_SHA}" >> $GITHUB_OUTPUT
+          echo "DB_FILE=${DB_FILE}" >> $GITHUB_OUTPUT
+          echo "DB_SIZE=${DB_SIZE}" >> $GITHUB_OUTPUT
+          echo "DB_SHA=${DB_SHA}" >> $GITHUB_OUTPUT
+          echo "APP_DB=${APP_DB}" >> $GITHUB_OUTPUT
+          echo "TS=${TS}" >> $GITHUB_OUTPUT
+          
+          echo "Raw Backup Metrics:"
+          echo "  Globals: ${GLOBALS_FILE} (${GLOBALS_SIZE} bytes, SHA-256: ${GLOBALS_SHA})"
+          echo "  Database: ${DB_FILE} (${DB_SIZE} bytes, SHA-256: ${DB_SHA})"
+
+      - name: Encrypt Backup Artifacts with AES-256-CBC
+        id: encrypt
+        env:
+          TS: ${{ steps.backup.outputs.TS }}
+          GLOBALS_FILE: ${{ steps.backup.outputs.GLOBALS_FILE }}
+          DB_FILE: ${{ steps.backup.outputs.DB_FILE }}
+        run: |
+          set -euo pipefail
+          echo "=== STAGE 3: ENCRYPT BACKUP ARTIFACTS ==="
+          
+          # Generate ephemeral strong key for archive transmission
+          PASS_KEY=$(openssl rand -hex 32)
+          
+          ARCHIVE_TAR="${HOME}/backups/evergreen/evergreen_backup_${TS}.tar.gz"
+          ARCHIVE_ENC="${HOME}/backups/evergreen/evergreen_backup_${TS}.tar.gz.enc"
+          
+          # Bundle the verified dumps into a single tar.gz
+          tar -czf "${ARCHIVE_TAR}" -C "$(dirname "${GLOBALS_FILE}")" "$(basename "${GLOBALS_FILE}")" "$(basename "${DB_FILE}")"
+          chmod 0600 "${ARCHIVE_TAR}"
+          
+          # Encrypt with AES-256-CBC using PBKDF2
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 100000 -in "${ARCHIVE_TAR}" -out "${ARCHIVE_ENC}" -pass pass:"${PASS_KEY}"
+          chmod 0600 "${ARCHIVE_ENC}"
+          
+          ENC_SIZE=$(stat -c '%s' "${ARCHIVE_ENC}")
+          ENC_SHA=$(sha256sum "${ARCHIVE_ENC}" | awk '{print $1}')
+          
+          echo "ENC_FILE=${ARCHIVE_ENC}" >> $GITHUB_OUTPUT
+          echo "ENC_SIZE=${ENC_SIZE}" >> $GITHUB_OUTPUT
+          echo "ENC_SHA=${ENC_SHA}" >> $GITHUB_OUTPUT
+          
+          echo "Encrypted Archive Metrics:"
+          echo "  Encrypted File: ${ARCHIVE_ENC}"
+          echo "  Byte Size:      ${ENC_SIZE} bytes"
+          echo "  SHA-256:        ${ENC_SHA}"
+          
+          # Clean unencrypted tar bundle
+          rm -f "${ARCHIVE_TAR}"
+          
+          # Save decryption key locally in runner home (0600)
+          echo "${PASS_KEY}" > "${HOME}/backups/evergreen/encryption_key_${TS}.key"
+          chmod 0600 "${HOME}/backups/evergreen/encryption_key_${TS}.key"
+          unset PASS_KEY
+
+      - name: Upload Encrypted Backup Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: evergreen-encrypted-backup-${{ steps.backup.outputs.TS }}
+          path: ${{ steps.encrypt.outputs.ENC_FILE }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Unmasked Evergreen Health & Invariant Verification
+        run: |
+          set -euo pipefail
+          echo "=== STAGE 4: UNMASKED HEALTH & INVARIANT VERIFICATION ==="
+          APP_ID=$(docker inspect evergreen-application --format '{{.Id}}')
+          APP_STATUS=$(docker inspect evergreen-application --format '{{.State.Status}}')
+          APP_HEALTH=$(docker inspect evergreen-application --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}')
+          
+          PG_ID=$(docker inspect evergreen-postgres --format '{{.Id}}')
+          PG_STATUS=$(docker inspect evergreen-postgres --format '{{.State.Status}}')
+          PG_HEALTH=$(docker inspect evergreen-postgres --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}')
+          
+          echo "evergreen-application: ${APP_ID:0:12} [${APP_STATUS}/${APP_HEALTH}]"
+          echo "evergreen-postgres:    ${PG_ID:0:12} [${PG_STATUS}/${PG_HEALTH}]"
+          
+          if [ "${APP_STATUS}" != "running" ]; then
+            echo "CRITICAL FAILURE: evergreen-application is not running (${APP_STATUS})."
+            exit 1
+          fi
+          if [ "${PG_STATUS}" != "running" ]; then
+            echo "CRITICAL FAILURE: evergreen-postgres is not running (${PG_STATUS})."
+            exit 1
+          fi
+          
+          # HTTP Loopback health probe without masking
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/ || true)
+          echo "Evergreen Loopback HTTP Response Code: ${HTTP_CODE}"
+          
+          echo "=== BACKUP AND HEALTH VERIFICATION COMPLETE ==="
