@@ -1,0 +1,41 @@
+name: Reconcile Host Disk
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reconcile-disk
+  cancel-in-progress: false
+
+jobs:
+  inspect-disk:
+    name: Read-Only Host Disk & Geometry Reconciliation
+    runs-on: [self-hosted, linux, socialpulse-staging]
+    steps:
+      - name: Inspect Host Filesystem & Block Devices
+        run: |
+          set -euo pipefail
+          echo "=== HOST IDENTITY ==="
+          hostname
+          uname -a
+          
+          echo "=== 1. FINDMNT ROOT GEOMETRY ==="
+          findmnt -no SOURCE,FSTYPE,SIZE,AVAIL / || true
+          
+          echo "=== 2. DF EXACT BYTE CAPACITY ==="
+          df -B1 --output=source,fstype,size,used,avail,pcent,target / || true
+          
+          echo "=== 3. LSBLK RAW BLOCK DEVICES ==="
+          lsblk -b -o NAME,SIZE,FSTYPE,MOUNTPOINTS || true
+          
+          echo "=== 4. DF HUMAN READABLE ==="
+          df -h /
+          
+          echo "=== 5. MOUNT TABLE ROOT ENTRY ==="
+          grep ' / ' /proc/mounts || true
