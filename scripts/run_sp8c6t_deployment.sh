@@ -36,9 +36,10 @@ su - github-runner -c "
     exec ./scripts/deploy_staging.sh
 " 2>&1 | tee "${LOG_FILE}"
 
-# 4. Authoritative PIPESTATUS capture immediately after pipeline
-DEPLOY_STATUS=${PIPESTATUS[0]}
-TEE_STATUS=${PIPESTATUS[1]}
+# 4. Authoritative atomic PIPESTATUS capture immediately after pipeline
+PIPE_STATUSES=("${PIPESTATUS[@]}")
+DEPLOY_STATUS="${PIPE_STATUSES[0]:-1}"
+TEE_STATUS="${PIPE_STATUSES[1]:-0}"
 set -e
 
 # 5. Independent status evaluation outside the pipeline
