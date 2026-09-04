@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "packageId": "socialpulse-phase-sp8c6r-r32",
+  "packageId": "socialpulse-phase-sp8c6r-r33",
   "releaseId": "sp-8c-staging-release-03",
   "sourceCommit": "721e731a2e4af9c9903af92a788ab52a3c21b47e",
   "workflowRunId": "33721136048",
@@ -33,10 +33,10 @@
     {
       "file": "audit_compose_model.js",
       "gate": "SP-8C-6R",
-      "description": "Standalone Node.js AST security model auditor with dual-mode verification (--mode default for 4 unprofiled services, --mode migration for 5 profiled services), external trust anchor, and zero secret leakage",
-      "bytes": 19754,
-      "lines": 433,
-      "sha256": "d8496e4c0433bd51754d4ee7f3ae8756568e30df499c3d9bfc09a02d1964c27b"
+      "description": "Standalone Node.js AST security model auditor with dual-mode verification (--mode default for 4 unprofiled services, --mode migration for 5 profiled services with exact single-network staging_net and healthy PostgreSQL dependency validation), external trust anchor, and zero secret leakage",
+      "bytes": 22358,
+      "lines": 496,
+      "sha256": "ae8d7fd8da35b0fef7eeeab29f30db8c914509715ca747d38d3eadaffc8d6b82"
     },
     {
       "file": "validate_staging_compose.sh",
@@ -82,8 +82,12 @@
       { "name": "Neg 11: Prohibited Docker Socket Mount", "mode": "default", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
       { "name": "Neg 12: Corrupted Manifest Checksum", "mode": "default", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
       { "name": "Neg 13: Mutable Image Tag without Digest", "mode": "default", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
-      { "name": "Neg 14: Unproven Healthcheck Utility (wget)", "mode": "default", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" }
+      { "name": "Neg 14: Unproven Healthcheck Utility (wget)", "mode": "default", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 15: Extra Migration Network", "mode": "migration", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 16: Absent PostgreSQL Dependency", "mode": "migration", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 17: Additional Dependency on Migrate", "mode": "migration", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 18: PostgreSQL Dependency Condition other than service_healthy", "mode": "migration", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" }
     ],
-    "overallVerdict": "ALL_16_TESTS_PASSED_100_PERCENT"
+    "overallVerdict": "ALL_20_TESTS_PASSED_100_PERCENT"
   }
 }

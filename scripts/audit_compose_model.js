@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ==============================================================================
-// SOCIALPULSE PHASE SP-8C-6R (R32): STANDALONE DUAL-MODE COMPOSE MODEL AUDITOR
+// SOCIALPULSE PHASE SP-8C-6R (R33): STANDALONE DUAL-MODE COMPOSE MODEL AUDITOR
 // Modes: --mode default (4 services, migrate strictly absent)
 //        --mode migration (5 services, migrate strictly verified)
 // Security: Zero Secrets Leaked, In-Memory AST Inspection, Strict Fail-Closed
@@ -218,6 +218,69 @@ process.stdin.on('end', () => {
       process.exit(1);
     }
 
+    // Verify migrate service network membership: exactly one network 'staging_net'
+    let migNetworks = [];
+    if (Array.isArray(migSvc.networks)) {
+      migNetworks = migSvc.networks.map(n => {
+        if (typeof n === 'string') return n;
+        if (n && typeof n === 'object') return n.name || Object.keys(n)[0];
+        return null;
+      }).filter(Boolean);
+    } else if (migSvc.networks && typeof migSvc.networks === 'object') {
+      migNetworks = Object.keys(migSvc.networks);
+    }
+
+    if (migNetworks.length !== 1 || migNetworks[0] !== 'staging_net') {
+      console.error(`CRITICAL AUDIT ERROR [migration mode]: Service 'migrate' networks must contain exactly one network 'staging_net' (got: [${migNetworks.join(', ')}]).`);
+      process.exit(1);
+    }
+
+    // Verify migrate service dependencies: exactly one dependency 'postgres' with condition 'service_healthy'
+    if (!migSvc.depends_on || typeof migSvc.depends_on !== 'object') {
+      console.error("CRITICAL AUDIT ERROR [migration mode]: Service 'migrate' missing or invalid 'depends_on'.");
+      process.exit(1);
+    }
+
+    let depNames = [];
+    let pgCondition = null;
+
+    if (Array.isArray(migSvc.depends_on)) {
+      depNames = migSvc.depends_on.map(d => {
+        if (typeof d === 'string') return d;
+        if (d && typeof d === 'object') {
+          return d.name || d.service || Object.keys(d)[0];
+        }
+        return null;
+      }).filter(Boolean);
+
+      if (depNames.length === 1 && depNames[0] === 'postgres') {
+        const first = migSvc.depends_on[0];
+        if (typeof first === 'object' && first !== null) {
+          pgCondition = first.condition || (first.postgres && first.postgres.condition);
+        }
+      }
+    } else {
+      depNames = Object.keys(migSvc.depends_on);
+      if (depNames.length === 1 && depNames[0] === 'postgres') {
+        const pgVal = migSvc.depends_on.postgres;
+        if (typeof pgVal === 'object' && pgVal !== null) {
+          pgCondition = pgVal.condition;
+        } else if (typeof pgVal === 'string') {
+          pgCondition = pgVal;
+        }
+      }
+    }
+
+    if (depNames.length !== 1 || depNames[0] !== 'postgres') {
+      console.error(`CRITICAL AUDIT ERROR [migration mode]: Service 'migrate' depends_on must contain exactly one dependency 'postgres' (got: [${depNames.join(', ')}]).`);
+      process.exit(1);
+    }
+
+    if (pgCondition !== 'service_healthy') {
+      console.error(`CRITICAL AUDIT ERROR [migration mode]: Service 'migrate' dependency 'postgres' condition must be 'service_healthy' (got: '${pgCondition}').`);
+      process.exit(1);
+    }
+
     // Verify none of the other 4 services define profiles
     for (const otherSvc of ['postgres', 'redis', 'server', 'client']) {
       const p = Array.isArray(services[otherSvc].profiles) ? services[otherSvc].profiles : [];
@@ -428,6 +491,6 @@ process.stdin.on('end', () => {
   console.log('✓ Infrastructure Isolation: PostgreSQL and Redis host ports strictly unexposed');
   console.log('✓ Immutable Image Verification: Exact approved OCI repository lowercase 64-hex digests confirmed for all images');
   console.log('✓ Network & Volume Topology: Dedicated non-external bridge staging network and named volumes verified');
-  console.log(`Structured Compose Model Security Audit [mode: ${auditMode}] (SP-8C-6R-R32): 100% PASSED.`);
+  console.log(`Structured Compose Model Security Audit [mode: ${auditMode}] (SP-8C-6R-R33): 100% PASSED.`);
   process.exit(0);
 });
