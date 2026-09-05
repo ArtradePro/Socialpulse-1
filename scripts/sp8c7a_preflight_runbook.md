@@ -1,4 +1,4 @@
-# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R7)
+# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R9)
 
 **Governing Entity:** Higiene (Pty) Ltd — Project Evergreen — Higiene / Higienlabs Technology Division  
 **Corporate Spelling:** Strictly **"Higiene"** (never "Hygiene")  
@@ -8,7 +8,7 @@
 **Execution Agent:** Antigravity (Google DeepMind)  
 **Target Host Identity:** `srv1935605` (`2.24.130.251`)  
 **Gate:** `SP-8C-7A` (Read-Only Host Preflight Reconnaissance & Baseline)  
-**Revision:** `R7` (Single Consolidated Package Architecture)  
+**Revision:** `R9` (Single Consolidated Package Architecture)  
 **Status:** `AWAITING_INDEPENDENT_REVIEW — EXECUTION NOT AUTHORIZED`  
 **Guarantees & Scope:** Zero application/database mutations, zero snapshot creation, zero migration container execution. Acknowledges controlled root log file creation (`/root/sp8c7a_preflight_<TIMESTAMP>.log`) and unprivileged temporary file creation (`/tmp/sp8c7a_...`).
 
@@ -16,14 +16,14 @@
 
 ## 1. Scope & Execution Invariants
 
-Gate SP-8C-7A Revision R7 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
-* **Script SHA-256:** `225d634f96b23cc9fd1f777114344ce0935410e3590ed6877502f646c9ac7b54`
+Gate SP-8C-7A Revision R9 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
+* **Script SHA-256:** `b7a94e40b64bfea596d11460ee2a8c3f074cb09b12c46c3866ecab3c125f6db5`
 * **Script Size:** `48336 bytes` (1166 lines)
-* **Corroborating Sidecar SHA-256:** `06296f97a98738794cdcabc16d8c85bed732823b9e4b9cd5c03105f37f92e700` (86 bytes, `225d634f96b23cc9fd1f777114344ce0935410e3590ed6877502f646c9ac7b54  sp8c7a_preflight.sh`)
+* **Corroborating Sidecar SHA-256:** `0730aeeaaeee7e0b5ca61118e37d59ec0ac770c9ea4f56257e27285284fc88b0` (86 bytes, `b7a94e40b64bfea596d11460ee2a8c3f074cb09b12c46c3866ecab3c125f6db5  sp8c7a_preflight.sh`)
 * **Mandatory Invocation Invariant:**
   The caller must externally provide the exact trust anchor environment variables:
   ```bash
-  export EXPECTED_SP8C7A_SHA256="225d634f96b23cc9fd1f777114344ce0935410e3590ed6877502f646c9ac7b54"
+  export EXPECTED_SP8C7A_SHA256="b7a94e40b64bfea596d11460ee2a8c3f074cb09b12c46c3866ecab3c125f6db5"
   export EXPECTED_SP8C7A_BYTES="48336"
   ```
   The script enforces these variables prior to log creation or workload execution.
