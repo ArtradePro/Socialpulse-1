@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # HIGIENE (PTY) LTD — PROJECT EVERGREEN / SOCIALPULSE
-# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R6)
+# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R7)
 # Identity: root (EUID 0) outer wrapper -> unprivileged github-runner (UID 1001) workload
 # Rootless Socket: unix:///run/user/1001/docker.sock
 # Scope: ZERO DATABASE MUTATIONS, ZERO SNAPSHOTS, ZERO CONTAINER MUTATIONS
@@ -107,7 +107,7 @@ chmod 0600 "${LOG_FILE}"
 chown root:root "${LOG_FILE}"
 
 echo "========================================================================"
-echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R6)"
+echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R7)"
 echo ">>> UTC Timestamp      : ${TIMESTAMP}"
 echo ">>> Canonical Log      : ${LOG_FILE} (Controlled Log Creation)"
 echo ">>> Host Executor      : $(whoami) (EUID: $(id -u))"
@@ -1104,7 +1104,7 @@ echo ">>> PASS — SP-8C-7A HOST PREFLIGHT COMPLETED WITH ALL CHECKS PASSED"
 echo ">>> Mandatory External Trust Anchor Matched : PASS"
 echo ">>> Exactly Four Project Services Running   : PASS"
 echo ">>> Four Approved Image .Config.Image Match : PASS"
-echo ">>> Supplemental RepoDigests Corroborated   : PASS"
+echo ">>> RepoDigests Corroboration Removed       : NOT APPLICABLE"
 echo ">>> Pre-Migration Health Baseline Checks    : PASS"
 echo ">>> Observational Database Evidence Recorded: PASS (${OBSERVED_STATE})"
 echo ">>> Migration Policy Enforcement Verified   : PASS (${AUTH_STATUS})"
