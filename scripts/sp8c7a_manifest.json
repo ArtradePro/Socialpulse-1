@@ -6,9 +6,9 @@
   "independent_reviewer": "ChatGPT",
   "execution_agent": "Antigravity (Google DeepMind)",
   "gate": "SP-8C-7A",
-  "revision": "R5",
+  "revision": "R6",
   "package_name": "socialpulse_phase_sp8c7a_review_package.zip",
-  "created_at_utc": "2026-09-05T06:00:00Z",
+  "created_at_utc": "2026-09-05T12:15:00Z",
   "execution_mode": "strictly_read_only_standstill_preflight_unified",
   "guarantees_and_scope": {
     "zero_database_mutations": true,
@@ -25,7 +25,7 @@
     "zero_fabricated_fallback_evidence": true,
     "explicit_command_status_capture": true,
     "exact_config_image_equality": true,
-    "repodigests_supplemental_only": true,
+    "repodigests_corroboration_removed": true,
     "exact_migrations_directory_enforced": true,
     "exact_sorted_twelve_file_basenames": true,
     "canonical_compose_hash_enforced": true,
@@ -45,24 +45,24 @@
   "members": [
     {
       "filename": "sp8c7a_preflight.sh",
-      "bytes": 49060,
-      "lines": 1187,
-      "sha256": "d704fadd700f5ba1eaa9321c39c7e269aed6a7cebdb3fa890287a0e9c3fa8595",
+      "bytes": 48326,
+      "lines": 1166,
+      "sha256": "38f1322c8aceb754231367e46367575d109036f8b9748b7bcfa5564f79fdec47",
       "role": "unified_self_contained_strictly_read_only_host_preflight_script"
     },
     {
       "filename": "sp8c7a_preflight.sh.sha256",
-      "bytes": 101,
-      "lines": 2,
-      "sha256": "13c16183a74a84f6f9d67e8b3eb2136cc22e7f681be77b84a80594d681ab1541",
+      "bytes": 86,
+      "lines": 1,
+      "sha256": "3047cdcf86513cbd89490e70b4af2146824d0ae58705b21904ddedb187e2e81d",
       "role": "corroborating_script_checksum_sidecar"
     },
     {
       "filename": "sp8c7a_preflight_runbook.md",
-      "bytes": 5029,
+      "bytes": 4998,
       "lines": 43,
-      "sha256": "a42211132d80010ff939e7373c0fdd9297f0ec5c90dddd1b3d948081b893e778",
-      "role": "operational_preflight_runbook_and_invariants_revision_r5"
+      "sha256": "0a1adab8b16d05d044a98e8c8dece6c7aeb8aff879bd5c87fe6ff6595b71b45a",
+      "role": "operational_preflight_runbook_and_invariants_revision_r6"
     }
   ]
 }

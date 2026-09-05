@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # HIGIENE (PTY) LTD — PROJECT EVERGREEN / SOCIALPULSE
-# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R5)
+# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R6)
 # Identity: root (EUID 0) outer wrapper -> unprivileged github-runner (UID 1001) workload
 # Rootless Socket: unix:///run/user/1001/docker.sock
 # Scope: ZERO DATABASE MUTATIONS, ZERO SNAPSHOTS, ZERO CONTAINER MUTATIONS
@@ -107,7 +107,7 @@ chmod 0600 "${LOG_FILE}"
 chown root:root "${LOG_FILE}"
 
 echo "========================================================================"
-echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R5)"
+echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R6)"
 echo ">>> UTC Timestamp      : ${TIMESTAMP}"
 echo ">>> Canonical Log      : ${LOG_FILE} (Controlled Log Creation)"
 echo ">>> Host Executor      : $(whoami) (EUID: $(id -u))"
@@ -264,33 +264,12 @@ declare -A APPROVED_IMAGE_REFS=(
 for c in "${EXPECTED_CONTAINERS[@]}"; do
     EXP_REF="${APPROVED_IMAGE_REFS[${c}]}"
     CONFIG_IMG="$(docker inspect --format '{{.Config.Image}}' "${c}")"
-    REPO_DIGESTS="$(docker inspect --format '{{range .RepoDigests}}{{.}} {{end}}' "${c}")"
-
-    echo "Container: ${c}"
-    echo "  Approved Target Reference: ${EXP_REF}"
-    echo "  Observed .Config.Image   : ${CONFIG_IMG}"
-    echo "  Supplemental RepoDigests : ${REPO_DIGESTS}"
-
     # Exact .Config.Image equality is mandatory
     if [ "${CONFIG_IMG}" != "${EXP_REF}" ]; then
         echo "FAIL: Container ${c} .Config.Image '${CONFIG_IMG}' does not match exact approved immutable reference '${EXP_REF}'!" >&2
         exit 1
     fi
     echo "✓ Verified exact .Config.Image equality for ${c}"
-
-    # RepoDigests treated as supplemental evidence
-    SUPPLEMENTAL_MATCH=false
-    for rd in ${REPO_DIGESTS}; do
-        if [ "${rd}" = "${EXP_REF}" ]; then
-            SUPPLEMENTAL_MATCH=true
-            break
-        fi
-    done
-    if [ "${SUPPLEMENTAL_MATCH}" = "true" ]; then
-        echo "  [Supplemental] RepoDigests corroborates approved immutable digest."
-    else
-        echo "  [Supplemental] RepoDigests recorded: ${REPO_DIGESTS}"
-    fi
 done
 
 # ------------------------------------------------------------------------------
