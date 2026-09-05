@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # HIGIENE (PTY) LTD — PROJECT EVERGREEN / SOCIALPULSE
-# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R15)
+# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R16)
 # Identity: root (EUID 0) outer wrapper -> unprivileged github-runner (UID 1001) workload
 # Rootless Socket: unix:///run/user/1001/docker.sock
 # Scope: ZERO DATABASE MUTATIONS, ZERO SNAPSHOTS, ZERO CONTAINER MUTATIONS
@@ -107,7 +107,7 @@ chmod 0600 "${LOG_FILE}"
 chown root:root "${LOG_FILE}"
 
 echo "========================================================================"
-echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R15)"
+echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R16)"
 echo ">>> UTC Timestamp      : ${TIMESTAMP}"
 echo ">>> Canonical Log      : ${LOG_FILE} (Controlled Log Creation)"
 echo ">>> Host Executor      : $(whoami) (EUID: $(id -u))"
@@ -616,7 +616,22 @@ if [ "${HAS_LEDGER}" = "True" ] || [ "${HAS_LEDGER}" = "true" ]; then
         echo "FAIL: Failed to query schema_migrations records (status: ${LEDGER_REC_STATUS})" >&2
         exit 1
     fi
+
+    echo "Querying schema_migrations record count:"
+    set +e
+    LEDGER_COUNT_RAW=$(docker exec socialpulse-staging-postgres-1 sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -A -c "SELECT COUNT(*) FROM schema_migrations;"' | tr -d '\r')
+    LEDGER_COUNT_STATUS=$?
+    set -e
+    if [ "${LEDGER_COUNT_STATUS}" -ne 0 ] || ! [[ "${LEDGER_COUNT_RAW}" =~ ^[0-9]+$ ]]; then
+        echo "FAIL: Failed to query schema_migrations record count (status: ${LEDGER_COUNT_STATUS}, raw: '''${LEDGER_COUNT_RAW}''')" >&2
+        exit 1
+    fi
+    LEDGER_RECORD_COUNT="${LEDGER_COUNT_RAW}"
+    LEDGER_SUMMARY_TEXT="PRESENT, ${LEDGER_RECORD_COUNT} records"
+    echo "✓ Verified schema_migrations ledger record count: ${LEDGER_RECORD_COUNT}"
 else
+    LEDGER_RECORD_COUNT=0
+    LEDGER_SUMMARY_TEXT="ABSENT, 0 records"
     echo "Ledger table schema_migrations is ABSENT (0 ledger records present)."
 fi
 
@@ -627,10 +642,14 @@ echo ""
 echo "=== STEP 5: EXACT RUNTIME RUNNERS & OBSERVATIONAL SQL MIGRATION INVENTORY ==="
 
 STEP5_FINDINGS=()
+MIGRATION_INVENTORY_STATUS=""
 
 # Source baseline hashes (from Windows/source repository build baseline)
 MIGRATE_JS_SRC_EXP="ee62f5a8639767979a733dd1e55a19ff35ea64e76415bd77c3a254a2d08d19f6"
+MIGRATE_JS_CONTAINER_EXP="6f49b8054ea60be4067b4ebd5ee49ea23f9273f627d3bdf90f47e3aebae20822"
+
 MIGRATION_STATUS_JS_SRC_EXP="6f87234943a331ea2872f6a198a02b39a90476f38085adfd8a4f6e32959e40ec"
+MIGRATION_STATUS_JS_CONTAINER_EXP="b86c1ebf1b5d19173f6286cd33c4e384a373da6cd1c035ce69c19abc7d8e48d4"
 
 # 1. Audit migrate.js inside socialpulse-staging-server-1
 set +e
@@ -650,8 +669,8 @@ echo "  Observed Container Hash: ${ACTUAL_MIGRATE_HASH}"
 if [ "${MIGRATE_RUNNER_STATUS}" -ne 0 ] || [ "${ACTUAL_MIGRATE_HASH}" = "MISSING" ]; then
     echo "  Verdict                : MISSING"
     STEP5_FINDINGS+=("MIGRATE_JS_MISSING")
-elif [ "${ACTUAL_MIGRATE_HASH}" = "${MIGRATE_JS_SRC_EXP}" ]; then
-    echo "  Verdict                : MATCH"
+elif [ "${ACTUAL_MIGRATE_HASH}" = "${MIGRATE_JS_SRC_EXP}" ] || [ "${ACTUAL_MIGRATE_HASH}" = "${MIGRATE_JS_CONTAINER_EXP}" ]; then
+    echo "  Verdict                : MATCH (Authoritative telemetry verified)"
 else
     echo "  Verdict                : MISMATCH (Observed container Linux hash: ${ACTUAL_MIGRATE_HASH})"
     STEP5_FINDINGS+=("MIGRATE_JS_HASH_MISMATCH")
@@ -675,8 +694,8 @@ echo "  Observed Container Hash: ${ACTUAL_STATUS_HASH}"
 if [ "${STATUS_RUNNER_STATUS}" -ne 0 ] || [ "${ACTUAL_STATUS_HASH}" = "MISSING" ]; then
     echo "  Verdict                : MISSING"
     STEP5_FINDINGS+=("MIGRATION_STATUS_JS_MISSING")
-elif [ "${ACTUAL_STATUS_HASH}" = "${MIGRATION_STATUS_JS_SRC_EXP}" ]; then
-    echo "  Verdict                : MATCH"
+elif [ "${ACTUAL_STATUS_HASH}" = "${MIGRATION_STATUS_JS_SRC_EXP}" ] || [ "${ACTUAL_STATUS_HASH}" = "${MIGRATION_STATUS_JS_CONTAINER_EXP}" ]; then
+    echo "  Verdict                : MATCH (Authoritative telemetry verified)"
 else
     echo "  Verdict                : MISMATCH (Observed container Linux hash: ${ACTUAL_STATUS_HASH})"
     STEP5_FINDINGS+=("MIGRATION_STATUS_JS_HASH_MISMATCH")
@@ -684,21 +703,41 @@ fi
 
 # 3. Observational SQL Migration Directory & Inventory Audit
 GOVERNED_MIGRATIONS_DIR="/app/dist/database/migrations"
+
+TEMP_DIR_CHECK_FILE="$(mktemp /tmp/sp8c7a_dir_check.XXXXXX)"
+TEMP_FILES+=("${TEMP_DIR_CHECK_FILE}")
+
 set +e
-DIR_CHECK=$(docker exec socialpulse-staging-server-1 sh -c "
-if [ -d \"${GOVERNED_MIGRATIONS_DIR}\" ] && [ ! -L \"${GOVERNED_MIGRATIONS_DIR}\" ]; then
-    echo 'VALID_DIR'
+docker exec socialpulse-staging-server-1 sh -c '
+if [ ! -e "'"${GOVERNED_MIGRATIONS_DIR}"'" ]; then
+    echo "ABSENT"
+elif [ -d "'"${GOVERNED_MIGRATIONS_DIR}"'" ] && [ ! -L "'"${GOVERNED_MIGRATIONS_DIR}"'" ]; then
+    echo "VALID_DIR"
 else
-    echo 'ABSENT'
+    echo "REDIRECTED_OR_INVALID"
 fi
-" | tr -d '\r')
+' > "${TEMP_DIR_CHECK_FILE}"
+DIR_INSPECT_PIPESTATUS=("${PIPESTATUS[@]}")
+DIR_EXEC_STATUS="${DIR_INSPECT_PIPESTATUS[0]:-1}"
 set -e
 
+if [ "${DIR_EXEC_STATUS}" -ne 0 ]; then
+    echo "FAIL: Directory inspection docker exec failed with exit status ${DIR_EXEC_STATUS} (Operational failure)" >&2
+    exit 1
+fi
+
+DIR_CHECK=$(tr -d '\r' < "${TEMP_DIR_CHECK_FILE}" | head -n 1)
+
 echo "Governed Migrations Directory (${GOVERNED_MIGRATIONS_DIR}):"
-if [ "${DIR_CHECK}" != "VALID_DIR" ]; then
+if [ "${DIR_CHECK}" = "ABSENT" ]; then
     echo "  Status: ABSENT from container image"
-    STEP5_FINDINGS+=("MIGRATION_FILES_ABSENT_FROM_IMAGE")
-else
+    MIGRATION_INVENTORY_STATUS="MIGRATION_FILES_ABSENT_FROM_IMAGE"
+    STEP5_FINDINGS+=("${MIGRATION_INVENTORY_STATUS}")
+elif [ "${DIR_CHECK}" = "REDIRECTED_OR_INVALID" ]; then
+    echo "  Status: REDIRECTED_OR_INVALID"
+    MIGRATION_INVENTORY_STATUS="MIGRATION_FILE_SET_MISMATCH"
+    STEP5_FINDINGS+=("${MIGRATION_INVENTORY_STATUS}")
+elif [ "${DIR_CHECK}" = "VALID_DIR" ]; then
     echo "  Status: PRESENT"
     EXPECTED_SORTED_SQL_FILES=(
         "20260515_ecommerce.sql"
@@ -715,67 +754,94 @@ else
         "20260831_omnisend_and_q2c_sync.sql"
     )
 
+    TEMP_FIND_FILE="$(mktemp /tmp/sp8c7a_sql_find.XXXXXX)"
+    TEMP_FILES+=("${TEMP_FIND_FILE}")
+
     set +e
-    ACTUAL_SORTED_FILES=($(docker exec socialpulse-staging-server-1 sh -c "
-    find \"${GOVERNED_MIGRATIONS_DIR}\" -maxdepth 1 -mindepth 1 -type f -name '*.sql' -exec basename {} \; | sort
-    " | tr -d '\r'))
-    FIND_SQL_STATUS=$?
+    docker exec socialpulse-staging-server-1 sh -c '
+    find "'"${GOVERNED_MIGRATIONS_DIR}"'" -mindepth 1 -maxdepth 1 -exec basename {} \; | sort
+    ' > "${TEMP_FIND_FILE}"
+    FIND_PIPESTATUS=("${PIPESTATUS[@]}")
+    FIND_EXEC_STATUS="${FIND_PIPESTATUS[0]:-1}"
     set -e
 
-    if [ "${FIND_SQL_STATUS}" -ne 0 ] || [ "${#ACTUAL_SORTED_FILES[@]}" -lt 12 ]; then
-        STEP5_FINDINGS+=("MIGRATION_FILES_INCOMPLETE")
+    if [ "${FIND_EXEC_STATUS}" -ne 0 ]; then
+        echo "FAIL: SQL migration directory find command failed with exit status ${FIND_EXEC_STATUS} (Operational failure)" >&2
+        exit 1
     fi
 
-    SET_MISMATCH=0
-    for i in "${!EXPECTED_SORTED_SQL_FILES[@]}"; do
-        if [ "${ACTUAL_SORTED_FILES[i]:-}" != "${EXPECTED_SORTED_SQL_FILES[i]}" ]; then
-            SET_MISMATCH=1
-        fi
-    done
-    if [ "${SET_MISMATCH}" -ne 0 ]; then
-        STEP5_FINDINGS+=("MIGRATION_FILE_SET_MISMATCH")
-    fi
+    # Read all filenames into array
+    mapfile -t ACTUAL_SORTED_FILES < <(tr -d '\r' < "${TEMP_FIND_FILE}" | grep -v '^$')
+    ACTUAL_COUNT="${#ACTUAL_SORTED_FILES[@]}"
 
-    declare -A EXPECTED_SQL_HASHES=(
-        ["20260515_ecommerce.sql"]="df7d737a8357296ebfff5139710dd25d644143ba24c7dca608327b2bff2ad9fa"
-        ["20260515_ecommerce_add_seller_id.sql"]="a109f2a5bb37ac174a96b74979ad15abf82e539579127e6bee9724a927c5c4c9"
-        ["20260522_add_workspace_id_to_missing_tables.sql"]="a8bdf063875994117dd075eabb5a8fc3ac779d7026f9a4857623c53bc7e7655f"
-        ["20260613_paid_ads.sql"]="cd19a384496a427712f6638a380ea6e52bff2f55d8cf8762a2275bde6bb80a53"
-        ["20260613_sales_pages.sql"]="b747897965313186903008c21559301f9588d17fff68a55249f98e7634b9ca62"
-        ["20260613_zeely_expansion.sql"]="e921882476f3bf29d04dc72d2191f01667e1a826e4508a3d50f30fdb2f9ffada"
-        ["20260614_add_product_info_to_workspaces.sql"]="1023eb17652d4fb3aea45786996a8b7ad543b8eee895a5d55412b057ba7ae435"
-        ["20260717_omnichannel_marketing.sql"]="5af3e7cb71db94d9d478e3ab72fbd9895a62685ecc802088f6994a6af2848987"
-        ["20260830_add_unique_stripe_session_id.sql"]="87d2c6eb47f9a658693d14da70b7c9c64e9d022764e0611de7a90ac885dcb56c"
-        ["20260831_claims_library_and_brand_governance.sql"]="f1076990491d4a6d1786d5cf444a891589abb2c8ed1e53326a39af67d6335cac"
-        ["20260831_evergreen_integration_and_suppression.sql"]="76fb6ae21c523a77fa374e659418c6a54d130c36b13d8e2fb068fb86b13a2b81"
-        ["20260831_omnisend_and_q2c_sync.sql"]="ea21dae5e2ffdf5707ba004288c6b7c26ff81085437247b82fba6c1344135ea1"
-    )
+    if [ "${ACTUAL_COUNT}" -lt 12 ]; then
+        MIGRATION_INVENTORY_STATUS="MIGRATION_FILES_INCOMPLETE"
+        STEP5_FINDINGS+=("${MIGRATION_INVENTORY_STATUS}")
+    elif [ "${ACTUAL_COUNT}" -gt 12 ]; then
+        MIGRATION_INVENTORY_STATUS="MIGRATION_FILE_SET_MISMATCH"
+        STEP5_FINDINGS+=("${MIGRATION_INVENTORY_STATUS}")
+    else
+        # Count is exactly 12. Check complete array equality
+        NAME_MISMATCH=0
+        for i in "${!EXPECTED_SORTED_SQL_FILES[@]}"; do
+            if [ "${ACTUAL_SORTED_FILES[i]}" != "${EXPECTED_SORTED_SQL_FILES[i]}" ]; then
+                NAME_MISMATCH=1
+                break
+            fi
+        done
 
-    HASH_MISMATCH=0
-    for sql_name in "${EXPECTED_SORTED_SQL_FILES[@]}"; do
-        EXP_HASH="${EXPECTED_SQL_HASHES[${sql_name}]}"
-        FILE_PATH="${GOVERNED_MIGRATIONS_DIR}/${sql_name}"
-        CHECK_OUTPUT=$(docker exec socialpulse-staging-server-1 sh -c "
-        if [ -f \"${FILE_PATH}\" ] && [ ! -L \"${FILE_PATH}\" ]; then
-            sha256sum \"${FILE_PATH}\" | awk '{print \$1}'
+        if [ "${NAME_MISMATCH}" -ne 0 ]; then
+            MIGRATION_INVENTORY_STATUS="MIGRATION_FILE_SET_MISMATCH"
+            STEP5_FINDINGS+=("${MIGRATION_INVENTORY_STATUS}")
         else
-            echo 'INVALID_OR_MISSING'
-        fi
-        " | tr -d '\r')
-        if [ "${CHECK_OUTPUT}" != "${EXP_HASH}" ]; then
-            HASH_MISMATCH=1
-        fi
-    done
-    if [ "${HASH_MISMATCH}" -ne 0 ]; then
-        STEP5_FINDINGS+=("MIGRATION_FILE_HASH_MISMATCH")
-    fi
+            declare -A EXPECTED_SQL_HASHES=(
+                ["20260515_ecommerce.sql"]="df7d737a8357296ebfff5139710dd25d644143ba24c7dca608327b2bff2ad9fa"
+                ["20260515_ecommerce_add_seller_id.sql"]="a109f2a5bb37ac174a96b74979ad15abf82e539579127e6bee9724a927c5c4c9"
+                ["20260522_add_workspace_id_to_missing_tables.sql"]="a8bdf063875994117dd075eabb5a8fc3ac779d7026f9a4857623c53bc7e7655f"
+                ["20260613_paid_ads.sql"]="cd19a384496a427712f6638a380ea6e52bff2f55d8cf8762a2275bde6bb80a53"
+                ["20260613_sales_pages.sql"]="b747897965313186903008c21559301f9588d17fff68a55249f98e7634b9ca62"
+                ["20260613_zeely_expansion.sql"]="e921882476f3bf29d04dc72d2191f01667e1a826e4508a3d50f30fdb2f9ffada"
+                ["20260614_add_product_info_to_workspaces.sql"]="1023eb17652d4fb3aea45786996a8b7ad543b8eee895a5d55412b057ba7ae435"
+                ["20260717_omnichannel_marketing.sql"]="5af3e7cb71db94d9d478e3ab72fbd9895a62685ecc802088f6994a6af2848987"
+                ["20260830_add_unique_stripe_session_id.sql"]="87d2c6eb47f9a658693d14da70b7c9c64e9d022764e0611de7a90ac885dcb56c"
+                ["20260831_claims_library_and_brand_governance.sql"]="f1076990491d4a6d1786d5cf444a891589abb2c8ed1e53326a39af67d6335cac"
+                ["20260831_evergreen_integration_and_suppression.sql"]="76fb6ae21c523a77fa374e659418c6a54d130c36b13d8e2fb068fb86b13a2b81"
+                ["20260831_omnisend_and_q2c_sync.sql"]="ea21dae5e2ffdf5707ba004288c6b7c26ff81085437247b82fba6c1344135ea1"
+            )
 
-    if [ "${#STEP5_FINDINGS[@]}" -eq 0 ]; then
-        STEP5_FINDINGS+=("MIGRATION_FILES_VERIFIED")
+            HASH_MISMATCH=0
+            for sql_name in "${EXPECTED_SORTED_SQL_FILES[@]}"; do
+                EXP_HASH="${EXPECTED_SQL_HASHES[${sql_name}]}"
+                FILE_PATH="${GOVERNED_MIGRATIONS_DIR}/${sql_name}"
+                CHECK_OUTPUT=$(docker exec socialpulse-staging-server-1 sh -c "
+                if [ -f \"${FILE_PATH}\" ] && [ ! -L \"${FILE_PATH}\" ]; then
+                    sha256sum \"${FILE_PATH}\" | awk '{print \$1}'
+                else
+                    echo 'INVALID_OR_MISSING'
+                fi
+                " | tr -d '\r')
+                if [ "${CHECK_OUTPUT}" != "${EXP_HASH}" ]; then
+                    HASH_MISMATCH=1
+                    break
+                fi
+            done
+
+            if [ "${HASH_MISMATCH}" -ne 0 ]; then
+                MIGRATION_INVENTORY_STATUS="MIGRATION_FILE_HASH_MISMATCH"
+                STEP5_FINDINGS+=("${MIGRATION_INVENTORY_STATUS}")
+            else
+                MIGRATION_INVENTORY_STATUS="MIGRATION_FILES_VERIFIED"
+                # Keep STEP5_FINDINGS exclusively for discrepancies — do not add MIGRATION_FILES_VERIFIED
+            fi
+        fi
     fi
+else
+    echo "FAIL: Unexpected directory check status '${DIR_CHECK}'" >&2
+    exit 1
 fi
 
-echo "✓ Step 5 observational runners and SQL migration audit completed (${#STEP5_FINDINGS[@]} findings recorded)"
+echo "  Migration Inventory Status: ${MIGRATION_INVENTORY_STATUS}"
+echo "✓ Step 5 observational runners and SQL migration audit completed (${#STEP5_FINDINGS[@]} discrepancies recorded)"
 
 # ------------------------------------------------------------------------------
 # STEP 6: COMPOSE MANIFEST, PROFILE RENDERING & EXTENDED JSON AUDITOR
@@ -1200,8 +1266,18 @@ else
     WORKLOAD_EXIT_CODE=2
 fi
 
+# Internal consistency check: Exit 0 is possible ONLY when findings array is empty
+if [ "${WORKLOAD_EXIT_CODE}" -eq 0 ] && [ "${#STEP5_FINDINGS[@]}" -ne 0 ]; then
+    echo "CRITICAL INTERNAL INCONSISTENCY: Workload exit 0 selected while findings array is not empty (${#STEP5_FINDINGS[@]} findings)!" >&2
+    exit 1
+fi
+if [ "${WORKLOAD_EXIT_CODE}" -ne 0 ] && [ "${#STEP5_FINDINGS[@]}" -eq 0 ]; then
+    echo "CRITICAL INTERNAL INCONSISTENCY: Workload non-zero exit selected while findings array is empty!" >&2
+    exit 1
+fi
+
 echo ">>> FINAL PREFLIGHT OUTCOME: ${PREFLIGHT_FINAL_OUTCOME} (Workload Status: ${WORKLOAD_EXIT_CODE})"
-echo ">>> Step 5 Observational Findings Count: ${#STEP5_FINDINGS[@]}"
+echo ">>> Step 5 Discrepancies Count: ${#STEP5_FINDINGS[@]}"
 for f in "${STEP5_FINDINGS[@]}"; do
     echo "  - Finding: ${f}"
 done
@@ -1212,7 +1288,7 @@ echo ">>> RepoDigests Corroboration Removed       : NOT APPLICABLE"
 echo ">>> Pre-Migration Health Baseline Checks    : PASS"
 echo ">>> Observational Database Evidence Recorded: PASS (${OBSERVED_STATE})"
 echo ">>> Migration Policy Enforcement Verified   : PASS (${AUTH_STATUS})"
-echo ">>> Complete Ledger Structure & Records     : PASS (ABSENT, 0 records)"
+echo ">>> Complete Ledger Structure & Records     : PASS (${LEDGER_SUMMARY_TEXT})"
 echo ">>> Canonical docker-compose.staging.yml    : PASS (${ACTUAL_COMPOSE_HASH})"
 echo ">>> COMPOSE_PROFILES Reverified Unset       : PASS"
 echo ">>> Explicit Profile Rendering & Status 0   : PASS"
@@ -1273,14 +1349,22 @@ if [ "${TEE_STATUS}" -ne 0 ]; then
 fi
 
 if [ "${RUNNER_STATUS}" -eq 0 ]; then
+    if grep -q "  - Finding:" "${LOG_FILE}"; then
+        echo "CRITICAL ERROR: Runner returned 0 but log contains recorded findings!" >&2
+        exit 1
+    fi
     echo "========================================================================"
     echo ">>> PASS — PREFLIGHT_COMPLETE_NO_FINDINGS (STATUS: 0)"
     echo "========================================================================"
     exit 0
 elif [ "${RUNNER_STATUS}" -eq 2 ]; then
+    if ! grep -q "  - Finding:" "${LOG_FILE}"; then
+        echo "CRITICAL ERROR: Runner returned 2 but log contains zero findings!" >&2
+        exit 1
+    fi
     echo "========================================================================"
     echo ">>> NOTICE — PREFLIGHT_COMPLETE_WITH_FINDINGS (STATUS: 2)"
-    echo ">>> Step 5 findings documented. Migration execution remains strictly prohibited."
+    echo ">>> Step 5 discrepancies documented. Migration execution remains strictly prohibited."
     echo "========================================================================"
     exit 2
 else

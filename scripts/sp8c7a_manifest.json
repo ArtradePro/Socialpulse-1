@@ -6,9 +6,9 @@
   "independent_reviewer": "ChatGPT",
   "execution_agent": "Antigravity (Google DeepMind)",
   "gate": "SP-8C-7A",
-  "revision": "R15",
+  "revision": "R16",
   "package_name": "socialpulse_phase_sp8c7a_review_package.zip",
-  "created_at_utc": "2026-09-05T15:00:00Z",
+  "created_at_utc": "2026-09-05T15:30:00Z",
   "execution_mode": "strictly_read_only_standstill_preflight_unified",
   "historical_execution_evidence": {
     "r12_canonical_log_path": "/root/sp8c7a_preflight_20260905_130932Z.log",
@@ -46,8 +46,14 @@
     "explicit_command_status_capture": true,
     "exact_config_image_equality": true,
     "repodigests_corroboration_removed": true,
-    "exact_migrations_directory_enforced": false,
-    "observational_step5_findings_supported": true,
+    "exact_twelve_sql_files_enforced": true,
+    "complete_array_equality_enforced": true,
+    "step5_findings_exclusively_discrepancies": true,
+    "migration_inventory_status_tracked_separately": true,
+    "directory_inspection_status_captured_explicitly": true,
+    "operational_inspection_failure_fails_closed": true,
+    "dynamic_ledger_summary_enforced": true,
+    "internal_exit0_consistency_check_enforced": true,
     "canonical_compose_hash_enforced": true,
     "compose_profiles_unset_prior_and_post_rendering": true,
     "exact_migration_profile_brackets": true,
@@ -68,24 +74,24 @@
   "members": [
     {
       "filename": "sp8c7a_preflight.sh",
-      "bytes": 53181,
-      "lines": 1290,
-      "sha256": "cb073aa909c35d0dfee20e759447f0e94b1fff1e6591c14439423814b10987f0",
+      "bytes": 57633,
+      "lines": 1374,
+      "sha256": "d0e35fcdf8e80400ba551d4d810f91b0689948979e69bdda2e2fb79c5434a416",
       "role": "unified_self_contained_strictly_read_only_host_preflight_script"
     },
     {
       "filename": "sp8c7a_preflight.sh.sha256",
       "bytes": 86,
       "lines": 1,
-      "sha256": "18f85a3ac74e4a5ec88733965987a46b79ba0a739103c31ef69a0462c5e09733",
+      "sha256": "4e75506566b0091d93c3f7ba969edf1441d300fbee9684a1c93ad74e46dbed18",
       "role": "corroborating_script_checksum_sidecar"
     },
     {
       "filename": "sp8c7a_preflight_runbook.md",
       "bytes": 8995,
       "lines": 90,
-      "sha256": "569fcc6b74f84ad35a74c73a53269fdce8c661a6293eaf513bd1b4488ef9ab8a",
-      "role": "operational_preflight_runbook_and_invariants_revision_r15"
+      "sha256": "a9d80aa9bcdcb882b39e6f9e9ffbe67234dc4140507a3d2f95f8b32d19ff3983",
+      "role": "operational_preflight_runbook_and_invariants_revision_r16"
     }
   ]
 }
