@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # HIGIENE (PTY) LTD — PROJECT EVERGREEN / SOCIALPULSE
-# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R17)
+# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R18)
 # Identity: root (EUID 0) outer wrapper -> unprivileged github-runner (UID 1001) workload
 # Rootless Socket: unix:///run/user/1001/docker.sock
 # Scope: ZERO DATABASE MUTATIONS, ZERO SNAPSHOTS, ZERO CONTAINER MUTATIONS
@@ -107,7 +107,7 @@ chmod 0600 "${LOG_FILE}"
 chown root:root "${LOG_FILE}"
 
 echo "========================================================================"
-echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R17)"
+echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R18)"
 echo ">>> UTC Timestamp      : ${TIMESTAMP}"
 echo ">>> Canonical Log      : ${LOG_FILE} (Controlled Log Creation)"
 echo ">>> Host Executor      : $(whoami) (EUID: $(id -u))"
@@ -656,11 +656,12 @@ MIGRATION_STATUS_JS_HISTORICAL_HASH="b86c1ebf1b5d19173f6286cd33c4e384a373da6cd1c
 set +e
 ACTUAL_MIGRATE_HASH=$(docker exec socialpulse-staging-server-1 sh -c '
 if [ -f /app/dist/database/migrate.js ] && [ ! -L /app/dist/database/migrate.js ]; then
-    sha256sum /app/dist/database/migrate.js | awk "{print \$1}"
+    sha256sum /app/dist/database/migrate.js | cut -d" " -f1
 else
     echo "MISSING"
 fi
 ' | tr -d '\r')
+ACTUAL_MIGRATE_HASH="${ACTUAL_MIGRATE_HASH%% *}"
 MIGRATE_RUNNER_STATUS=$?
 set -e
 
@@ -688,11 +689,12 @@ fi
 set +e
 ACTUAL_STATUS_HASH=$(docker exec socialpulse-staging-server-1 sh -c '
 if [ -f /app/dist/database/scripts/migrationStatus.js ] && [ ! -L /app/dist/database/scripts/migrationStatus.js ]; then
-    sha256sum /app/dist/database/scripts/migrationStatus.js | awk "{print \$1}"
+    sha256sum /app/dist/database/scripts/migrationStatus.js | cut -d" " -f1
 else
     echo "MISSING"
 fi
 ' | tr -d '\r')
+ACTUAL_STATUS_HASH="${ACTUAL_STATUS_HASH%% *}"
 STATUS_RUNNER_STATUS=$?
 set -e
 
@@ -830,11 +832,12 @@ elif [ "${DIR_CHECK}" = "VALID_DIR" ]; then
                 FILE_PATH="${GOVERNED_MIGRATIONS_DIR}/${sql_name}"
                 CHECK_OUTPUT=$(docker exec socialpulse-staging-server-1 sh -c "
                 if [ -f \"${FILE_PATH}\" ] && [ ! -L \"${FILE_PATH}\" ]; then
-                    sha256sum \"${FILE_PATH}\" | awk '{print \$1}'
+                    sha256sum \"${FILE_PATH}\" | cut -d\" \" -f1
                 else
                     echo 'INVALID_OR_MISSING'
                 fi
                 " | tr -d '\r')
+                CHECK_OUTPUT="${CHECK_OUTPUT%% *}"
                 if [ "${CHECK_OUTPUT}" != "${EXP_HASH}" ]; then
                     HASH_MISMATCH=1
                     break
@@ -914,8 +917,15 @@ echo "✓ Confirmed COMPOSE_PROFILES environment variable is strictly unset prio
 TEMP_COMPOSE_JSON=$(mktemp /tmp/sp8c7a_compose_XXXXXX.json)
 TEMP_FILES+=("${TEMP_COMPOSE_JSON}")
 
+COMPOSE_PROJECT_DIR="/opt/socialpulse"
+COMPOSE_ENV_FILE="/opt/socialpulse/.env"
+COMPOSE_ENV_ARGS=()
+if [ -f "${COMPOSE_ENV_FILE}" ]; then
+    COMPOSE_ENV_ARGS+=(--env-file "${COMPOSE_ENV_FILE}")
+fi
+
 set +e
-docker compose -f "${COMPOSE_FILE}" --profile migration config --format json > "${TEMP_COMPOSE_JSON}"
+docker compose --project-directory "${COMPOSE_PROJECT_DIR}" "${COMPOSE_ENV_ARGS[@]}" -f "${COMPOSE_FILE}" --profile migration config --format json > "${TEMP_COMPOSE_JSON}"
 COMPOSE_STATUS=$?
 set -e
 

@@ -1,4 +1,4 @@
-# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R17)
+# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R18)
 
 **Governing Entity:** Higiene (Pty) Ltd — Project Evergreen — Higiene / Higienlabs Technology Division  
 **Corporate Spelling:** Strictly **"Higiene"** (never "Hygiene")  
@@ -8,7 +8,7 @@
 **Execution Agent:** Antigravity (Google DeepMind)  
 **Target Host Identity:** `srv1935605` (`2.24.130.251`)  
 **Gate:** `SP-8C-7A` (Read-Only Host Preflight Reconnaissance & Baseline)  
-**Revision:** `R17` (Single Consolidated Package Architecture)  
+**Revision:** `R18` (Single Consolidated Package Architecture)  
 **Status:** `AWAITING_INDEPENDENT_REVIEW — EXECUTION NOT AUTHORIZED`  
 **Guarantees & Scope:** Zero application/database mutations, zero snapshot creation, zero migration container execution. Acknowledges controlled root log file creation (`/root/sp8c7a_preflight_<TIMESTAMP>.log`) and unprivileged temporary file creation (`/tmp/sp8c7a_...`).
 
@@ -16,15 +16,15 @@
 
 ## 1. Scope & Execution Invariants
 
-Gate SP-8C-7A Revision R17 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
-* **Script SHA-256:** `a61920379bdd5a37ffc3bc939341f313a05b70b795a4781dd813d50439d133ef`
-* **Script Size:** `58213 bytes` (1389 lines)
-* **Corroborating Sidecar SHA-256:** `e3387681aab28d3da24b15bb7dd80d8b58954aa455ea8db4da84a9edccbb8f38` (86 bytes, `a61920379bdd5a37ffc3bc939341f313a05b70b795a4781dd813d50439d133ef  sp8c7a_preflight.sh`)
+Gate SP-8C-7A Revision R18 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
+* **Script SHA-256:** `c086f00b8c52e668d65789b50c7d74e1ba64d9fe60775d15dbe355c8ce11a163`
+* **Script Size:** `58619 bytes` (1399 lines)
+* **Corroborating Sidecar SHA-256:** `6083fd273928459b137d6b251f2af081d80201258cf9f26095be2f328148f176` (86 bytes, `c086f00b8c52e668d65789b50c7d74e1ba64d9fe60775d15dbe355c8ce11a163  sp8c7a_preflight.sh`)
 * **Mandatory Invocation Invariant:**
   The caller must externally provide the exact trust anchor environment variables:
   ```bash
-  export EXPECTED_SP8C7A_SHA256="a61920379bdd5a37ffc3bc939341f313a05b70b795a4781dd813d50439d133ef"
-  export EXPECTED_SP8C7A_BYTES="58213"
+  export EXPECTED_SP8C7A_SHA256="c086f00b8c52e668d65789b50c7d74e1ba64d9fe60775d15dbe355c8ce11a163"
+  export EXPECTED_SP8C7A_BYTES="58619"
   ```
   The script enforces these variables prior to log creation or workload execution.
 * **Enforced Controls:**
@@ -88,3 +88,22 @@ Gate SP-8C-7A Revision R17 executes via one single self-contained unified script
   - Step 3 (Runtime Health Probes): Redis PING `PONG` (stdin contained), PostgreSQL `SELECT 1;` -> `1`, Backend Liveness HTTP 200, Backend Readiness HTTP 200 with structured JSON `coreReady: true`, Frontend Staging HTTP 200, Evergreen Production Health HTTP 200 preserved — **PASS**
   - Step 4 (Observational Database Classification): PostgreSQL dollar-quoting succeeded completely; catalog query classified staging database as `OBSERVED_BRANCH_B_CLEAN_EMPTY_BOOTSTRAP` (tables: `0`, ledger: `ABSENT`, trigger function: `ABSENT`) — **PASS**
   - Step 5 (Compiled Runners & Migrations): Captured actual compiled runner hashes: `migrate.js` (`6f49b8054ea60be4067b4ebd5ee49ea23f9273f627d3bdf90f47e3aebae20822`), `migrationStatus.js` (`b86c1ebf1b5d19173f6286cd33c4e384a373da6cd1c035ce69c19abc7d8e48d4`); confirmed SQL migration files directory `/app/dist/database/migrations` is absent from production container image (`MIGRATION_FILES_ABSENT_FROM_IMAGE`).
+
+---
+
+## 5. Historical Execution Evidence: Revision R17 Execution Log & R18 Focus
+* **Canonical Host Log Path:** `/root/sp8c7a_preflight_20260905_153146Z.log`
+* **Log File Size:** `6376` bytes
+* **Log File Ownership:** `0:0` (`root:root`)
+* **Log File Permissions:** `0600` (`-rw-------`)
+* **Verified Runtime Health Outcomes in R17 Host Execution:**
+  - Step 1 (Identity & Isolation): UID `1001`, `unix:///run/user/1001/docker.sock`, rootful socket denied — **PASS**
+  - Step 2 (Service Inventory & Exact Image Digests): Exactly 4 containers, zero migration containers, 4 immutable digests — **PASS**
+  - Step 3 (Runtime Health Probes): Redis PING `PONG`, PostgreSQL `SELECT 1;` -> `1`, Backend Liveness HTTP 200, Backend Readiness HTTP 200 with structured JSON `coreReady: true`, Frontend Staging HTTP 200, Evergreen Production Health HTTP 200 preserved — **PASS**
+  - Step 4 (Observational Database Classification): Catalog query classified staging database as `OBSERVED_BRANCH_B_CLEAN_EMPTY_BOOTSTRAP` (0 public tables, ledger `ABSENT`, trigger function `ABSENT`) with dynamic ledger banner `PASS (ABSENT, 0 records)` — **PASS**
+  - Step 5 (Compiled Runners & Migrations): Captured actual compiled runner hashes; confirmed SQL migration files directory `/app/dist/database/migrations` is absent from container image (`MIGRATION_FILES_ABSENT_FROM_IMAGE`) — **FINDINGS RECORDED**
+  - Step 6 (Docker Compose Profile Rendering): Halted on Compose variable interpolation (`SOCIALPULSE_FRONTEND_IMAGE` missing value because Compose was invoked from `/home/github-runner` without `--project-directory` or `--env-file`).
+* **Focused R18 Corrections:**
+  1. Step 6 Compose profile rendering explicitly supplies `--project-directory /opt/socialpulse` and `--env-file /opt/socialpulse/.env` (if present).
+  2. Step 5 runner hash extraction uses `cut -d" " -f1` and `${var%% *}` to strip any trailing whitespace or filename artifacts.
+  3. Destination artifact installation in `run_sp8c7a_r18.sh` allows atomic update when destination exists with differing contents.

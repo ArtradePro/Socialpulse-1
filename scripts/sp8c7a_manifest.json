@@ -6,9 +6,9 @@
   "independent_reviewer": "ChatGPT",
   "execution_agent": "Antigravity (Google DeepMind)",
   "gate": "SP-8C-7A",
-  "revision": "R17",
+  "revision": "R18",
   "package_name": "socialpulse_phase_sp8c7a_review_package.zip",
-  "created_at_utc": "2026-09-05T16:00:00Z",
+  "created_at_utc": "2026-09-05T17:35:00Z",
   "execution_mode": "strictly_read_only_standstill_preflight_unified",
   "historical_execution_evidence": {
     "r12_canonical_log_path": "/root/sp8c7a_preflight_20260905_130932Z.log",
@@ -21,7 +21,11 @@
     "r14_canonical_log_bytes": 6518,
     "r14_canonical_log_sha256": "a4170b06b9bba4697287ceabf1e6b3ebdc01563c3efc4055be6ee03abb903de3",
     "r14_canonical_log_owner": "0:0",
-    "r14_canonical_log_mode": "0600"
+    "r14_canonical_log_mode": "0600",
+    "r17_canonical_log_path": "/root/sp8c7a_preflight_20260905_153146Z.log",
+    "r17_canonical_log_bytes": 6376,
+    "r17_canonical_log_owner": "0:0",
+    "r17_canonical_log_mode": "0600"
   },
   "step5_authoritative_telemetry": {
     "migrate_js_approved_package_hash": "ee62f5a8639767979a733dd1e55a19ff35ea64e76415bd77c3a254a2d08d19f6",
@@ -58,6 +62,9 @@
     "internal_exit0_consistency_check_enforced": true,
     "canonical_compose_hash_enforced": true,
     "compose_profiles_unset_prior_and_post_rendering": true,
+    "compose_project_directory_and_env_file_interpolated": true,
+    "runner_hash_whitespace_cut_enforced": true,
+    "wrapper_destination_atomic_update_enabled": true,
     "exact_migration_profile_brackets": true,
     "exact_normalized_command": "node dist/database/migrate.js",
     "exact_sole_network_brackets": true,
@@ -76,24 +83,24 @@
   "members": [
     {
       "filename": "sp8c7a_preflight.sh",
-      "bytes": 58213,
-      "lines": 1389,
-      "sha256": "a61920379bdd5a37ffc3bc939341f313a05b70b795a4781dd813d50439d133ef",
+      "bytes": 58619,
+      "lines": 1399,
+      "sha256": "c086f00b8c52e668d65789b50c7d74e1ba64d9fe60775d15dbe355c8ce11a163",
       "role": "unified_self_contained_strictly_read_only_host_preflight_script"
     },
     {
       "filename": "sp8c7a_preflight.sh.sha256",
       "bytes": 86,
       "lines": 1,
-      "sha256": "e3387681aab28d3da24b15bb7dd80d8b58954aa455ea8db4da84a9edccbb8f38",
+      "sha256": "6083fd273928459b137d6b251f2af081d80201258cf9f26095be2f328148f176",
       "role": "corroborating_script_checksum_sidecar"
     },
     {
       "filename": "sp8c7a_preflight_runbook.md",
-      "bytes": 8995,
-      "lines": 90,
-      "sha256": "e75503044b0934f71cbecd39b3ccdbc7b6ba036d7587e721b27f5263165fde05",
-      "role": "operational_preflight_runbook_and_invariants_revision_r17"
+      "bytes": 11064,
+      "lines": 109,
+      "sha256": "2e018173832c88b646ee00f41116e3b9bd681a6534c19927e26797a51ee0b4a3",
+      "role": "operational_preflight_runbook_and_invariants_revision_r18"
     }
   ]
 }
