@@ -238,9 +238,14 @@ manifest_path = sys.argv[1]
 with open(manifest_path, "r", encoding="utf-8") as f:
     data = json.load(f)
 
-assert data.get("schema_version") == "1.0", f"schema_version expected \"1.0\", got {data.get(\"schema_version\")!r}"
-assert data.get("gate") == "SP-8C-7A", f"gate expected \"SP-8C-7A\", got {data.get(\"gate\")!r}"
-assert data.get("revision") == "R5", f"revision expected \"R5\", got {data.get(\"revision\")!r}"
+sv = data.get("schema_version")
+assert sv == "1.0", f"schema_version expected 1.0, got {sv}"
+
+gate = data.get("gate")
+assert gate == "SP-8C-7A", f"gate expected SP-8C-7A, got {gate}"
+
+rev = data.get("revision")
+assert rev == "R5", f"revision expected R5, got {rev}"
 
 assert "members" in data, "members array key missing from manifest"
 members = data["members"]
@@ -272,14 +277,22 @@ required_fields = ["filename", "bytes", "lines", "sha256", "role"]
 
 for m in members:
     for field in required_fields:
-        assert field in m, f"Field {field} missing from member {m.get(\"filename\")}"
+        assert field in m, f"Field {field} missing from member"
     fn = m["filename"]
     assert fn in expected_members, f"Unexpected member filename: {fn}"
     exp = expected_members[fn]
-    assert m["bytes"] == exp["bytes"], f"{fn} bytes mismatch: expected {exp[\"bytes\"]}, got {m[\"bytes\"]}"
-    assert m["lines"] == exp["lines"], f"{fn} lines mismatch: expected {exp[\"lines\"]}, got {m[\"lines\"]}"
-    assert m["sha256"] == exp["sha256"], f"{fn} sha256 mismatch: expected {exp[\"sha256\"]}, got {m[\"sha256\"]}"
-    assert m["role"] == exp["role"], f"{fn} role mismatch: expected {exp[\"role\"]}, got {m[\"role\"]}"
+    exp_b = exp["bytes"]
+    act_b = m["bytes"]
+    assert act_b == exp_b, f"{fn} bytes mismatch: expected {exp_b}, got {act_b}"
+    exp_l = exp["lines"]
+    act_l = m["lines"]
+    assert act_l == exp_l, f"{fn} lines mismatch: expected {exp_l}, got {act_l}"
+    exp_s = exp["sha256"]
+    act_s = m["sha256"]
+    assert act_s == exp_s, f"{fn} sha256 mismatch: expected {exp_s}, got {act_s}"
+    exp_r = exp["role"]
+    act_r = m["role"]
+    assert act_r == exp_r, f"{fn} role mismatch: expected {exp_r}, got {act_r}"
 ' "${STAGE_DIR}/sp8c7a_manifest.json" || PYTHON_MANIFEST_STATUS=$?
 
 if [ "${PYTHON_MANIFEST_STATUS}" -ne 0 ]; then
