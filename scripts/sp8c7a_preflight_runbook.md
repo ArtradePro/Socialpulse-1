@@ -1,4 +1,4 @@
-# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R14)
+# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R15)
 
 **Governing Entity:** Higiene (Pty) Ltd — Project Evergreen — Higiene / Higienlabs Technology Division  
 **Corporate Spelling:** Strictly **"Higiene"** (never "Hygiene")  
@@ -8,7 +8,7 @@
 **Execution Agent:** Antigravity (Google DeepMind)  
 **Target Host Identity:** `srv1935605` (`2.24.130.251`)  
 **Gate:** `SP-8C-7A` (Read-Only Host Preflight Reconnaissance & Baseline)  
-**Revision:** `R14` (Single Consolidated Package Architecture)  
+**Revision:** `R15` (Single Consolidated Package Architecture)  
 **Status:** `AWAITING_INDEPENDENT_REVIEW — EXECUTION NOT AUTHORIZED`  
 **Guarantees & Scope:** Zero application/database mutations, zero snapshot creation, zero migration container execution. Acknowledges controlled root log file creation (`/root/sp8c7a_preflight_<TIMESTAMP>.log`) and unprivileged temporary file creation (`/tmp/sp8c7a_...`).
 
@@ -16,15 +16,15 @@
 
 ## 1. Scope & Execution Invariants
 
-Gate SP-8C-7A Revision R14 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
-* **Script SHA-256:** `356b0d5ff70c7b530f0107059125eaddf1e733b04183b708aa9bb0429dd9bcbf`
-* **Script Size:** `51560 bytes` (1249 lines)
-* **Corroborating Sidecar SHA-256:** `1ce89ffc6ff748652ba383fe7e873e3256960a3204b700b81f0e400b5b7df4a4` (86 bytes, `356b0d5ff70c7b530f0107059125eaddf1e733b04183b708aa9bb0429dd9bcbf  sp8c7a_preflight.sh`)
+Gate SP-8C-7A Revision R15 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
+* **Script SHA-256:** `cb073aa909c35d0dfee20e759447f0e94b1fff1e6591c14439423814b10987f0`
+* **Script Size:** `53181 bytes` (1290 lines)
+* **Corroborating Sidecar SHA-256:** `18f85a3ac74e4a5ec88733965987a46b79ba0a739103c31ef69a0462c5e09733` (86 bytes, `cb073aa909c35d0dfee20e759447f0e94b1fff1e6591c14439423814b10987f0  sp8c7a_preflight.sh`)
 * **Mandatory Invocation Invariant:**
   The caller must externally provide the exact trust anchor environment variables:
   ```bash
-  export EXPECTED_SP8C7A_SHA256="356b0d5ff70c7b530f0107059125eaddf1e733b04183b708aa9bb0429dd9bcbf"
-  export EXPECTED_SP8C7A_BYTES="51560"
+  export EXPECTED_SP8C7A_SHA256="cb073aa909c35d0dfee20e759447f0e94b1fff1e6591c14439423814b10987f0"
+  export EXPECTED_SP8C7A_BYTES="53181"
   ```
   The script enforces these variables prior to log creation or workload execution.
 * **Enforced Controls:**
@@ -74,3 +74,17 @@ Gate SP-8C-7A Revision R14 executes via one single self-contained unified script
   - Step 3 (Frontend Staging): HTTP `200` — **PASS**
   - Step 3 (Evergreen Production Health): HTTP `200` — **PASS**
   - Step 4 (Observational DB Classification): Halted due to PostgreSQL string quoting syntax error (`\x27`), completely resolved in R14 via PostgreSQL native dollar quoting (`$$...$$`).
+---
+
+## 4. Historical Execution Evidence: Revision R14 Execution Log
+* **Canonical Host Log Path:** `/root/sp8c7a_preflight_20260905_144208Z.log`
+* **Log File Size:** `6518` bytes
+* **Log File SHA-256:** `a4170b06b9bba4697287ceabf1e6b3ebdc01563c3efc4055be6ee03abb903de3`
+* **Log File Ownership:** `0:0` (`root:root`)
+* **Log File Permissions:** `0600` (`-rw-------`)
+* **Verified Runtime Health Outcomes in R14 Host Execution:**
+  - Step 1 (Identity & Isolation): UID `1001`, `unix:///run/user/1001/docker.sock`, rootful socket denied — **PASS**
+  - Step 2 (Service Inventory & Exact Image Digests): Exactly 4 containers, zero migration containers — **PASS**
+  - Step 3 (Runtime Health Probes): Redis PING `PONG` (stdin contained), PostgreSQL `SELECT 1;` -> `1`, Backend Liveness HTTP 200, Backend Readiness HTTP 200 with structured JSON `coreReady: true`, Frontend Staging HTTP 200, Evergreen Production Health HTTP 200 preserved — **PASS**
+  - Step 4 (Observational Database Classification): PostgreSQL dollar-quoting succeeded completely; catalog query classified staging database as `OBSERVED_BRANCH_B_CLEAN_EMPTY_BOOTSTRAP` (tables: `0`, ledger: `ABSENT`, trigger function: `ABSENT`) — **PASS**
+  - Step 5 (Compiled Runners & Migrations): Captured actual compiled runner hashes: `migrate.js` (`6f49b8054ea60be4067b4ebd5ee49ea23f9273f627d3bdf90f47e3aebae20822`), `migrationStatus.js` (`b86c1ebf1b5d19173f6286cd33c4e384a373da6cd1c035ce69c19abc7d8e48d4`); confirmed SQL migration files directory `/app/dist/database/migrations` is absent from production container image (`MIGRATION_FILES_ABSENT_FROM_IMAGE`).
