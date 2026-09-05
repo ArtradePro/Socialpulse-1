@@ -1,4 +1,4 @@
-# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R18)
+# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R19)
 
 **Governing Entity:** Higiene (Pty) Ltd — Project Evergreen — Higiene / Higienlabs Technology Division  
 **Corporate Spelling:** Strictly **"Higiene"** (never "Hygiene")  
@@ -8,7 +8,7 @@
 **Execution Agent:** Antigravity (Google DeepMind)  
 **Target Host Identity:** `srv1935605` (`2.24.130.251`)  
 **Gate:** `SP-8C-7A` (Read-Only Host Preflight Reconnaissance & Baseline)  
-**Revision:** `R18` (Single Consolidated Package Architecture)  
+**Revision:** `R19` (Single Consolidated Package Architecture)  
 **Status:** `AWAITING_INDEPENDENT_REVIEW — EXECUTION NOT AUTHORIZED`  
 **Guarantees & Scope:** Zero application/database mutations, zero snapshot creation, zero migration container execution. Acknowledges controlled root log file creation (`/root/sp8c7a_preflight_<TIMESTAMP>.log`) and unprivileged temporary file creation (`/tmp/sp8c7a_...`).
 
@@ -16,15 +16,15 @@
 
 ## 1. Scope & Execution Invariants
 
-Gate SP-8C-7A Revision R18 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
-* **Script SHA-256:** `c086f00b8c52e668d65789b50c7d74e1ba64d9fe60775d15dbe355c8ce11a163`
-* **Script Size:** `58619 bytes` (1399 lines)
-* **Corroborating Sidecar SHA-256:** `6083fd273928459b137d6b251f2af081d80201258cf9f26095be2f328148f176` (86 bytes, `c086f00b8c52e668d65789b50c7d74e1ba64d9fe60775d15dbe355c8ce11a163  sp8c7a_preflight.sh`)
+Gate SP-8C-7A Revision R19 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
+* **Script SHA-256:** `81ab86857bb50dfcbfb41833ae77e7bc96db32730741033ea5b0e2e870ef143f`
+* **Script Size:** `61362 bytes` (1460 lines)
+* **Corroborating Sidecar SHA-256:** `95638fbe712b44cc45119cb8f83b7072b6d853d7934de5475bc0784c39072123` (86 bytes, `81ab86857bb50dfcbfb41833ae77e7bc96db32730741033ea5b0e2e870ef143f  sp8c7a_preflight.sh`)
 * **Mandatory Invocation Invariant:**
   The caller must externally provide the exact trust anchor environment variables:
   ```bash
-  export EXPECTED_SP8C7A_SHA256="c086f00b8c52e668d65789b50c7d74e1ba64d9fe60775d15dbe355c8ce11a163"
-  export EXPECTED_SP8C7A_BYTES="58619"
+  export EXPECTED_SP8C7A_SHA256="81ab86857bb50dfcbfb41833ae77e7bc96db32730741033ea5b0e2e870ef143f"
+  export EXPECTED_SP8C7A_BYTES="61362"
   ```
   The script enforces these variables prior to log creation or workload execution.
 * **Enforced Controls:**
@@ -107,3 +107,35 @@ Gate SP-8C-7A Revision R18 executes via one single self-contained unified script
   1. Step 6 Compose profile rendering explicitly supplies `--project-directory /opt/socialpulse` and `--env-file /opt/socialpulse/.env` (if present).
   2. Step 5 runner hash extraction uses `cut -d" " -f1` and `${var%% *}` to strip any trailing whitespace or filename artifacts.
   3. Destination artifact installation in `run_sp8c7a_r18.sh` allows atomic update when destination exists with differing contents.
+
+---
+
+## 6. Architectural Controls: Revision R19 Transactional Publication & Strict Validation
+* **Transactional Publication, Backup & Rollback Architecture (`run_sp8c7a_r19.sh`):**
+  - **Separate Tracking Arrays:**
+    - `CREATED_BY_WRAPPER`: Tracks only destinations newly created by the wrapper (did not pre-exist).
+    - `REPLACED_DESTINATIONS`: Tracks only pre-existing destinations replaced by the wrapper.
+    - `DEST_BACKUP_MAP`: Maps each replaced destination to its verified backup file path.
+  - **Pre-Replacement Verified Backup:**
+    - Before replacing any existing destination, creates a protected backup (`chmod 0600`, `owner 1001:1001`).
+    - Verifies backup bytes, SHA-256, owner, and mode against recorded destination metadata.
+  - **Atomic Same-Filesystem Staged Rename:**
+    - Staged replacement temporary file created inside `/opt/socialpulse/scripts/` (`mktemp "${DEST_DIR}/.tmp_${fname}.XXXXXX"`).
+    - Temporary file completely verified (bytes, SHA-256, owner `1001:1001`, mode, non-symlink) prior to publication.
+    - Published atomically via same-filesystem rename (`mv -f "${tmp_dest}" "${dest_file}"`).
+  - **Deterministic Rollback on Pre-Commit Failure:**
+    - Deletes only newly created destinations (`CREATED_BY_WRAPPER`).
+    - Restores every replaced destination atomically from its verified backup.
+    - Re-verifies restored bytes, SHA-256, owner, and mode.
+    - Reports containment failure (`exit 1`) if any restoration is incomplete.
+  - **Post-Publication Verification & Backup Cleanup:**
+    - Backups are retained until all four destination files pass post-publication verification and `PUBLICATION_COMMITTED=1`.
+    - Backups are then cleanly removed and their absence verified.
+* **Step 5 Docker & Hash Command Status Capture & Regex Validation:**
+  - `MIGRATE_RUNNER_STATUS` and `STATUS_RUNNER_STATUS` are captured immediately from `$?` after command substitution before any trimming or parameter expansion.
+  - Every extracted runner and SQL migration hash is validated against regex `^[0-9a-f]{64}$`. Any non-missing invalid string format fails closed immediately.
+* **Step 6 Strict `/opt/socialpulse/.env` Audit & Rendered JSON Protection:**
+  - Requires `/opt/socialpulse/.env` to be a regular non-symlink at its canonical path (`readlink -f`).
+  - Enforces approved ownership (UID `0` or `1001`, GID `0` or `1001`), readability, and restrictive permissions (others `0`). Missing or invalid `.env` fails closed.
+  - Always invokes Compose with both `--project-directory /opt/socialpulse` and `--env-file /opt/socialpulse/.env`.
+  - Rendered JSON is written to a protected temporary file (`0600`), never printed or logged, and immediately removed with absence verified.

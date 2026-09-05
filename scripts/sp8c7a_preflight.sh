@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # HIGIENE (PTY) LTD — PROJECT EVERGREEN / SOCIALPULSE
-# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R18)
+# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R19)
 # Identity: root (EUID 0) outer wrapper -> unprivileged github-runner (UID 1001) workload
 # Rootless Socket: unix:///run/user/1001/docker.sock
 # Scope: ZERO DATABASE MUTATIONS, ZERO SNAPSHOTS, ZERO CONTAINER MUTATIONS
@@ -107,7 +107,7 @@ chmod 0600 "${LOG_FILE}"
 chown root:root "${LOG_FILE}"
 
 echo "========================================================================"
-echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R18)"
+echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R19)"
 echo ">>> UTC Timestamp      : ${TIMESTAMP}"
 echo ">>> Canonical Log      : ${LOG_FILE} (Controlled Log Creation)"
 echo ">>> Host Executor      : $(whoami) (EUID: $(id -u))"
@@ -652,21 +652,25 @@ MIGRATION_STATUS_JS_APPROVED_HASH="6f87234943a331ea2872f6a198a02b39a90476f38085a
 MIGRATE_JS_HISTORICAL_HASH="6f49b8054ea60be4067b4ebd5ee49ea23f9273f627d3bdf90f47e3aebae20822"
 MIGRATION_STATUS_JS_HISTORICAL_HASH="b86c1ebf1b5d19173f6286cd33c4e384a373da6cd1c035ce69c19abc7d8e48d4"
 
-# 1. Audit migrate.js inside socialpulse-staging-server-1
+# 1. Audit migrate.js inside socialpulse-staging-server-1 with immediate status capture
 set +e
-ACTUAL_MIGRATE_HASH=$(docker exec socialpulse-staging-server-1 sh -c '
+RAW_MIGRATE_OUTPUT=$(docker exec socialpulse-staging-server-1 sh -c '
 if [ -f /app/dist/database/migrate.js ] && [ ! -L /app/dist/database/migrate.js ]; then
     sha256sum /app/dist/database/migrate.js | cut -d" " -f1
 else
     echo "MISSING"
 fi
-' | tr -d '\r')
-ACTUAL_MIGRATE_HASH="${ACTUAL_MIGRATE_HASH%% *}"
+')
 MIGRATE_RUNNER_STATUS=$?
 set -e
 
+ACTUAL_MIGRATE_HASH="$(echo "${RAW_MIGRATE_OUTPUT}" | tr -d '\r\n' | awk '{print $1}')"
+
 if [ "${MIGRATE_RUNNER_STATUS}" -ne 0 ] || [ "${ACTUAL_MIGRATE_HASH}" = "MISSING" ] || [ -z "${ACTUAL_MIGRATE_HASH}" ]; then
     MIGRATE_JS_CLASSIFICATION="RUNNER_MISSING"
+elif ! [[ "${ACTUAL_MIGRATE_HASH}" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "FAIL: Actual migrate.js hash has invalid format: '${ACTUAL_MIGRATE_HASH}'" >&2
+    exit 1
 elif [ "${ACTUAL_MIGRATE_HASH}" = "${MIGRATE_JS_APPROVED_HASH}" ]; then
     MIGRATE_JS_CLASSIFICATION="APPROVED_HASH_MATCH"
 elif [ "${ACTUAL_MIGRATE_HASH}" = "${MIGRATE_JS_HISTORICAL_HASH}" ]; then
@@ -685,21 +689,25 @@ if [ "${MIGRATE_JS_CLASSIFICATION}" != "APPROVED_HASH_MATCH" ]; then
     STEP5_FINDINGS+=("${MIGRATE_JS_CLASSIFICATION}")
 fi
 
-# 2. Audit migrationStatus.js inside socialpulse-staging-server-1
+# 2. Audit migrationStatus.js inside socialpulse-staging-server-1 with immediate status capture
 set +e
-ACTUAL_STATUS_HASH=$(docker exec socialpulse-staging-server-1 sh -c '
+RAW_STATUS_OUTPUT=$(docker exec socialpulse-staging-server-1 sh -c '
 if [ -f /app/dist/database/scripts/migrationStatus.js ] && [ ! -L /app/dist/database/scripts/migrationStatus.js ]; then
     sha256sum /app/dist/database/scripts/migrationStatus.js | cut -d" " -f1
 else
     echo "MISSING"
 fi
-' | tr -d '\r')
-ACTUAL_STATUS_HASH="${ACTUAL_STATUS_HASH%% *}"
+')
 STATUS_RUNNER_STATUS=$?
 set -e
 
+ACTUAL_STATUS_HASH="$(echo "${RAW_STATUS_OUTPUT}" | tr -d '\r\n' | awk '{print $1}')"
+
 if [ "${STATUS_RUNNER_STATUS}" -ne 0 ] || [ "${ACTUAL_STATUS_HASH}" = "MISSING" ] || [ -z "${ACTUAL_STATUS_HASH}" ]; then
     STATUS_JS_CLASSIFICATION="RUNNER_MISSING"
+elif ! [[ "${ACTUAL_STATUS_HASH}" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "FAIL: Actual migrationStatus.js hash has invalid format: '${ACTUAL_STATUS_HASH}'" >&2
+    exit 1
 elif [ "${ACTUAL_STATUS_HASH}" = "${MIGRATION_STATUS_JS_APPROVED_HASH}" ]; then
     STATUS_JS_CLASSIFICATION="APPROVED_HASH_MATCH"
 elif [ "${ACTUAL_STATUS_HASH}" = "${MIGRATION_STATUS_JS_HISTORICAL_HASH}" ]; then
@@ -830,15 +838,25 @@ elif [ "${DIR_CHECK}" = "VALID_DIR" ]; then
             for sql_name in "${EXPECTED_SORTED_SQL_FILES[@]}"; do
                 EXP_HASH="${EXPECTED_SQL_HASHES[${sql_name}]}"
                 FILE_PATH="${GOVERNED_MIGRATIONS_DIR}/${sql_name}"
-                CHECK_OUTPUT=$(docker exec socialpulse-staging-server-1 sh -c "
+                set +e
+                RAW_SQL_CHECK=$(docker exec socialpulse-staging-server-1 sh -c "
                 if [ -f \"${FILE_PATH}\" ] && [ ! -L \"${FILE_PATH}\" ]; then
                     sha256sum \"${FILE_PATH}\" | cut -d\" \" -f1
                 else
                     echo 'INVALID_OR_MISSING'
                 fi
-                " | tr -d '\r')
-                CHECK_OUTPUT="${CHECK_OUTPUT%% *}"
-                if [ "${CHECK_OUTPUT}" != "${EXP_HASH}" ]; then
+                ")
+                SQL_CHECK_STATUS=$?
+                set -e
+                CHECK_OUTPUT="$(echo "${RAW_SQL_CHECK}" | tr -d '\r\n' | awk '{print $1}')"
+
+                if [ "${SQL_CHECK_STATUS}" -ne 0 ] || [ "${CHECK_OUTPUT}" = "INVALID_OR_MISSING" ]; then
+                    HASH_MISMATCH=1
+                    break
+                elif ! [[ "${CHECK_OUTPUT}" =~ ^[0-9a-f]{64}$ ]]; then
+                    echo "FAIL: SQL migration hash for ${sql_name} has invalid format: '${CHECK_OUTPUT}'" >&2
+                    exit 1
+                elif [ "${CHECK_OUTPUT}" != "${EXP_HASH}" ]; then
                     HASH_MISMATCH=1
                     break
                 fi
@@ -849,7 +867,6 @@ elif [ "${DIR_CHECK}" = "VALID_DIR" ]; then
                 STEP5_FINDINGS+=("${MIGRATION_INVENTORY_STATUS}")
             else
                 MIGRATION_INVENTORY_STATUS="MIGRATION_FILES_VERIFIED"
-                # Keep STEP5_FINDINGS exclusively for discrepancies — do not add MIGRATION_FILES_VERIFIED
             fi
         fi
     fi
@@ -860,7 +877,6 @@ fi
 
 echo "  Migration Inventory Status: ${MIGRATION_INVENTORY_STATUS}"
 echo "✓ Step 5 observational runners and SQL migration audit completed (${#STEP5_FINDINGS[@]} discrepancies recorded)"
-
 # ------------------------------------------------------------------------------
 # STEP 6: COMPOSE MANIFEST, PROFILE RENDERING & EXTENDED JSON AUDITOR
 # ------------------------------------------------------------------------------
@@ -913,19 +929,53 @@ if [ -n "${COMPOSE_PROFILES:-}" ]; then
 fi
 echo "✓ Confirmed COMPOSE_PROFILES environment variable is strictly unset prior to rendering"
 
-# 3. Explicitly Render Migration Profile Without Creating Containers & Capture Status Unmasked
-TEMP_COMPOSE_JSON=$(mktemp /tmp/sp8c7a_compose_XXXXXX.json)
-TEMP_FILES+=("${TEMP_COMPOSE_JSON}")
-
+# 3. Require Canonical /opt/socialpulse/.env with Approved Owner & Restrictive Permissions
 COMPOSE_PROJECT_DIR="/opt/socialpulse"
 COMPOSE_ENV_FILE="/opt/socialpulse/.env"
-COMPOSE_ENV_ARGS=()
-if [ -f "${COMPOSE_ENV_FILE}" ]; then
-    COMPOSE_ENV_ARGS+=(--env-file "${COMPOSE_ENV_FILE}")
+
+if [ ! -f "${COMPOSE_ENV_FILE}" ] || [ -L "${COMPOSE_ENV_FILE}" ]; then
+    echo "FAIL: Canonical environment file missing or symlink: ${COMPOSE_ENV_FILE}!" >&2
+    exit 1
 fi
 
+CANON_ENV_PATH="$(readlink -f "${COMPOSE_ENV_FILE}")"
+if [ "${CANON_ENV_PATH}" != "${COMPOSE_ENV_FILE}" ]; then
+    echo "FAIL: Canonical path mismatch for ${COMPOSE_ENV_FILE}: resolved to ${CANON_ENV_PATH}!" >&2
+    exit 1
+fi
+
+ENV_OWNER_UID="$(stat -c '%u' "${COMPOSE_ENV_FILE}")"
+ENV_OWNER_GID="$(stat -c '%g' "${COMPOSE_ENV_FILE}")"
+ENV_MODE="$(stat -c '%a' "${COMPOSE_ENV_FILE}")"
+
+if [ "${ENV_OWNER_UID}" -ne 0 ] && [ "${ENV_OWNER_UID}" -ne 1001 ]; then
+    echo "FAIL: Approved owner check failed for ${COMPOSE_ENV_FILE}: UID is ${ENV_OWNER_UID} (expected 0 or 1001)!" >&2
+    exit 1
+fi
+if [ "${ENV_OWNER_GID}" -ne 0 ] && [ "${ENV_OWNER_GID}" -ne 1001 ]; then
+    echo "FAIL: Approved group check failed for ${COMPOSE_ENV_FILE}: GID is ${ENV_OWNER_GID} (expected 0 or 1001)!" >&2
+    exit 1
+fi
+
+if [ ! -r "${COMPOSE_ENV_FILE}" ]; then
+    echo "FAIL: Environment file ${COMPOSE_ENV_FILE} is not readable by workload user!" >&2
+    exit 1
+fi
+
+OTHERS_PERM="${ENV_MODE: -1}"
+if [ "${OTHERS_PERM}" != "0" ]; then
+    echo "FAIL: Restrictive permissions violation on ${COMPOSE_ENV_FILE}: mode is 0${ENV_MODE} (world access prohibited)!" >&2
+    exit 1
+fi
+echo "✓ Verified canonical ${COMPOSE_ENV_FILE} (owner ${ENV_OWNER_UID}:${ENV_OWNER_GID}, mode 0${ENV_MODE}, non-symlink)"
+
+# 4. Explicitly Render Migration Profile Without Creating Containers & Capture Status Unmasked
+TEMP_COMPOSE_JSON=$(mktemp /tmp/sp8c7a_compose_XXXXXX.json)
+chmod 0600 "${TEMP_COMPOSE_JSON}"
+TEMP_FILES+=("${TEMP_COMPOSE_JSON}")
+
 set +e
-docker compose --project-directory "${COMPOSE_PROJECT_DIR}" "${COMPOSE_ENV_ARGS[@]}" -f "${COMPOSE_FILE}" --profile migration config --format json > "${TEMP_COMPOSE_JSON}"
+docker compose --project-directory "${COMPOSE_PROJECT_DIR}" --env-file "${COMPOSE_ENV_FILE}" -f "${COMPOSE_FILE}" --profile migration config --format json > "${TEMP_COMPOSE_JSON}"
 COMPOSE_STATUS=$?
 set -e
 
@@ -1065,6 +1115,17 @@ if [ "${AUDITOR_STATUS}" -ne 0 ]; then
     echo "FAIL: Extended Compose JSON auditor failed with exit status ${AUDITOR_STATUS}" >&2
     exit 1
 fi
+
+echo "✓ Verified all 11 Compose migration container security controls passed"
+
+# Immediately remove rendered temporary JSON and verify absence
+rm -f "${TEMP_COMPOSE_JSON}"
+if [ -e "${TEMP_COMPOSE_JSON}" ] || [ -L "${TEMP_COMPOSE_JSON}" ]; then
+    echo "FAIL: Failed to remove rendered compose temporary JSON file: ${TEMP_COMPOSE_JSON}" >&2
+    exit 1
+fi
+echo "✓ Verified immediate removal and absence of rendered temporary Compose JSON file"
+
 
 # 6. PostgreSQL Persistent Volume Mount Audit (via Stdin, Zero Source Interpolation)
 echo ""

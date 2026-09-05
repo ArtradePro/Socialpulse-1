@@ -6,9 +6,9 @@
   "independent_reviewer": "ChatGPT",
   "execution_agent": "Antigravity (Google DeepMind)",
   "gate": "SP-8C-7A",
-  "revision": "R18",
+  "revision": "R19",
   "package_name": "socialpulse_phase_sp8c7a_review_package.zip",
-  "created_at_utc": "2026-09-05T17:35:00Z",
+  "created_at_utc": "2026-09-05T18:20:00Z",
   "execution_mode": "strictly_read_only_standstill_preflight_unified",
   "historical_execution_evidence": {
     "r12_canonical_log_path": "/root/sp8c7a_preflight_20260905_130932Z.log",
@@ -62,9 +62,15 @@
     "internal_exit0_consistency_check_enforced": true,
     "canonical_compose_hash_enforced": true,
     "compose_profiles_unset_prior_and_post_rendering": true,
-    "compose_project_directory_and_env_file_interpolated": true,
-    "runner_hash_whitespace_cut_enforced": true,
-    "wrapper_destination_atomic_update_enabled": true,
+    "docker_hash_command_status_captured_immediately": true,
+    "hash_format_regex_validated": true,
+    "env_file_strict_validation_enforced": true,
+    "compose_always_supplies_project_dir_and_env_file": true,
+    "rendered_json_never_printed_and_absence_verified": true,
+    "separate_new_and_replaced_tracking_arrays": true,
+    "verified_pre_replacement_backup_enforced": true,
+    "atomic_same_filesystem_rename_enforced": true,
+    "deterministic_rollback_with_backup_restoration": true,
     "exact_migration_profile_brackets": true,
     "exact_normalized_command": "node dist/database/migrate.js",
     "exact_sole_network_brackets": true,
@@ -83,24 +89,24 @@
   "members": [
     {
       "filename": "sp8c7a_preflight.sh",
-      "bytes": 58619,
-      "lines": 1399,
-      "sha256": "c086f00b8c52e668d65789b50c7d74e1ba64d9fe60775d15dbe355c8ce11a163",
+      "bytes": 61362,
+      "lines": 1460,
+      "sha256": "81ab86857bb50dfcbfb41833ae77e7bc96db32730741033ea5b0e2e870ef143f",
       "role": "unified_self_contained_strictly_read_only_host_preflight_script"
     },
     {
       "filename": "sp8c7a_preflight.sh.sha256",
       "bytes": 86,
       "lines": 1,
-      "sha256": "6083fd273928459b137d6b251f2af081d80201258cf9f26095be2f328148f176",
+      "sha256": "95638fbe712b44cc45119cb8f83b7072b6d853d7934de5475bc0784c39072123",
       "role": "corroborating_script_checksum_sidecar"
     },
     {
       "filename": "sp8c7a_preflight_runbook.md",
-      "bytes": 11064,
-      "lines": 109,
-      "sha256": "2e018173832c88b646ee00f41116e3b9bd681a6534c19927e26797a51ee0b4a3",
-      "role": "operational_preflight_runbook_and_invariants_revision_r18"
+      "bytes": 13787,
+      "lines": 141,
+      "sha256": "de9893ef63c1aad7a0461b18969c494e424c443d754d2d8e38a372ae0a774352",
+      "role": "operational_preflight_runbook_and_invariants_revision_r19"
     }
   ]
 }
