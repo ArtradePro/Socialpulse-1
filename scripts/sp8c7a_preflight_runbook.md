@@ -1,14 +1,14 @@
-# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R19)
+# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R20)
 
 **Governing Entity:** Higiene (Pty) Ltd — Project Evergreen — Higiene / Higienlabs Technology Division  
-**Corporate Spelling:** Strictly **"Higiene"** (never "Hygiene")  
+**Corporate Spelling:** Strictly **"Higiene"** (governed corporate standard)  
 **Authorized Owner & Sole GitHub Approval Authority:** Vernon la Cock, CEO (`@ArtradePro`, `vernon@lcsh.co.za`)  
 **Executive Oversight:** Ziona la Cock, Vice President  
 **Independent Reviewer:** ChatGPT  
 **Execution Agent:** Antigravity (Google DeepMind)  
 **Target Host Identity:** `srv1935605` (`2.24.130.251`)  
 **Gate:** `SP-8C-7A` (Read-Only Host Preflight Reconnaissance & Baseline)  
-**Revision:** `R19` (Single Consolidated Package Architecture)  
+**Revision:** `R20` (Single Consolidated Package Architecture)  
 **Status:** `AWAITING_INDEPENDENT_REVIEW — EXECUTION NOT AUTHORIZED`  
 **Guarantees & Scope:** Zero application/database mutations, zero snapshot creation, zero migration container execution. Acknowledges controlled root log file creation (`/root/sp8c7a_preflight_<TIMESTAMP>.log`) and unprivileged temporary file creation (`/tmp/sp8c7a_...`).
 
@@ -16,7 +16,7 @@
 
 ## 1. Scope & Execution Invariants
 
-Gate SP-8C-7A Revision R19 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
+Gate SP-8C-7A Revision R20 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
 * **Script SHA-256:** `81ab86857bb50dfcbfb41833ae77e7bc96db32730741033ea5b0e2e870ef143f`
 * **Script Size:** `61362 bytes` (1460 lines)
 * **Corroborating Sidecar SHA-256:** `95638fbe712b44cc45119cb8f83b7072b6d853d7934de5475bc0784c39072123` (86 bytes, `81ab86857bb50dfcbfb41833ae77e7bc96db32730741033ea5b0e2e870ef143f  sp8c7a_preflight.sh`)
@@ -139,3 +139,15 @@ Gate SP-8C-7A Revision R19 executes via one single self-contained unified script
   - Enforces approved ownership (UID `0` or `1001`, GID `0` or `1001`), readability, and restrictive permissions (others `0`). Missing or invalid `.env` fails closed.
   - Always invokes Compose with both `--project-directory /opt/socialpulse` and `--env-file /opt/socialpulse/.env`.
   - Rendered JSON is written to a protected temporary file (`0600`), never printed or logged, and immediately removed with absence verified.
+
+---
+
+## 7. Architectural Controls: Revision R20 Transaction Safety, Path Tracking & Reverse Rollback
+* **Transactional Publication Safety Controls (`run_sp8c7a_r20.sh`):**
+  - **Elimination of Top-Level Local:** All variable declarations at top level use standard global scope; publication commit logic is cleanly encapsulated in `commit_publication_transaction()`.
+  - **Elimination of Wildcards & `|| true`:** Wildcard deletion (`.tmp_*`) and `|| true` error masking are completely eliminated. Every file deletion targets a positively identified exact path.
+  - **Individual Path Tracking:** Dedicated tracking arrays `TRACKED_BACKUP_FILES` and `TRACKED_TEMP_FILES` track every created backup and staging path individually.
+  - **Immediate Path Registration:** Backup and temporary staging paths are registered in tracking arrays immediately upon path generation and before file creation.
+  - **Reverse-Order Restoration:** Pre-commit rollback restores replaced destinations in exact reverse publication order (LIFO), verifying restored attributes bit-for-bit.
+  - **Post-Cleanup Commit Boundary:** The transaction remains uncommitted (`PUBLICATION_COMMITTED=0`) until destination reverification AND complete backup/temporary-file removal and absence verification succeed.
+  - **Fail-Closed on Cleanup Failure:** If backup deletion or absence verification fails, the wrapper fails closed with non-zero exit code without declaring commit.
