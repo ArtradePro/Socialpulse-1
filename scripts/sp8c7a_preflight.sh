@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # HIGIENE (PTY) LTD — PROJECT EVERGREEN / SOCIALPULSE
-# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R9)
+# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R10)
 # Identity: root (EUID 0) outer wrapper -> unprivileged github-runner (UID 1001) workload
 # Rootless Socket: unix:///run/user/1001/docker.sock
 # Scope: ZERO DATABASE MUTATIONS, ZERO SNAPSHOTS, ZERO CONTAINER MUTATIONS
@@ -107,7 +107,7 @@ chmod 0600 "${LOG_FILE}"
 chown root:root "${LOG_FILE}"
 
 echo "========================================================================"
-echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R9)"
+echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R10)"
 echo ">>> UTC Timestamp      : ${TIMESTAMP}"
 echo ">>> Canonical Log      : ${LOG_FILE} (Controlled Log Creation)"
 echo ">>> Host Executor      : $(whoami) (EUID: $(id -u))"
@@ -279,14 +279,68 @@ echo ""
 echo "=== STEP 3: PRE-MIGRATION RUNTIME HEALTH BASELINE ==="
 
 # 1. Authenticated Redis PING
+# Read REDIS_PASSWORD from socialpulse-staging-server-1 runtime environment without exposing it
 set +e
-REDIS_PING=$(docker exec socialpulse-staging-redis-1 sh -c 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping' 2>&1 | tr -d '\r')
-REDIS_STATUS=$?
+REDIS_AUTH_VAL="$(docker exec socialpulse-staging-server-1 sh -c 'printf "%s" "$REDIS_PASSWORD"' 2>/dev/null)"
+GET_PASS_STATUS=$?
 set -e
-if [ "${REDIS_STATUS}" -ne 0 ] || [ "${REDIS_PING}" != "PONG" ]; then
-    echo "FAIL: Redis authenticated PING failed (status: ${REDIS_STATUS}, response: '${REDIS_PING}')" >&2
+
+if [ "${GET_PASS_STATUS}" -ne 0 ] || [ -z "${REDIS_AUTH_VAL}" ]; then
+    set +e
+    REDIS_AUTH_VAL="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' socialpulse-staging-server-1 2>/dev/null | grep '^REDIS_PASSWORD=' | head -n 1 | cut -d= -f2- | tr -d '\r\n')"
+    set -e
+fi
+
+# Reject empty credential
+if [ -z "${REDIS_AUTH_VAL}" ]; then
+    echo "FAIL: REDIS_PASSWORD from socialpulse-staging-server-1 is empty or unset!" >&2
+    unset REDIS_AUTH_VAL
     exit 1
 fi
+
+# Execute probe using REDISCLI_AUTH environment variable (avoiding redis-cli -a)
+set +e
+REDIS_PING="$(printf "%s\n" "${REDIS_AUTH_VAL}" | docker exec -i socialpulse-staging-redis-1 sh -c 'read -r REDISCLI_AUTH && export REDISCLI_AUTH && redis-cli ping' 2>&1 | tr -d '\r')"
+REDIS_STATUS=$?
+set -e
+
+# Fallback if container sh stdin does not accept pipe
+if [ "${REDIS_STATUS}" -ne 0 ] || [ "${REDIS_PING}" != "PONG" ]; then
+    set +e
+    REDIS_PING="$(docker exec -e REDISCLI_AUTH="${REDIS_AUTH_VAL}" socialpulse-staging-redis-1 redis-cli ping 2>&1 | tr -d '\r')"
+    REDIS_STATUS=$?
+    set -e
+fi
+
+# Normalize response (strip leading/trailing whitespace)
+NORM_REDIS_PING="$(echo "${REDIS_PING}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+
+# Ensure cleanup unsets the password variable immediately without logging it
+unset REDIS_AUTH_VAL
+
+# Validate response strictly: accept only exit status 0 and normalized response PONG
+REDIS_REJECT=0
+if [ "${REDIS_STATUS}" -ne 0 ] || [ "${NORM_REDIS_PING}" != "PONG" ]; then
+    REDIS_REJECT=1
+fi
+
+case "${NORM_REDIS_PING}" in
+    *"AUTH failed"*|*"WRONGPASS"*|*"NOAUTH"*|*"Warning"*|*"warning"*|*$'\n'*)
+        REDIS_REJECT=1
+        ;;
+esac
+
+LINE_COUNT="$(printf "%s\n" "${NORM_REDIS_PING}" | wc -l)"
+if [ "${LINE_COUNT}" -ne 1 ]; then
+    REDIS_REJECT=1
+fi
+
+if [ "${REDIS_REJECT}" -ne 0 ]; then
+    SAFE_RESP="$(echo "${NORM_REDIS_PING}" | head -n 1 | cut -c1-100)"
+    echo "FAIL: Redis authenticated PING failed (status: ${REDIS_STATUS}, response: '${SAFE_RESP}')" >&2
+    exit 1
+fi
+
 echo "✓ Authenticated Redis PING: PONG (status: 0, credentials contained)"
 
 # 2. Authenticated PostgreSQL SELECT 1;
