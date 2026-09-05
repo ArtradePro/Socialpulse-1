@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # HIGIENE (PTY) LTD — PROJECT EVERGREEN / SOCIALPULSE
-# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R24)
+# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R25)
 # Identity: root (EUID 0) outer wrapper -> unprivileged github-runner (UID 1001) workload
 # Rootless Socket: unix:///run/user/1001/docker.sock
 # Scope: ZERO DATABASE MUTATIONS, ZERO SNAPSHOTS, ZERO CONTAINER MUTATIONS
@@ -111,7 +111,7 @@ chmod 0600 "${LOG_FILE}"
 chown root:root "${LOG_FILE}"
 
 echo "========================================================================"
-echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R24)"
+echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R25)"
 echo ">>> UTC Timestamp      : ${TIMESTAMP}"
 echo ">>> Canonical Log      : ${LOG_FILE} (Controlled Log Creation)"
 echo ">>> Host Executor      : $(whoami) (EUID: $(id -u))"
@@ -996,22 +996,36 @@ if [ "${CANON_REL_MANIFEST_PATH}" != "${RELEASE_MANIFEST_FILE}" ]; then
     exit 1
 fi
 
-REL_MANIFEST_OWNER_UID="$(stat -c '%u' "${RELEASE_MANIFEST_FILE}")"
-REL_MANIFEST_OWNER_GID="$(stat -c '%g' "${RELEASE_MANIFEST_FILE}")"
+REL_MANIFEST_OWNER="$(stat -c '%u:%g' "${RELEASE_MANIFEST_FILE}")"
 REL_MANIFEST_MODE="$(stat -c '%a' "${RELEASE_MANIFEST_FILE}")"
 
-if [ "${REL_MANIFEST_OWNER_UID}" -ne 0 ] && [ "${REL_MANIFEST_OWNER_UID}" -ne 1001 ]; then
-    echo "FAIL: Approved owner check failed for ${RELEASE_MANIFEST_FILE}: UID is ${REL_MANIFEST_OWNER_UID} (expected 0 or 1001)!" >&2
-    exit 1
-fi
-if [ "${REL_MANIFEST_OWNER_GID}" -ne 0 ] && [ "${REL_MANIFEST_OWNER_GID}" -ne 1001 ]; then
-    echo "FAIL: Approved group check failed for ${RELEASE_MANIFEST_FILE}: GID is ${REL_MANIFEST_OWNER_GID} (expected 0 or 1001)!" >&2
-    exit 1
-fi
+case "${REL_MANIFEST_OWNER}" in
+    "0:0")
+        case "${REL_MANIFEST_MODE}" in
+            644) ;;
+            *)
+                echo "FAIL: Root-owned release manifest must have mode 0644 to ensure runner readability: 0${REL_MANIFEST_MODE}" >&2
+                exit 1
+                ;;
+        esac
+        ;;
+    "1001:1001")
+        case "${REL_MANIFEST_MODE}" in
+            600|640|644) ;;
+            *)
+                echo "FAIL: Runner-owned release manifest must have mode 0600, 0640, or 0644: 0${REL_MANIFEST_MODE}" >&2
+                exit 1
+                ;;
+        esac
+        ;;
+    *)
+        echo "FAIL: Invalid release-manifest ownership: ${REL_MANIFEST_OWNER} (expected strictly 0:0 or 1001:1001)" >&2
+        exit 1
+        ;;
+esac
 
-REL_OTHERS_PERM="${REL_MANIFEST_MODE: -1}"
-if [ "${REL_OTHERS_PERM}" != "0" ] && [ "${REL_OTHERS_PERM}" != "4" ]; then
-    echo "FAIL: Restrictive permissions violation on ${RELEASE_MANIFEST_FILE}: mode is 0${REL_MANIFEST_MODE}!" >&2
+if [ ! -r "${RELEASE_MANIFEST_FILE}" ]; then
+    echo "FAIL: Release manifest is not readable by workload user ($(id -u):$(id -g)): ${RELEASE_MANIFEST_FILE}" >&2
     exit 1
 fi
 

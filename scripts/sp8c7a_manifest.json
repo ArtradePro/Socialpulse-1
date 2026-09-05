@@ -1,12 +1,12 @@
 {
   "schema_version": "1.0",
   "project": "SocialPulse / Project Evergreen",
-  "governing_entity": "Higiene (Pty) Ltd — Higienlabs Technology Division",
+  "governing_entity": "Higiene (Pty) Ltd \u2014 Higienlabs Technology Division",
   "authorized_owner": "Vernon la Cock, CEO",
   "independent_reviewer": "ChatGPT",
   "execution_agent": "Antigravity (Google DeepMind)",
   "gate": "SP-8C-7A",
-  "revision": "R24",
+  "revision": "R25",
   "package_name": "socialpulse_phase_sp8c7a_review_package.zip",
   "created_at_utc": "2026-09-05T22:00:00Z",
   "execution_mode": "strictly_read_only_standstill_preflight_unified",
@@ -100,29 +100,30 @@
     "root_owned_tee_destination_enforced": true,
     "standardized_sha256_cut_format_enforced": true,
     "compose_image_interpolation_verified_and_unset": true,
-    "unconditional_release_manifest_trust_anchor": true
+    "unconditional_release_manifest_trust_anchor": true,
+    "exact_release_manifest_ownership_pairs_and_mode_allowlist": true
   },
   "members": [
     {
       "filename": "sp8c7a_preflight.sh",
-      "bytes": 66281,
-      "lines": 1566,
-      "sha256": "606a9f09ac96c4e3f8fb6e80d57fc42c40824bc78a102f9724337f54604fc9c1",
+      "bytes": 66422,
+      "lines": 1580,
+      "sha256": "9ee266b4c2b62da63a08505efd0389ce54253e9b39c6659f316a47b6a564ba98",
       "role": "unified_self_contained_strictly_read_only_host_preflight_script"
     },
     {
       "filename": "sp8c7a_preflight.sh.sha256",
       "bytes": 86,
       "lines": 1,
-      "sha256": "a1c683ab492f208f1d8821ebb4281c2b2793170265af0877085020c1402696aa",
+      "sha256": "5c0090543217c89cbac6efd48fe60df18114c20adb128c2427ec21c18a22c252",
       "role": "corroborating_script_checksum_sidecar"
     },
     {
       "filename": "sp8c7a_preflight_runbook.md",
-      "bytes": 16271,
-      "lines": 148,
-      "sha256": "fcd158e803005ced2352f43724adf04ee8c47df2a96365dbacddfeca377182bd",
-      "role": "operational_preflight_runbook_and_invariants_revision_r24"
+      "bytes": 16706,
+      "lines": 149,
+      "sha256": "fcb147c778c7fa569a18274a1414b821345382e8fb734a790bf00cd3b7eb8c49",
+      "role": "operational_preflight_runbook_and_invariants_revision_r25"
     }
   ]
 }
