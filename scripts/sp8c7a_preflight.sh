@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # HIGIENE (PTY) LTD — PROJECT EVERGREEN / SOCIALPULSE
-# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R22)
+# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R23)
 # Identity: root (EUID 0) outer wrapper -> unprivileged github-runner (UID 1001) workload
 # Rootless Socket: unix:///run/user/1001/docker.sock
 # Scope: ZERO DATABASE MUTATIONS, ZERO SNAPSHOTS, ZERO CONTAINER MUTATIONS
@@ -48,7 +48,11 @@ if [ ! -f "${SCRIPT_PATH}" ] || [ -L "${SCRIPT_PATH}" ]; then
     exit 1
 fi
 
-SCRIPT_SHA256="$(sha256sum "${SCRIPT_PATH}" | awk '{print $1}')"
+SCRIPT_SHA256="$(sha256sum -- "${SCRIPT_PATH}" | cut -d' ' -f1)"
+if ! [[ "${SCRIPT_SHA256}" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "CRITICAL ERROR: Failed to compute valid 64-character SHA-256 for ${SCRIPT_PATH}: '${SCRIPT_SHA256}'" >&2
+    exit 1
+fi
 SCRIPT_BYTES="$(stat -c '%s' "${SCRIPT_PATH}")"
 SCRIPT_LINES="$(wc -l < "${SCRIPT_PATH}")"
 
@@ -107,7 +111,7 @@ chmod 0600 "${LOG_FILE}"
 chown root:root "${LOG_FILE}"
 
 echo "========================================================================"
-echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R22)"
+echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R23)"
 echo ">>> UTC Timestamp      : ${TIMESTAMP}"
 echo ">>> Canonical Log      : ${LOG_FILE} (Controlled Log Creation)"
 echo ">>> Host Executor      : $(whoami) (EUID: $(id -u))"
@@ -656,7 +660,7 @@ MIGRATION_STATUS_JS_HISTORICAL_HASH="b86c1ebf1b5d19173f6286cd33c4e384a373da6cd1c
 set +e
 RAW_MIGRATE_OUTPUT=$(docker exec socialpulse-staging-server-1 sh -c '
 if [ -f /app/dist/database/migrate.js ] && [ ! -L /app/dist/database/migrate.js ]; then
-    sha256sum /app/dist/database/migrate.js | cut -d" " -f1
+    sha256sum -- /app/dist/database/migrate.js | cut -d" " -f1
 else
     echo "MISSING"
 fi
@@ -664,7 +668,7 @@ fi
 MIGRATE_RUNNER_STATUS=$?
 set -e
 
-ACTUAL_MIGRATE_HASH="$(echo "${RAW_MIGRATE_OUTPUT}" | tr -d '\r\n' | awk '{print $1}')"
+ACTUAL_MIGRATE_HASH="$(echo "${RAW_MIGRATE_OUTPUT}" | tr -d '\r\n' | cut -d" " -f1)"
 
 if [ "${MIGRATE_RUNNER_STATUS}" -ne 0 ] || [ "${ACTUAL_MIGRATE_HASH}" = "MISSING" ] || [ -z "${ACTUAL_MIGRATE_HASH}" ]; then
     MIGRATE_JS_CLASSIFICATION="RUNNER_MISSING"
@@ -693,7 +697,7 @@ fi
 set +e
 RAW_STATUS_OUTPUT=$(docker exec socialpulse-staging-server-1 sh -c '
 if [ -f /app/dist/database/scripts/migrationStatus.js ] && [ ! -L /app/dist/database/scripts/migrationStatus.js ]; then
-    sha256sum /app/dist/database/scripts/migrationStatus.js | cut -d" " -f1
+    sha256sum -- /app/dist/database/scripts/migrationStatus.js | cut -d" " -f1
 else
     echo "MISSING"
 fi
@@ -701,7 +705,7 @@ fi
 STATUS_RUNNER_STATUS=$?
 set -e
 
-ACTUAL_STATUS_HASH="$(echo "${RAW_STATUS_OUTPUT}" | tr -d '\r\n' | awk '{print $1}')"
+ACTUAL_STATUS_HASH="$(echo "${RAW_STATUS_OUTPUT}" | tr -d '\r\n' | cut -d" " -f1)"
 
 if [ "${STATUS_RUNNER_STATUS}" -ne 0 ] || [ "${ACTUAL_STATUS_HASH}" = "MISSING" ] || [ -z "${ACTUAL_STATUS_HASH}" ]; then
     STATUS_JS_CLASSIFICATION="RUNNER_MISSING"
@@ -841,14 +845,14 @@ elif [ "${DIR_CHECK}" = "VALID_DIR" ]; then
                 set +e
                 RAW_SQL_CHECK=$(docker exec socialpulse-staging-server-1 sh -c "
                 if [ -f \"${FILE_PATH}\" ] && [ ! -L \"${FILE_PATH}\" ]; then
-                    sha256sum \"${FILE_PATH}\" | cut -d\" \" -f1
+                    sha256sum -- \"${FILE_PATH}\" | cut -d\" \" -f1
                 else
                     echo 'INVALID_OR_MISSING'
                 fi
                 ")
                 SQL_CHECK_STATUS=$?
                 set -e
-                CHECK_OUTPUT="$(echo "${RAW_SQL_CHECK}" | tr -d '\r\n' | awk '{print $1}')"
+                CHECK_OUTPUT="$(echo "${RAW_SQL_CHECK}" | tr -d '\r\n' | cut -d" " -f1)"
 
                 if [ "${SQL_CHECK_STATUS}" -ne 0 ] || [ "${CHECK_OUTPUT}" = "INVALID_OR_MISSING" ]; then
                     HASH_MISMATCH=1
@@ -894,13 +898,13 @@ if [ ! -f "${COMPOSE_FILE}" ] || [ -L "${COMPOSE_FILE}" ]; then
 fi
 
 set +e
-ACTUAL_COMPOSE_HASH="$(sha256sum "${COMPOSE_FILE}" | awk '{print $1}')"
+ACTUAL_COMPOSE_HASH="$(sha256sum -- "${COMPOSE_FILE}" | cut -d' ' -f1)"
 COMPOSE_HASH_STATUS=$?
 ACTUAL_COMPOSE_BYTES="$(stat -c '%s' "${COMPOSE_FILE}")"
 COMPOSE_BYTES_STATUS=$?
 set -e
 
-if [ "${COMPOSE_HASH_STATUS}" -ne 0 ] || [ "${COMPOSE_BYTES_STATUS}" -ne 0 ]; then
+if [ "${COMPOSE_HASH_STATUS}" -ne 0 ] || ! [[ "${ACTUAL_COMPOSE_HASH}" =~ ^[0-9a-f]{64}$ ]] || [ "${COMPOSE_BYTES_STATUS}" -ne 0 ]; then
     echo "FAIL: Unable to stat or hash ${COMPOSE_FILE}" >&2
     exit 1
 fi
@@ -974,10 +978,57 @@ TEMP_COMPOSE_JSON=$(mktemp /tmp/sp8c7a_compose_XXXXXX.json)
 chmod 0600 "${TEMP_COMPOSE_JSON}"
 TEMP_FILES+=("${TEMP_COMPOSE_JSON}")
 
+# Enforce approved non-secret immutable image references for compose interpolation
+RELEASE_MANIFEST_FILE="/opt/socialpulse/scripts/approved_release_manifest.json"
+EXPECTED_BACKEND_IMAGE="artradepro/socialpulse-backend@sha256:73e9d3366edd4e714e4ade1acd45e78cc20c9e84803572dda96b0ba65818eb2a"
+EXPECTED_FRONTEND_IMAGE="artradepro/socialpulse-frontend@sha256:8fa2708cfbff2c38b7708e7d3a7830ba738d3407e2ae986561da008a965d9aa8"
+
+if [ -f "${RELEASE_MANIFEST_FILE}" ] && [ ! -L "${RELEASE_MANIFEST_FILE}" ]; then
+    set +e
+    python3 -c '
+import sys, json
+manifest_path = sys.argv[1]
+exp_b = sys.argv[2]
+exp_f = sys.argv[3]
+with open(manifest_path, "r") as f:
+    m = json.load(f)
+b = (m.get("backend", {}).get("repository", "") + "@" + m.get("backend", {}).get("digest", "")).strip()
+f = (m.get("frontend", {}).get("repository", "") + "@" + m.get("frontend", {}).get("digest", "")).strip()
+if b != exp_b:
+    sys.exit(f"FAIL: Manifest backend image mismatch: got {b}, expected {exp_b}")
+if f != exp_f:
+    sys.exit(f"FAIL: Manifest frontend image mismatch: got {f}, expected {exp_f}")
+print("✓ Verified approved release manifest images match expected references")
+' "${RELEASE_MANIFEST_FILE}" "${EXPECTED_BACKEND_IMAGE}" "${EXPECTED_FRONTEND_IMAGE}"
+    MANIFEST_VERIFY_STATUS=$?
+    set -e
+    if [ "${MANIFEST_VERIFY_STATUS}" -ne 0 ]; then
+        echo "FAIL: Release manifest verification failed with exit status ${MANIFEST_VERIFY_STATUS}" >&2
+        exit 1
+    fi
+fi
+
+# Explicitly export the two approved non-secret image references for rendering
+export SOCIALPULSE_BACKEND_IMAGE="${EXPECTED_BACKEND_IMAGE}"
+export SOCIALPULSE_FRONTEND_IMAGE="${EXPECTED_FRONTEND_IMAGE}"
+
 set +e
-docker compose --project-directory "${COMPOSE_PROJECT_DIR}" --env-file "${COMPOSE_ENV_FILE}" -f "${COMPOSE_FILE}" --profile migration config --format json > "${TEMP_COMPOSE_JSON}"
+docker compose \
+  --project-directory "${COMPOSE_PROJECT_DIR}" \
+  --env-file "${COMPOSE_ENV_FILE}" \
+  -f "${COMPOSE_FILE}" \
+  --profile migration \
+  config --format json > "${TEMP_COMPOSE_JSON}"
 COMPOSE_STATUS=$?
 set -e
+
+# Unset both variables immediately afterward
+unset SOCIALPULSE_BACKEND_IMAGE SOCIALPULSE_FRONTEND_IMAGE
+
+if [ -n "${SOCIALPULSE_BACKEND_IMAGE:-}" ] || [ -n "${SOCIALPULSE_FRONTEND_IMAGE:-}" ]; then
+    echo "FAIL: Image environment variables remain set after rendering!" >&2
+    exit 1
+fi
 
 echo "Docker Compose Profile Rendering Exit Status: ${COMPOSE_STATUS}"
 if [ "${COMPOSE_STATUS}" -ne 0 ]; then
@@ -1415,7 +1466,11 @@ echo "========================================================================"
 LOG_SIZE=$(stat -c "%s" "${LOG_FILE}")
 LOG_OWNER=$(stat -c "%u:%g" "${LOG_FILE}")
 LOG_PERMS=$(stat -c "%a" "${LOG_FILE}")
-LOG_SHA=$(sha256sum "${LOG_FILE}" | awk '{print $1}')
+LOG_SHA="$(sha256sum -- "${LOG_FILE}" | cut -d' ' -f1)"
+if ! [[ "${LOG_SHA}" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "CRITICAL ERROR: Failed to compute valid 64-character SHA-256 for ${LOG_FILE}: '${LOG_SHA}'" >&2
+    exit 1
+fi
 
 echo ">>> Canonical Root Log Verification:"
 echo "  Path    : ${LOG_FILE}"

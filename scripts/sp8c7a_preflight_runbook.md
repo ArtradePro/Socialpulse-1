@@ -1,4 +1,4 @@
-# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R22)
+# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R23)
 
 **Governing Entity:** Higiene (Pty) Ltd — Project Evergreen — Higiene / Higienlabs Technology Division  
 **Corporate Spelling:** Strictly **"Higiene"** (governed corporate standard)  
@@ -8,7 +8,7 @@
 **Execution Agent:** Antigravity (Google DeepMind)  
 **Target Host Identity:** `srv1935605` (`2.24.130.251`)  
 **Gate:** `SP-8C-7A` (Read-Only Host Preflight Reconnaissance & Baseline)  
-**Revision:** `R22` (Single Consolidated Package Architecture)  
+**Revision:** `R23` (Single Consolidated Package Architecture)  
 **Status:** `AWAITING_INDEPENDENT_REVIEW — EXECUTION NOT AUTHORIZED`  
 **Guarantees & Scope:** Zero application/database mutations, zero snapshot creation, zero migration container execution. Acknowledges controlled root log file creation (`/root/sp8c7a_preflight_<TIMESTAMP>.log`) and unprivileged temporary file creation (`/tmp/sp8c7a_...`).
 
@@ -16,15 +16,15 @@
 
 ## 1. Scope & Execution Invariants
 
-Gate SP-8C-7A Revision R22 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
-* **Script SHA-256:** `81ab86857bb50dfcbfb41833ae77e7bc96db32730741033ea5b0e2e870ef143f`
-* **Script Size:** `61362 bytes` (1460 lines)
-* **Corroborating Sidecar SHA-256:** `95638fbe712b44cc45119cb8f83b7072b6d853d7934de5475bc0784c39072123` (86 bytes, `81ab86857bb50dfcbfb41833ae77e7bc96db32730741033ea5b0e2e870ef143f  sp8c7a_preflight.sh`)
+Gate SP-8C-7A Revision R23 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
+* **Script SHA-256:** `76ad215b03ec619796d08ffa01b368f0943c4e0b646c4ba3f40bbbd9cbecef1e`
+* **Script Size:** `63752 bytes` (1515 lines)
+* **Corroborating Sidecar SHA-256:** `9ff66433cc4a68d10511ca81b2bf27951f4e5f3e9862465c402224db225e51a3` (86 bytes, `76ad215b03ec619796d08ffa01b368f0943c4e0b646c4ba3f40bbbd9cbecef1e  sp8c7a_preflight.sh`)
 * **Mandatory Invocation Invariant:**
   The caller must externally provide the exact trust anchor environment variables:
   ```bash
-  export EXPECTED_SP8C7A_SHA256="81ab86857bb50dfcbfb41833ae77e7bc96db32730741033ea5b0e2e870ef143f"
-  export EXPECTED_SP8C7A_BYTES="61362"
+  export EXPECTED_SP8C7A_SHA256="76ad215b03ec619796d08ffa01b368f0943c4e0b646c4ba3f40bbbd9cbecef1e"
+  export EXPECTED_SP8C7A_BYTES="63752"
   ```
   The script enforces these variables prior to log creation or workload execution.
 * **Enforced Controls:**
@@ -111,8 +111,29 @@ Gate SP-8C-7A Revision R22 executes via one single self-contained unified script
 ---
 ---
 
-## 6. Architectural Controls: Revision R22 Two-State Publication Transaction & Rollback Safety
-* **Two-State Publication Transaction Machine (`run_sp8c7a_r22.sh`):**
+## 6. Historical Execution Evidence: Revision R22 Execution Log & R23 Focus
+* **Canonical Host Log Path:** `/root/sp8c7a_preflight_20260905_195130Z.log`
+* **Log File Size:** `6585` bytes
+* **Log File Ownership:** `0:0` (`root:root`)
+* **Log File Permissions:** `0600` (`-rw-------`)
+* **Verified Runtime Health Outcomes in R22 Host Execution:**
+  - Step 1 (Identity & Isolation): Workload UID `1001`, `unix:///run/user/1001/docker.sock`, rootful socket access strictly denied (exit status 1) — **PASS**
+  - Step 2 (Service Inventory & Exact Image Immutability): Exactly 4 containers running, zero migration containers, 4 exact `.Config.Image` references match approved immutable digests — **PASS**
+  - Step 3 (Runtime Health Probes): Redis PING `PONG` (stdin contained), PostgreSQL `SELECT 1;` -> `1`, Backend Liveness HTTP 200, Backend Readiness HTTP 200 (`coreReady: true`), Frontend Staging HTTP 200, Evergreen Production Health HTTP 200 preserved — **PASS**
+  - Step 4 (Observational Database Classification): Catalog query classified staging database as `OBSERVED_BRANCH_B_CLEAN_EMPTY_BOOTSTRAP` (0 public tables, trigger function absent); migration ledger `schema_migrations` is ABSENT (0 records); explicit policy enforced: `NO_MIGRATION_BRANCH_AUTHORIZED` — **PASS**
+  - Step 5 (Compiled Runners & Migrations): Captured compiled runner hashes: `migrate.js` (`REPEATABLE_RUNTIME_HASH_MISMATCH`), `migrationStatus.js` (`REPEATABLE_RUNTIME_HASH_MISMATCH`); confirmed `/app/dist/database/migrations` is absent from container image (`MIGRATION_FILES_ABSENT_FROM_IMAGE`) — **FINDINGS RECORDED (3 discrepancies)**
+  - Step 6 (Docker Compose Profile Rendering): Safe halt on variable interpolation (`SOCIALPULSE_FRONTEND_IMAGE` and `SOCIALPULSE_BACKEND_IMAGE` required by Compose specification but not stored in runtime `/opt/socialpulse/.env`).
+  - Outer Wrapper Tee: Kernel `fs.protected_regular` permission denial when root tee attempted to write to UID 1001-owned temporary file in `/tmp`.
+  - Transaction Exit Handler: Preserved published destinations intact without rollback (`COMMITTED` state honored).
+* **Focused R23 Remediations:**
+  1. Step 6 Compose profile rendering explicitly verifies and exports `SOCIALPULSE_BACKEND_IMAGE` and `SOCIALPULSE_FRONTEND_IMAGE` against approved release references, executes profile rendering, and immediately unsets both variables post-render without modifying `/opt/socialpulse/.env`.
+  2. Wrapper execution output file `/tmp/sp8c7a_exec_out.XXXXXX` is created as root-owned (`0:0`, mode `0600`), ensuring full compatibility with Linux kernel `fs.protected_regular`.
+  3. Standardized 64-character lowercase hexadecimal format enforcement (`^[0-9a-f]{64}$`) on all SHA-256 extractions (`sha256sum -- ... | cut -d' ' -f1`) across both host and container-resident files.
+
+---
+
+## 7. Architectural Controls: Revision R23 Two-State Publication Transaction & Rollback Safety
+* **Two-State Publication Transaction Machine (`run_sp8c7a_r23.sh`):**
   - **Explicit States:** The wrapper tracks transactional publication strictly through `PUBLICATION_STATE`:
     - `UNCOMMITTED`: Active during staging, pre-replacement backup creation, pre-armed atomic renaming, and destination reverification.
     - `COMMITTED`: Entered immediately once all four destination files pass bit-for-bit trust-anchor reverification.
@@ -123,3 +144,4 @@ Gate SP-8C-7A Revision R22 executes via one single self-contained unified script
     - `COMMITTED`: Published destinations are permanently preserved intact. Rollback is strictly prohibited. The cleanup handler removes only remaining auxiliary backup and temporary staging paths.
   - **Containment Residue Reporting:** If any backup or temporary file cannot be deleted after commit, the wrapper records the exact failed path in `FAILED_CLEANUP_PATHS`, reports containment residue, and exits non-zero without ever attempting destination restoration from a partially deleted backup set.
   - **Strict Corporate Standard:** Corporate entity name strictly maintained as **"Higiene"** across all documents and source files.
+
