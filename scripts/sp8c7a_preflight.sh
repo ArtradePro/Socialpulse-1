@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # HIGIENE (PTY) LTD — PROJECT EVERGREEN / SOCIALPULSE
-# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R11)
+# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R12)
 # Identity: root (EUID 0) outer wrapper -> unprivileged github-runner (UID 1001) workload
 # Rootless Socket: unix:///run/user/1001/docker.sock
 # Scope: ZERO DATABASE MUTATIONS, ZERO SNAPSHOTS, ZERO CONTAINER MUTATIONS
@@ -107,7 +107,7 @@ chmod 0600 "${LOG_FILE}"
 chown root:root "${LOG_FILE}"
 
 echo "========================================================================"
-echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R11)"
+echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R12)"
 echo ">>> UTC Timestamp      : ${TIMESTAMP}"
 echo ">>> Canonical Log      : ${LOG_FILE} (Controlled Log Creation)"
 echo ">>> Host Executor      : $(whoami) (EUID: $(id -u))"
@@ -292,28 +292,54 @@ if [ "${GET_PASS_STATUS}" -ne 0 ] || [ -z "${REDIS_AUTH_VAL}" ]; then
     exit 1
 fi
 
-# Feed credential ONLY through standard input; never place in host command arguments or command-line environment assignments
+REDIS_OUTPUT_FILE="$(mktemp /tmp/sp8c7a_redis_output.XXXXXX)"
+TEMP_FILES+=("${REDIS_OUTPUT_FILE}")
+
+# Execute Redis probe via standard input with redirection to pre-armed output file
 set +e
-REDIS_PING="$(printf "%s\n" "${REDIS_AUTH_VAL}" | docker exec -i socialpulse-staging-redis-1 sh -c 'read -r REDISCLI_AUTH && export REDISCLI_AUTH && redis-cli ping' 2>&1)"
+printf '%s\n' "${REDIS_AUTH_VAL}" |
+    docker exec -i socialpulse-staging-redis-1 \
+        sh -c 'IFS= read -r REDISCLI_AUTH && export REDISCLI_AUTH && exec redis-cli --raw ping' \
+        >"${REDIS_OUTPUT_FILE}" 2>&1
 REDIS_PIPESTATUS=("${PIPESTATUS[@]}")
 set -e
 
 # Immediately unset all credential-bearing variables
 unset REDIS_AUTH_VAL
 
-# Capture the entire Redis pipeline statuses using PIPESTATUS immediately after execution; require every component to return zero
+# Require exactly two captured pipeline statuses
+if [ "${#REDIS_PIPESTATUS[@]}" -ne 2 ]; then
+    echo "FAIL: Expected exactly 2 pipeline statuses for Redis probe, got ${#REDIS_PIPESTATUS[@]}!" >&2
+    exit 1
+fi
+
 PRINTF_STATUS="${REDIS_PIPESTATUS[0]:-1}"
 DOCKER_STATUS="${REDIS_PIPESTATUS[1]:-1}"
 
+# Require both statuses to equal 0
 if [ "${PRINTF_STATUS}" -ne 0 ] || [ "${DOCKER_STATUS}" -ne 0 ]; then
     echo "FAIL: Redis probe pipeline failed (printf exit: ${PRINTF_STATUS}, docker exec exit: ${DOCKER_STATUS})" >&2
     exit 1
 fi
 
+# Require the output file to be regular, non-symlinked and owned by github-runner
+if [ ! -f "${REDIS_OUTPUT_FILE}" ] || [ -L "${REDIS_OUTPUT_FILE}" ]; then
+    echo "FAIL: Redis output file is missing or a symlink: ${REDIS_OUTPUT_FILE}" >&2
+    exit 1
+fi
+
+REDIS_OUT_OWNER="$(stat -c '%u:%g' "${REDIS_OUTPUT_FILE}")"
+if [ "${REDIS_OUT_OWNER}" != "1001:1001" ]; then
+    echo "FAIL: Redis output file owner mismatch: expected 1001:1001, got ${REDIS_OUT_OWNER}" >&2
+    exit 1
+fi
+
+REDIS_PING="$(<"${REDIS_OUTPUT_FILE}")"
+
 # Normalize output: strip CR and surrounding whitespace
 NORM_REDIS_PING="$(echo "${REDIS_PING}" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 
-# Accept only one normalized output line equal to PONG
+# Accept only exact single-line PONG
 LINE_COUNT="$(printf "%s\n" "${NORM_REDIS_PING}" | wc -l)"
 if [ "${LINE_COUNT}" -ne 1 ] || [ "${NORM_REDIS_PING}" != "PONG" ]; then
     SAFE_RESP="$(echo "${NORM_REDIS_PING}" | head -n 1 | cut -c1-100)"
@@ -327,6 +353,22 @@ case "${NORM_REDIS_PING}" in
         exit 1
         ;;
 esac
+
+# Remove the output file and verify its absence; keep tracked until absence is confirmed
+rm -f "${REDIS_OUTPUT_FILE}"
+if [ -e "${REDIS_OUTPUT_FILE}" ] || [ -L "${REDIS_OUTPUT_FILE}" ]; then
+    echo "FAIL: Absence verification failed for Redis output file: ${REDIS_OUTPUT_FILE}" >&2
+    exit 1
+fi
+
+# Remove from TEMP_FILES now that absence is confirmed
+NEW_TEMP_FILES=()
+for tf in "${TEMP_FILES[@]}"; do
+    if [ "${tf}" != "${REDIS_OUTPUT_FILE}" ]; then
+        NEW_TEMP_FILES+=("${tf}")
+    fi
+done
+TEMP_FILES=("${NEW_TEMP_FILES[@]}")
 
 echo "✓ Authenticated Redis PING: PONG (status: 0, credentials contained via stdin stream)"
 

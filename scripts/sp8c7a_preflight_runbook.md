@@ -1,4 +1,4 @@
-# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R11)
+# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R12)
 
 **Governing Entity:** Higiene (Pty) Ltd — Project Evergreen — Higiene / Higienlabs Technology Division  
 **Corporate Spelling:** Strictly **"Higiene"** (never "Hygiene")  
@@ -8,7 +8,7 @@
 **Execution Agent:** Antigravity (Google DeepMind)  
 **Target Host Identity:** `srv1935605` (`2.24.130.251`)  
 **Gate:** `SP-8C-7A` (Read-Only Host Preflight Reconnaissance & Baseline)  
-**Revision:** `R11` (Single Consolidated Package Architecture)  
+**Revision:** `R12` (Single Consolidated Package Architecture)  
 **Status:** `AWAITING_INDEPENDENT_REVIEW — EXECUTION NOT AUTHORIZED`  
 **Guarantees & Scope:** Zero application/database mutations, zero snapshot creation, zero migration container execution. Acknowledges controlled root log file creation (`/root/sp8c7a_preflight_<TIMESTAMP>.log`) and unprivileged temporary file creation (`/tmp/sp8c7a_...`).
 
@@ -16,15 +16,15 @@
 
 ## 1. Scope & Execution Invariants
 
-Gate SP-8C-7A Revision R11 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
-* **Script SHA-256:** `9ee0a6014aff9c2eb70c1e899cbc9c9e33bc98919a57add1b193a9871a769138`
-* **Script Size:** `50211 bytes` (1207 lines)
-* **Corroborating Sidecar SHA-256:** `903898f2c4c2bd213031a25405b528451e328f2929926e7b14cdc655bc7df52f` (86 bytes, `9ee0a6014aff9c2eb70c1e899cbc9c9e33bc98919a57add1b193a9871a769138  sp8c7a_preflight.sh`)
+Gate SP-8C-7A Revision R12 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
+* **Script SHA-256:** `97c2705b672ac7250436e5ff6ee8035263c35632c9c4b807a0e88e8580dfc0e7`
+* **Script Size:** `51474 bytes` (1249 lines)
+* **Corroborating Sidecar SHA-256:** `01b7b9ba73be7bcc745bf9715006d8f7020228ce523378e52e39ea3b8964c6f2` (86 bytes, `97c2705b672ac7250436e5ff6ee8035263c35632c9c4b807a0e88e8580dfc0e7  sp8c7a_preflight.sh`)
 * **Mandatory Invocation Invariant:**
   The caller must externally provide the exact trust anchor environment variables:
   ```bash
-  export EXPECTED_SP8C7A_SHA256="9ee0a6014aff9c2eb70c1e899cbc9c9e33bc98919a57add1b193a9871a769138"
-  export EXPECTED_SP8C7A_BYTES="50211"
+  export EXPECTED_SP8C7A_SHA256="97c2705b672ac7250436e5ff6ee8035263c35632c9c4b807a0e88e8580dfc0e7"
+  export EXPECTED_SP8C7A_BYTES="51474"
   ```
   The script enforces these variables prior to log creation or workload execution.
 * **Enforced Controls:**
