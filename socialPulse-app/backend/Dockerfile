@@ -22,6 +22,8 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src/database/migrations ./dist/database/migrations
+COPY --from=builder /app/src/database/schema.sql ./dist/database/schema.sql
 
 EXPOSE 5000
 

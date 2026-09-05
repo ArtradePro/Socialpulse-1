@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0",
+  "project": "SocialPulse / Project Evergreen",
+  "governing_entity": "Higiene (Pty) Ltd \u2014 Higienlabs Technology Division",
+  "authorized_owner": "Vernon la Cock, CEO",
+  "independent_reviewer": "ChatGPT",
+  "execution_agent": "Antigravity (Google DeepMind)",
+  "gate": "SP-8C-7A / SP-8C-7B",
+  "revision": "Remediation-R1",
+  "created_at_utc": "2026-09-05T22:50:00Z",
+  "operating_mode": "strictly_passive_read_only_standstill_remediation_review",
+  "source_repository": "ArtradePro/Socialpulse-1",
+  "source_branch": "scripts/backup-r10",
+  "source_commit": "14ae4810565c7dec9f156a8677c3c313e078022e",
+  "guarantees_and_invariants": {
+    "zero_host_mutations_prior_to_verdict": true,
+    "zero_database_mutations": true,
+    "zero_snapshots_prior_to_authorization": true,
+    "zero_container_recreation_prior_to_authorization": true,
+    "strictly_higiene_corporate_spelling": true,
+    "target_backup_directory": "/opt/socialpulse/backups",
+    "target_backup_owner": "1001:1001",
+    "target_backup_mode": "0700",
+    "collision_rejection_enforced": true,
+    "non_symlink_canonical_path_enforced": true,
+    "zero_named_or_default_acls_enforced": true,
+    "rollback_only_if_created_by_script": true,
+    "rollback_uses_safe_rmdir_only": true,
+    "read_only_verification_script_provided": true,
+    "total_governed_migration_artifacts": 15,
+    "all_12_sql_migrations_packaged": true
+  },
+  "package_members": [
+    {
+      "filename": "prepare_backup_directory.sh",
+      "bytes": 8274,
+      "sha256": "5232a7fb25054f4d072a9941fdb77df5069f618a3007a6f0bbe1818c5d4a26d4",
+      "role": "narrowly_scoped_host_backup_directory_preparation_script"
+    },
+    {
+      "filename": "verify_remediation.sh",
+      "bytes": 10335,
+      "sha256": "69243b51b062c4933e7d3e172eb25f6466d3b067d7a9cb06482b78c9463c9405",
+      "role": "read_only_remediation_invariant_verification_script"
+    },
+    {
+      "filename": "governed_migration_inventory.json",
+      "bytes": 5523,
+      "sha256": "d9bbeb5252720ac6203ef28ac59d4f7612b026abc5e4416813231b98ae38da97",
+      "role": "authoritative_migration_and_schema_inventory_ledger"
+    },
+    {
+      "filename": "approved_release_manifest.json",
+      "bytes": 725,
+      "sha256": "856de11c682858e6639f820b45277a96e101149599420073f7c4c010b54d1de7",
+      "role": "canonical_staging_release_manifest_trust_anchor"
+    },
+    {
+      "filename": "sp8c7a_remediation_runbook.md",
+      "bytes": 7778,
+      "sha256": "cafbb623c537c0699e9a1e581f574e287b082042225195081d51965bafe7aa72",
+      "role": "operational_remediation_runbook_and_protocol"
+    }
+  ]
+}
