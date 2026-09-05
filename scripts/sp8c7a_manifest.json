@@ -6,10 +6,17 @@
   "independent_reviewer": "ChatGPT",
   "execution_agent": "Antigravity (Google DeepMind)",
   "gate": "SP-8C-7A",
-  "revision": "R12",
+  "revision": "R13",
   "package_name": "socialpulse_phase_sp8c7a_review_package.zip",
-  "created_at_utc": "2026-09-05T13:10:00Z",
+  "created_at_utc": "2026-09-05T14:30:00Z",
   "execution_mode": "strictly_read_only_standstill_preflight_unified",
+  "historical_execution_evidence": {
+    "r12_canonical_log_path": "/root/sp8c7a_preflight_20260905_130932Z.log",
+    "r12_canonical_log_bytes": 1866,
+    "r12_canonical_log_sha256": "9456e01a8efadb8e0d6dc0bb014fb066cb5fb49c7bcde312e0e5a864e46c24b6",
+    "r12_canonical_log_owner": "0:0",
+    "r12_canonical_log_mode": "0600"
+  },
   "guarantees_and_scope": {
     "zero_database_mutations": true,
     "zero_snapshots": true,
@@ -40,29 +47,30 @@
     "status_preserving_signal_specific_absence_verified_cleanup": true,
     "cleanup_containment_failure_fails_closed": true,
     "mandatory_getfacl_inspection_success": true,
-    "reject_named_and_default_acls": true
+    "reject_named_and_default_acls": true,
+    "python_3_10_fstring_compatibility_enforced": true
   },
   "members": [
     {
       "filename": "sp8c7a_preflight.sh",
-      "bytes": 51474,
-      "lines": 1249,
-      "sha256": "97c2705b672ac7250436e5ff6ee8035263c35632c9c4b807a0e88e8580dfc0e7",
+      "bytes": 51542,
+      "lines": 1255,
+      "sha256": "d7e23d19d049a5f17019b43ef99519cf834d0eb6907ccc3d0647069daab0f466",
       "role": "unified_self_contained_strictly_read_only_host_preflight_script"
     },
     {
       "filename": "sp8c7a_preflight.sh.sha256",
       "bytes": 86,
       "lines": 1,
-      "sha256": "01b7b9ba73be7bcc745bf9715006d8f7020228ce523378e52e39ea3b8964c6f2",
+      "sha256": "0180fa5f53c34edcbb43040d792fda005e9311417ea9c9764c186e9056a2f4c1",
       "role": "corroborating_script_checksum_sidecar"
     },
     {
       "filename": "sp8c7a_preflight_runbook.md",
-      "bytes": 5003,
-      "lines": 43,
-      "sha256": "7c2912494dc3d1fd6b6e33bfd46fd1425eabd9f838463b968970292af4b2d507",
-      "role": "operational_preflight_runbook_and_invariants_revision_r12"
+      "bytes": 5946,
+      "lines": 57,
+      "sha256": "005a51def9dbdb6ee462c2f5c2ca968873efc2d312c41254e44089e29020329a",
+      "role": "operational_preflight_runbook_and_invariants_revision_r13"
     }
   ]
 }

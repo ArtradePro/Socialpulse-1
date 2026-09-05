@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # HIGIENE (PTY) LTD — PROJECT EVERGREEN / SOCIALPULSE
-# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R12)
+# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R13)
 # Identity: root (EUID 0) outer wrapper -> unprivileged github-runner (UID 1001) workload
 # Rootless Socket: unix:///run/user/1001/docker.sock
 # Scope: ZERO DATABASE MUTATIONS, ZERO SNAPSHOTS, ZERO CONTAINER MUTATIONS
@@ -107,7 +107,7 @@ chmod 0600 "${LOG_FILE}"
 chown root:root "${LOG_FILE}"
 
 echo "========================================================================"
-echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R12)"
+echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R13)"
 echo ">>> UTC Timestamp      : ${TIMESTAMP}"
 echo ">>> Canonical Log      : ${LOG_FILE} (Controlled Log Creation)"
 echo ">>> Host Executor      : $(whoami) (EUID: $(id -u))"
@@ -429,10 +429,13 @@ if not isinstance(data, dict):
 if "status" not in data:
     sys.exit("FAIL: Readiness payload missing required status field")
 
-if data.get("coreReady") is not True:
-    sys.exit(f"FAIL: Readiness coreReady field is {data.get(\"coreReady\")}, expected True")
+status_val = data.get("status")
+core_ready = data.get("coreReady")
 
-print(f"✓ Structured readiness validation passed: status=\"{data.get(\"status\")}\", coreReady=True")
+if core_ready is not True:
+    sys.exit(f"FAIL: Readiness coreReady field is {core_ready}, expected True")
+
+print(f"✓ Structured readiness validation passed: status=\"{status_val}\", coreReady=True")
 ' "${TEMP_READY_FILE}"
 READY_PY_STATUS=$?
 set -e
@@ -997,13 +1000,16 @@ data_mount = next((m for m in mounts if m.get("Destination") == "/var/lib/postgr
 if not data_mount:
     sys.exit("FAIL: Destination /var/lib/postgresql/data not found in PostgreSQL mounts!")
 
-if data_mount.get("Type") != "volume":
-    sys.exit(f"FAIL: PostgreSQL mount type is {data_mount.get(\"Type\")}, expected volume")
+mount_type = data_mount.get("Type")
+if mount_type != "volume":
+    sys.exit(f"FAIL: PostgreSQL mount type is {mount_type}, expected volume")
 
-if data_mount.get("Name") != "socialpulse-staging_postgres_data":
-    sys.exit(f"FAIL: PostgreSQL mount volume name is {data_mount.get(\"Name\")}, expected socialpulse-staging_postgres_data")
+mount_name = data_mount.get("Name")
+if mount_name != "socialpulse-staging_postgres_data":
+    sys.exit(f"FAIL: PostgreSQL mount volume name is {mount_name}, expected socialpulse-staging_postgres_data")
 
-if data_mount.get("RW") is not True:
+is_rw = data_mount.get("RW")
+if is_rw is not True:
     sys.exit("FAIL: PostgreSQL mount is not Read-Write (RW=True)!")
 
 print("✓ Verified PostgreSQL persistent volume mount: socialpulse-staging_postgres_data -> /var/lib/postgresql/data (rw)")

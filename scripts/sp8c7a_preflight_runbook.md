@@ -1,4 +1,4 @@
-# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R12)
+# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R13)
 
 **Governing Entity:** Higiene (Pty) Ltd — Project Evergreen — Higiene / Higienlabs Technology Division  
 **Corporate Spelling:** Strictly **"Higiene"** (never "Hygiene")  
@@ -8,7 +8,7 @@
 **Execution Agent:** Antigravity (Google DeepMind)  
 **Target Host Identity:** `srv1935605` (`2.24.130.251`)  
 **Gate:** `SP-8C-7A` (Read-Only Host Preflight Reconnaissance & Baseline)  
-**Revision:** `R12` (Single Consolidated Package Architecture)  
+**Revision:** `R13` (Single Consolidated Package Architecture)  
 **Status:** `AWAITING_INDEPENDENT_REVIEW — EXECUTION NOT AUTHORIZED`  
 **Guarantees & Scope:** Zero application/database mutations, zero snapshot creation, zero migration container execution. Acknowledges controlled root log file creation (`/root/sp8c7a_preflight_<TIMESTAMP>.log`) and unprivileged temporary file creation (`/tmp/sp8c7a_...`).
 
@@ -16,15 +16,15 @@
 
 ## 1. Scope & Execution Invariants
 
-Gate SP-8C-7A Revision R12 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
-* **Script SHA-256:** `97c2705b672ac7250436e5ff6ee8035263c35632c9c4b807a0e88e8580dfc0e7`
-* **Script Size:** `51474 bytes` (1249 lines)
-* **Corroborating Sidecar SHA-256:** `01b7b9ba73be7bcc745bf9715006d8f7020228ce523378e52e39ea3b8964c6f2` (86 bytes, `97c2705b672ac7250436e5ff6ee8035263c35632c9c4b807a0e88e8580dfc0e7  sp8c7a_preflight.sh`)
+Gate SP-8C-7A Revision R13 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
+* **Script SHA-256:** `d7e23d19d049a5f17019b43ef99519cf834d0eb6907ccc3d0647069daab0f466`
+* **Script Size:** `51542 bytes` (1255 lines)
+* **Corroborating Sidecar SHA-256:** `0180fa5f53c34edcbb43040d792fda005e9311417ea9c9764c186e9056a2f4c1` (86 bytes, `d7e23d19d049a5f17019b43ef99519cf834d0eb6907ccc3d0647069daab0f466  sp8c7a_preflight.sh`)
 * **Mandatory Invocation Invariant:**
   The caller must externally provide the exact trust anchor environment variables:
   ```bash
-  export EXPECTED_SP8C7A_SHA256="97c2705b672ac7250436e5ff6ee8035263c35632c9c4b807a0e88e8580dfc0e7"
-  export EXPECTED_SP8C7A_BYTES="51474"
+  export EXPECTED_SP8C7A_SHA256="d7e23d19d049a5f17019b43ef99519cf834d0eb6907ccc3d0647069daab0f466"
+  export EXPECTED_SP8C7A_BYTES="51542"
   ```
   The script enforces these variables prior to log creation or workload execution.
 * **Enforced Controls:**
@@ -41,3 +41,17 @@ Gate SP-8C-7A Revision R12 executes via one single self-contained unified script
   11. Status-preserving, signal-specific, absence-verified (`-e` and `-L`) temporary file cleanup (`trap ... EXIT HUP INT QUIT TERM`) without `|| true`, where containment failure produces non-zero exit status.
   12. Fail-closed: Any mismatch immediately exits non-zero and never produces a PASS banner.
   13. Root outer wrapper with restrictive `umask 077`, log file `/root/sp8c7a_preflight_<TIMESTAMP>.log`, PIPESTATUS capture for runner and tee, and `0600 root:root` log verification.
+---
+
+## 2. Historical Execution Evidence: Revision R12 Execution Log
+* **Canonical Host Log Path:** `/root/sp8c7a_preflight_20260905_130932Z.log`
+* **Log File Size:** `1866` bytes
+* **Log File SHA-256:** `9456e01a8efadb8e0d6dc0bb014fb066cb5fb49c7bcde312e0e5a864e46c24b6`
+* **Log File Ownership:** `0:0` (`root:root`)
+* **Log File Permissions:** `0600` (`-rw-------`)
+* **Verified Runtime Health Outcomes in R12 Execution:**
+  - Authenticated Redis PING: `PONG` (status: `0`, stdin contained) — **PASS**
+  - PostgreSQL Query Probe: `SELECT 1;` -> `1` (status: `0`) — **PASS**
+  - Backend Staging Liveness Probe (`:8080/health/live`): HTTP `200` — **PASS**
+  - Backend Staging Readiness Probe (`:8080/health/ready`): HTTP `200` — **PASS**
+  - Structured Readiness JSON Validation: Halted on Python <= 3.11 f-string backslash syntax restriction (`SyntaxError`), completely resolved in R13 via pre-interpolation local variable assignment.
