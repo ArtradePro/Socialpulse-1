@@ -1,4 +1,4 @@
-# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R23)
+# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R24)
 
 **Governing Entity:** Higiene (Pty) Ltd — Project Evergreen — Higiene / Higienlabs Technology Division  
 **Corporate Spelling:** Strictly **"Higiene"** (governed corporate standard)  
@@ -8,7 +8,7 @@
 **Execution Agent:** Antigravity (Google DeepMind)  
 **Target Host Identity:** `srv1935605` (`2.24.130.251`)  
 **Gate:** `SP-8C-7A` (Read-Only Host Preflight Reconnaissance & Baseline)  
-**Revision:** `R23` (Single Consolidated Package Architecture)  
+**Revision:** `R24` (Single Consolidated Package Architecture)  
 **Status:** `AWAITING_INDEPENDENT_REVIEW — EXECUTION NOT AUTHORIZED`  
 **Guarantees & Scope:** Zero application/database mutations, zero snapshot creation, zero migration container execution. Acknowledges controlled root log file creation (`/root/sp8c7a_preflight_<TIMESTAMP>.log`) and unprivileged temporary file creation (`/tmp/sp8c7a_...`).
 
@@ -16,15 +16,15 @@
 
 ## 1. Scope & Execution Invariants
 
-Gate SP-8C-7A Revision R23 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
-* **Script SHA-256:** `76ad215b03ec619796d08ffa01b368f0943c4e0b646c4ba3f40bbbd9cbecef1e`
-* **Script Size:** `63752 bytes` (1515 lines)
-* **Corroborating Sidecar SHA-256:** `9ff66433cc4a68d10511ca81b2bf27951f4e5f3e9862465c402224db225e51a3` (86 bytes, `76ad215b03ec619796d08ffa01b368f0943c4e0b646c4ba3f40bbbd9cbecef1e  sp8c7a_preflight.sh`)
+Gate SP-8C-7A Revision R24 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
+* **Script SHA-256:** `606a9f09ac96c4e3f8fb6e80d57fc42c40824bc78a102f9724337f54604fc9c1`
+* **Script Size:** `66281 bytes` (1566 lines)
+* **Corroborating Sidecar SHA-256:** `a1c683ab492f208f1d8821ebb4281c2b2793170265af0877085020c1402696aa` (86 bytes, `606a9f09ac96c4e3f8fb6e80d57fc42c40824bc78a102f9724337f54604fc9c1  sp8c7a_preflight.sh`)
 * **Mandatory Invocation Invariant:**
   The caller must externally provide the exact trust anchor environment variables:
   ```bash
-  export EXPECTED_SP8C7A_SHA256="76ad215b03ec619796d08ffa01b368f0943c4e0b646c4ba3f40bbbd9cbecef1e"
-  export EXPECTED_SP8C7A_BYTES="63752"
+  export EXPECTED_SP8C7A_SHA256="606a9f09ac96c4e3f8fb6e80d57fc42c40824bc78a102f9724337f54604fc9c1"
+  export EXPECTED_SP8C7A_BYTES="66281"
   ```
   The script enforces these variables prior to log creation or workload execution.
 * **Enforced Controls:**
@@ -132,8 +132,8 @@ Gate SP-8C-7A Revision R23 executes via one single self-contained unified script
 
 ---
 
-## 7. Architectural Controls: Revision R23 Two-State Publication Transaction & Rollback Safety
-* **Two-State Publication Transaction Machine (`run_sp8c7a_r23.sh`):**
+## 7. Architectural Controls: Revision R24 Two-State Publication Transaction & Rollback Safety
+* **Two-State Publication Transaction Machine (`run_sp8c7a_r24.sh`):**
   - **Explicit States:** The wrapper tracks transactional publication strictly through `PUBLICATION_STATE`:
     - `UNCOMMITTED`: Active during staging, pre-replacement backup creation, pre-armed atomic renaming, and destination reverification.
     - `COMMITTED`: Entered immediately once all four destination files pass bit-for-bit trust-anchor reverification.
@@ -143,5 +143,6 @@ Gate SP-8C-7A Revision R23 executes via one single self-contained unified script
     - `UNCOMMITTED`: Rollback restores replaced destinations in reverse publication order (LIFO) from verified backups, deletes newly created destinations, removes temporary staging files, and verifies absence.
     - `COMMITTED`: Published destinations are permanently preserved intact. Rollback is strictly prohibited. The cleanup handler removes only remaining auxiliary backup and temporary staging paths.
   - **Containment Residue Reporting:** If any backup or temporary file cannot be deleted after commit, the wrapper records the exact failed path in `FAILED_CLEANUP_PATHS`, reports containment residue, and exits non-zero without ever attempting destination restoration from a partially deleted backup set.
+  - **Unconditional Release Manifest Trust Anchor (Step 6):** Enforces existence, non-symlink, canonical path `/opt/socialpulse/scripts/approved_release_manifest.json`, owner 0 or 1001, restrictive mode, exact 725 bytes, and exact approved SHA-256 (`856de11c682858e6639f820b45277a96e101149599420073f7c4c010b54d1de7`). Fails closed immediately if absent or altered with zero bypass.
   - **Strict Corporate Standard:** Corporate entity name strictly maintained as **"Higiene"** across all documents and source files.
 

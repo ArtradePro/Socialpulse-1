@@ -6,7 +6,7 @@
   "independent_reviewer": "ChatGPT",
   "execution_agent": "Antigravity (Google DeepMind)",
   "gate": "SP-8C-7A",
-  "revision": "R23",
+  "revision": "R24",
   "package_name": "socialpulse_phase_sp8c7a_review_package.zip",
   "created_at_utc": "2026-09-05T22:00:00Z",
   "execution_mode": "strictly_read_only_standstill_preflight_unified",
@@ -99,29 +99,30 @@
     "findings_status_code_exit_2_propagated": true,
     "root_owned_tee_destination_enforced": true,
     "standardized_sha256_cut_format_enforced": true,
-    "compose_image_interpolation_verified_and_unset": true
+    "compose_image_interpolation_verified_and_unset": true,
+    "unconditional_release_manifest_trust_anchor": true
   },
   "members": [
     {
       "filename": "sp8c7a_preflight.sh",
-      "bytes": 63752,
-      "lines": 1515,
-      "sha256": "76ad215b03ec619796d08ffa01b368f0943c4e0b646c4ba3f40bbbd9cbecef1e",
+      "bytes": 66281,
+      "lines": 1566,
+      "sha256": "606a9f09ac96c4e3f8fb6e80d57fc42c40824bc78a102f9724337f54604fc9c1",
       "role": "unified_self_contained_strictly_read_only_host_preflight_script"
     },
     {
       "filename": "sp8c7a_preflight.sh.sha256",
       "bytes": 86,
       "lines": 1,
-      "sha256": "9ff66433cc4a68d10511ca81b2bf27951f4e5f3e9862465c402224db225e51a3",
+      "sha256": "a1c683ab492f208f1d8821ebb4281c2b2793170265af0877085020c1402696aa",
       "role": "corroborating_script_checksum_sidecar"
     },
     {
       "filename": "sp8c7a_preflight_runbook.md",
-      "bytes": 15889,
-      "lines": 147,
-      "sha256": "7f6434508bb38a67759f49e5636e7deeb862919547ad76d15e8b22f3209fe9f8",
-      "role": "operational_preflight_runbook_and_invariants_revision_r23"
+      "bytes": 16271,
+      "lines": 148,
+      "sha256": "fcd158e803005ced2352f43724adf04ee8c47df2a96365dbacddfeca377182bd",
+      "role": "operational_preflight_runbook_and_invariants_revision_r24"
     }
   ]
 }

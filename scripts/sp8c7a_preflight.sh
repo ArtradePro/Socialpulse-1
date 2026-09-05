@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # HIGIENE (PTY) LTD — PROJECT EVERGREEN / SOCIALPULSE
-# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R23)
+# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R24)
 # Identity: root (EUID 0) outer wrapper -> unprivileged github-runner (UID 1001) workload
 # Rootless Socket: unix:///run/user/1001/docker.sock
 # Scope: ZERO DATABASE MUTATIONS, ZERO SNAPSHOTS, ZERO CONTAINER MUTATIONS
@@ -111,7 +111,7 @@ chmod 0600 "${LOG_FILE}"
 chown root:root "${LOG_FILE}"
 
 echo "========================================================================"
-echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R23)"
+echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R24)"
 echo ">>> UTC Timestamp      : ${TIMESTAMP}"
 echo ">>> Canonical Log      : ${LOG_FILE} (Controlled Log Creation)"
 echo ">>> Host Executor      : $(whoami) (EUID: $(id -u))"
@@ -978,20 +978,71 @@ TEMP_COMPOSE_JSON=$(mktemp /tmp/sp8c7a_compose_XXXXXX.json)
 chmod 0600 "${TEMP_COMPOSE_JSON}"
 TEMP_FILES+=("${TEMP_COMPOSE_JSON}")
 
-# Enforce approved non-secret immutable image references for compose interpolation
+# Mandatory, fail-closed approved release manifest trust-anchor verification (zero bypass)
 RELEASE_MANIFEST_FILE="/opt/socialpulse/scripts/approved_release_manifest.json"
+EXPECTED_REL_MANIFEST_BYTES=725
+EXPECTED_REL_MANIFEST_SHA256="856de11c682858e6639f820b45277a96e101149599420073f7c4c010b54d1de7"
 EXPECTED_BACKEND_IMAGE="artradepro/socialpulse-backend@sha256:73e9d3366edd4e714e4ade1acd45e78cc20c9e84803572dda96b0ba65818eb2a"
 EXPECTED_FRONTEND_IMAGE="artradepro/socialpulse-frontend@sha256:8fa2708cfbff2c38b7708e7d3a7830ba738d3407e2ae986561da008a965d9aa8"
 
-if [ -f "${RELEASE_MANIFEST_FILE}" ] && [ ! -L "${RELEASE_MANIFEST_FILE}" ]; then
-    set +e
-    python3 -c '
+if [ ! -f "${RELEASE_MANIFEST_FILE}" ] || [ -L "${RELEASE_MANIFEST_FILE}" ]; then
+    echo "FAIL: Approved release manifest is missing, non-regular, or a symlink: ${RELEASE_MANIFEST_FILE}" >&2
+    exit 1
+fi
+
+CANON_REL_MANIFEST_PATH="$(readlink -f "${RELEASE_MANIFEST_FILE}")"
+if [ "${CANON_REL_MANIFEST_PATH}" != "${RELEASE_MANIFEST_FILE}" ]; then
+    echo "FAIL: Canonical path mismatch for ${RELEASE_MANIFEST_FILE}: resolved to ${CANON_REL_MANIFEST_PATH}!" >&2
+    exit 1
+fi
+
+REL_MANIFEST_OWNER_UID="$(stat -c '%u' "${RELEASE_MANIFEST_FILE}")"
+REL_MANIFEST_OWNER_GID="$(stat -c '%g' "${RELEASE_MANIFEST_FILE}")"
+REL_MANIFEST_MODE="$(stat -c '%a' "${RELEASE_MANIFEST_FILE}")"
+
+if [ "${REL_MANIFEST_OWNER_UID}" -ne 0 ] && [ "${REL_MANIFEST_OWNER_UID}" -ne 1001 ]; then
+    echo "FAIL: Approved owner check failed for ${RELEASE_MANIFEST_FILE}: UID is ${REL_MANIFEST_OWNER_UID} (expected 0 or 1001)!" >&2
+    exit 1
+fi
+if [ "${REL_MANIFEST_OWNER_GID}" -ne 0 ] && [ "${REL_MANIFEST_OWNER_GID}" -ne 1001 ]; then
+    echo "FAIL: Approved group check failed for ${RELEASE_MANIFEST_FILE}: GID is ${REL_MANIFEST_OWNER_GID} (expected 0 or 1001)!" >&2
+    exit 1
+fi
+
+REL_OTHERS_PERM="${REL_MANIFEST_MODE: -1}"
+if [ "${REL_OTHERS_PERM}" != "0" ] && [ "${REL_OTHERS_PERM}" != "4" ]; then
+    echo "FAIL: Restrictive permissions violation on ${RELEASE_MANIFEST_FILE}: mode is 0${REL_MANIFEST_MODE}!" >&2
+    exit 1
+fi
+
+ACTUAL_REL_MANIFEST_BYTES="$(stat -c '%s' "${RELEASE_MANIFEST_FILE}")"
+if [ "${ACTUAL_REL_MANIFEST_BYTES}" -ne "${EXPECTED_REL_MANIFEST_BYTES}" ]; then
+    echo "FAIL: Approved release manifest byte mismatch: expected ${EXPECTED_REL_MANIFEST_BYTES}, got ${ACTUAL_REL_MANIFEST_BYTES}!" >&2
+    exit 1
+fi
+
+ACTUAL_REL_MANIFEST_SHA="$(sha256sum -- "${RELEASE_MANIFEST_FILE}" | cut -d' ' -f1)"
+if ! [[ "${ACTUAL_REL_MANIFEST_SHA}" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "FAIL: Failed to compute valid 64-character SHA-256 for ${RELEASE_MANIFEST_FILE}: '${ACTUAL_REL_MANIFEST_SHA}'" >&2
+    exit 1
+fi
+if [ "${ACTUAL_REL_MANIFEST_SHA}" != "${EXPECTED_REL_MANIFEST_SHA256}" ]; then
+    echo "FAIL: Approved release manifest SHA-256 mismatch: expected ${EXPECTED_REL_MANIFEST_SHA256}, got ${ACTUAL_REL_MANIFEST_SHA}!" >&2
+    exit 1
+fi
+echo "✓ Verified approved release manifest matches cryptographic trust anchor (${EXPECTED_REL_MANIFEST_SHA256}, ${EXPECTED_REL_MANIFEST_BYTES} bytes)"
+
+set +e
+python3 -c '
 import sys, json
 manifest_path = sys.argv[1]
 exp_b = sys.argv[2]
 exp_f = sys.argv[3]
-with open(manifest_path, "r") as f:
-    m = json.load(f)
+with open(manifest_path, "r", encoding="utf-8") as f:
+    try:
+        m = json.load(f)
+    except Exception as e:
+        sys.exit(f"FAIL: Release manifest is not valid JSON: {e}")
 b = (m.get("backend", {}).get("repository", "") + "@" + m.get("backend", {}).get("digest", "")).strip()
 f = (m.get("frontend", {}).get("repository", "") + "@" + m.get("frontend", {}).get("digest", "")).strip()
 if b != exp_b:
@@ -1000,12 +1051,12 @@ if f != exp_f:
     sys.exit(f"FAIL: Manifest frontend image mismatch: got {f}, expected {exp_f}")
 print("✓ Verified approved release manifest images match expected references")
 ' "${RELEASE_MANIFEST_FILE}" "${EXPECTED_BACKEND_IMAGE}" "${EXPECTED_FRONTEND_IMAGE}"
-    MANIFEST_VERIFY_STATUS=$?
-    set -e
-    if [ "${MANIFEST_VERIFY_STATUS}" -ne 0 ]; then
-        echo "FAIL: Release manifest verification failed with exit status ${MANIFEST_VERIFY_STATUS}" >&2
-        exit 1
-    fi
+MANIFEST_VERIFY_STATUS=$?
+set -e
+
+if [ "${MANIFEST_VERIFY_STATUS}" -ne 0 ]; then
+    echo "FAIL: Release manifest verification failed with exit status ${MANIFEST_VERIFY_STATUS}" >&2
+    exit 1
 fi
 
 # Explicitly export the two approved non-secret image references for rendering
