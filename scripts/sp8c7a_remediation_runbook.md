@@ -5,57 +5,66 @@
 **Authorized Owner:** Vernon la Cock, CEO  
 **Independent Reviewer:** ChatGPT  
 **Execution Agent:** Antigravity (Google DeepMind)  
-**Document Revision:** Remediation Package R1  
+**Document Revision:** Remediation Package R2  
 **Operating Mode:** Strictly Passive Read-Only Standstill  
 
 ---
 
 ## 1. Executive Summary & Review Invariants
 
-Following the execution of the Gate SP-8C-7A Revision R25 preflight wrapper on `srv1935605`, independent review confirmed:
-- **Transaction Safety & Atomicity:** Verified 100% intact. Governed payload artifacts were synchronized and committed safely. No mixed rollback occurred.
-- **Database Classification:** Confirmed as `OBSERVED_BRANCH_B_CLEAN_EMPTY_BOOTSTRAP`. Zero migrations were authorized, zero database mutations occurred, zero snapshots were created, and zero container mutations were performed.
-- **Safe Halt Confirmed:** Preflight halted fail-closed in Step 6.7 because the host backup directory `/opt/socialpulse/backups` was absent on `srv1935605`.
-- **Image Inventory Finding:** Step 5 verified that while `scripts/migrationStatus.js` was present in the running backend container, SQL migration files and `schema.sql` were absent from `dist/database` because standard TypeScript compilation (`tsc`) does not emit non-TypeScript files.
+Following the independent review of Remediation Package R1, two blocking findings were resolved:
 
-This remediation package provides the complete, non-executing resolution required for review approval prior to any host mutations.
+1. **Remediated Runtime Image & Release Manifest Trust Anchor:**
+   - Released immutable staging release **`sp-8c-staging-release-04`** generated via GitHub Actions workflow `Release Images` (Run ID: `33992192586`).
+   - Built directly from commit **`89e1cb37b4bac97711580c19616df716ea48b648`**, containing the complete packaging fixes that ensure all 12 SQL migration files and `schema.sql` are copied into `dist/database/`.
+   - Immutable Backend Digest:
+     `sha256:627ccbd9d0f63169858d43bacc79e4d1e2b3482bfd482bc4932a7df5a622b5ba`
+   - Immutable Frontend Digest:
+     `sha256:84880b241c4c752d2ed928a60e9679c56995fdddd619ed0c1121e2391835d755`
+   - Canonical `approved_release_manifest.json` size: **725 bytes**, SHA-256:
+     `2f4cb9980ffeb9c00ac8dbee3c39e72094036843b903a44d07bd41eb30a77c1b`.
+
+2. **Non-Destructive Host Backup Directory Preparation (`prepare_backup_directory.sh`):**
+   - Refactored to completely eliminate any mutation of pre-existing state.
+   - If `/opt/socialpulse/backups` already exists:
+     - **Collision Rejection:** Fails closed (`exit 1`) if the path is a symlink, non-directory, or **not empty** (preventing any interference with existing files).
+     - **Passive Invariant Validation:** Rejects the directory (`exit 1`) if owner is not `1001:1001`, mode is not `0700`, or extended ACLs exist. Zero `chown`, zero `chmod`, and zero `setfacl` are executed against pre-existing directories.
+     - `CREATED_BY_SCRIPT=0`: Rollback will never touch or remove pre-existing directories.
+   - If `/opt/socialpulse/backups` does not exist:
+     - `CREATED_BY_SCRIPT=1`.
+     - Creates directory with mode `0700` and owner `1001:1001`.
+     - Rollback handler executes `rmdir` (strictly empty directory removal) **only if** `CREATED_BY_SCRIPT=1` and uncommitted.
 
 ---
 
 ## 2. Remediation Package Contents & Inventory
 
-The remediation package comprises the following governed components:
+The package comprises 6 governed components:
 
-1. **`scripts/governed_migration_inventory.json`**:
+1. **`prepare_backup_directory.sh`**:
+   Narrowly scoped host preparation script for creating and governing `/opt/socialpulse/backups` with strict collision rejection and non-destructive invariant validation.
+
+2. **`verify_remediation.sh`**:
+   Comprehensive read-only verification script auditing all remediation invariants:
+   - Audits existence, permissions (`0700`), ownership (`1001:1001`), canonical path, and zero ACLs of `/opt/socialpulse/backups`.
+   - Audits Docker Compose configuration and volume mount `/opt/socialpulse/backups:/app/backups`.
+   - Audits governed migration inventory and release manifest trust anchors.
+
+3. **`governed_migration_inventory.json`**:
    Authoritative JSON ledger enumerating all 15 database migration artifacts:
    - Migration runner: `/app/dist/database/migrate.js` (4,495 bytes, SHA-256 `6fa5f0895aa64ac46efb73bcbb36ed565ca2257972f027db43b519edeaa28022`)
    - Status reporter: `/app/dist/database/scripts/migrationStatus.js` (17,058 bytes, SHA-256 `b86c1ebf1b5d19173f6286cd33c4e384a373da6cd1c035ce69c19abc7d8e48d4`)
    - Baseline schema: `/app/dist/database/schema.sql` (28,983 bytes, SHA-256 `77385a63886c8e520888d221afc935aa5b72230ef6d19ffc50a07e0fdcd710ca`)
    - Exactly 12 sequential SQL migration files (`20260515_ecommerce.sql` through `20260831_omnisend_and_q2c_sync.sql`).
 
-2. **`scripts/prepare_backup_directory.sh`**:
-   Narrowly scoped host preparation script for creating and governing `/opt/socialpulse/backups`:
-   - Enforces EUID 0 (root execution).
-   - Collision rejection: rejects symlinks or non-directory files immediately.
-   - Canonical path verification: must resolve strictly to `/opt/socialpulse/backups`.
-   - Ownership: enforces `1001:1001`.
-   - Permissions: enforces mode `0700`.
-   - Extended ACL audit: strips any named or default ACLs via `setfacl -b -k`.
-   - Disk space check: verifies $\ge 100$ MB free on filesystem.
-   - Atomic rollback: if execution fails or is interrupted before commit, removes the directory using `rmdir` (strictly non-recursive) **only** if the directory was created during that specific execution run (`CREATED_BY_SCRIPT=1`).
+4. **`approved_release_manifest.json`**:
+   Canonical release manifest artifact for `sp-8c-staging-release-04` (725 bytes, SHA-256 `2f4cb9980ffeb9c00ac8dbee3c39e72094036843b903a44d07bd41eb30a77c1b`).
 
-3. **`scripts/verify_remediation.sh`**:
-   Comprehensive read-only verification script auditing all remediation invariants:
-   - Audits existence, permissions (`0700`), ownership (`1001:1001`), canonical path, and zero ACLs of `/opt/socialpulse/backups`.
-   - Audits Docker Compose configuration and volume mount `/opt/socialpulse/backups:/app/backups`.
-   - Audits governed migration inventory and release manifest trust anchors.
-   - Fully non-mutating; returns exit code 0 on complete pass, 1 on failure.
+5. **`sp8c7a_remediation_runbook.md`**:
+   This operational and verification runbook.
 
-4. **`socialPulse-app/backend/package.json` & `Dockerfile`**:
-   Build definitions updated to copy `src/database/migrations` and `src/database/schema.sql` into `dist/database/` during both local build and container image build stages.
-
-5. **`scripts/approved_release_manifest.json`**:
-   Canonical release manifest verified against external trust anchor (725 bytes, SHA-256 `856de11c682858e6639f820b45277a96e101149599420073f7c4c010b54d1de7`).
+6. **`sp8c7a_remediation_manifest.json`**:
+   Package manifest detailing cryptographic metrics, guarantees, and provenance.
 
 ---
 
@@ -83,17 +92,17 @@ The remediation package comprises the following governed components:
 
 ## 4. Controlled Execution Protocol (Post-Approval Only)
 
-Upon receipt of explicit review verdict `PASS — AUTHORIZED FOR REMEDIATION EXECUTION`, the following sequence will be authorized:
+Upon receipt of explicit review verdict `PASS — AUTHORIZED FOR REMEDIATION EXECUTION`:
 
 1. **Host Directory Preparation**:
    Run `prepare_backup_directory.sh` as root on `srv1935605`.
-   Creates `/opt/socialpulse/backups` with mode `0700` and owner `1001:1001`.
+   Enforces collision safety; creates `/opt/socialpulse/backups` with mode `0700` and owner `1001:1001` only if absent.
 
 2. **Invariant Verification**:
    Run `verify_remediation.sh` to confirm directory permissions, ownership, Compose volume mount, and inventory alignment.
 
 3. **Preflight Re-Run**:
-   Execute the approved preflight runner to complete Step 6 and record Step 6.7 pass.
+   Execute the preflight runner to complete Step 6 with all preflight checks passing.
 
 4. **Passive Standstill**:
    Return immediately to passive standstill. Zero database migrations or mutations.

@@ -1,19 +1,19 @@
 {
   "schemaVersion": "1.0.0",
-  "releaseId": "sp-8c-staging-release-03",
+  "releaseId": "sp-8c-staging-release-04",
   "repository": "ArtradePro/Socialpulse-1",
-  "sourceCommit": "721e731a2e4af9c9903af92a788ab52a3c21b47e",
+  "sourceCommit": "89e1cb37b4bac97711580c19616df716ea48b648",
   "targetEnvironment": "staging",
   "backend": {
     "repository": "artradepro/socialpulse-backend",
-    "tag": "sha-721e731a2e4af9c9903af92a788ab52a3c21b47e",
-    "digest": "sha256:73e9d3366edd4e714e4ade1acd45e78cc20c9e84803572dda96b0ba65818eb2a"
+    "tag": "sha-89e1cb37b4bac97711580c19616df716ea48b648",
+    "digest": "sha256:627ccbd9d0f63169858d43bacc79e4d1e2b3482bfd482bc4932a7df5a622b5ba"
   },
   "frontend": {
     "repository": "artradepro/socialpulse-frontend",
-    "tag": "sha-721e731a2e4af9c9903af92a788ab52a3c21b47e",
-    "digest": "sha256:8fa2708cfbff2c38b7708e7d3a7830ba738d3407e2ae986561da008a965d9aa8"
+    "tag": "sha-89e1cb37b4bac97711580c19616df716ea48b648",
+    "digest": "sha256:84880b241c4c752d2ed928a60e9679c56995fdddd619ed0c1121e2391835d755"
   },
-  "workflowRunId": "33721136048",
-  "builtAt": "2026-09-03T06:01:12Z"
+  "workflowRunId": "33992192586",
+  "builtAt": "2026-09-05T21:11:50Z"
 }
