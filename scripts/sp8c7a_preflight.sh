@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # HIGIENE (PTY) LTD — PROJECT EVERGREEN / SOCIALPULSE
-# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R16)
+# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R17)
 # Identity: root (EUID 0) outer wrapper -> unprivileged github-runner (UID 1001) workload
 # Rootless Socket: unix:///run/user/1001/docker.sock
 # Scope: ZERO DATABASE MUTATIONS, ZERO SNAPSHOTS, ZERO CONTAINER MUTATIONS
@@ -107,7 +107,7 @@ chmod 0600 "${LOG_FILE}"
 chown root:root "${LOG_FILE}"
 
 echo "========================================================================"
-echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R16)"
+echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R17)"
 echo ">>> UTC Timestamp      : ${TIMESTAMP}"
 echo ">>> Canonical Log      : ${LOG_FILE} (Controlled Log Creation)"
 echo ">>> Host Executor      : $(whoami) (EUID: $(id -u))"
@@ -644,12 +644,13 @@ echo "=== STEP 5: EXACT RUNTIME RUNNERS & OBSERVATIONAL SQL MIGRATION INVENTORY 
 STEP5_FINDINGS=()
 MIGRATION_INVENTORY_STATUS=""
 
-# Source baseline hashes (from Windows/source repository build baseline)
-MIGRATE_JS_SRC_EXP="ee62f5a8639767979a733dd1e55a19ff35ea64e76415bd77c3a254a2d08d19f6"
-MIGRATE_JS_CONTAINER_EXP="6f49b8054ea60be4067b4ebd5ee49ea23f9273f627d3bdf90f47e3aebae20822"
+# Approved package/source baseline hashes
+MIGRATE_JS_APPROVED_HASH="ee62f5a8639767979a733dd1e55a19ff35ea64e76415bd77c3a254a2d08d19f6"
+MIGRATION_STATUS_JS_APPROVED_HASH="6f87234943a331ea2872f6a198a02b39a90476f38085adfd8a4f6e32959e40ec"
 
-MIGRATION_STATUS_JS_SRC_EXP="6f87234943a331ea2872f6a198a02b39a90476f38085adfd8a4f6e32959e40ec"
-MIGRATION_STATUS_JS_CONTAINER_EXP="b86c1ebf1b5d19173f6286cd33c4e384a373da6cd1c035ce69c19abc7d8e48d4"
+# Previously observed container hashes (strictly for evidence reconciliation, NOT approved alternatives)
+MIGRATE_JS_HISTORICAL_HASH="6f49b8054ea60be4067b4ebd5ee49ea23f9273f627d3bdf90f47e3aebae20822"
+MIGRATION_STATUS_JS_HISTORICAL_HASH="b86c1ebf1b5d19173f6286cd33c4e384a373da6cd1c035ce69c19abc7d8e48d4"
 
 # 1. Audit migrate.js inside socialpulse-staging-server-1
 set +e
@@ -663,17 +664,24 @@ fi
 MIGRATE_RUNNER_STATUS=$?
 set -e
 
-echo "Compiled Runner: migrate.js"
-echo "  Expected Package Hash  : ${MIGRATE_JS_SRC_EXP}"
-echo "  Observed Container Hash: ${ACTUAL_MIGRATE_HASH}"
-if [ "${MIGRATE_RUNNER_STATUS}" -ne 0 ] || [ "${ACTUAL_MIGRATE_HASH}" = "MISSING" ]; then
-    echo "  Verdict                : MISSING"
-    STEP5_FINDINGS+=("MIGRATE_JS_MISSING")
-elif [ "${ACTUAL_MIGRATE_HASH}" = "${MIGRATE_JS_SRC_EXP}" ] || [ "${ACTUAL_MIGRATE_HASH}" = "${MIGRATE_JS_CONTAINER_EXP}" ]; then
-    echo "  Verdict                : MATCH (Authoritative telemetry verified)"
+if [ "${MIGRATE_RUNNER_STATUS}" -ne 0 ] || [ "${ACTUAL_MIGRATE_HASH}" = "MISSING" ] || [ -z "${ACTUAL_MIGRATE_HASH}" ]; then
+    MIGRATE_JS_CLASSIFICATION="RUNNER_MISSING"
+elif [ "${ACTUAL_MIGRATE_HASH}" = "${MIGRATE_JS_APPROVED_HASH}" ]; then
+    MIGRATE_JS_CLASSIFICATION="APPROVED_HASH_MATCH"
+elif [ "${ACTUAL_MIGRATE_HASH}" = "${MIGRATE_JS_HISTORICAL_HASH}" ]; then
+    MIGRATE_JS_CLASSIFICATION="REPEATABLE_RUNTIME_HASH_MISMATCH"
 else
-    echo "  Verdict                : MISMATCH (Observed container Linux hash: ${ACTUAL_MIGRATE_HASH})"
-    STEP5_FINDINGS+=("MIGRATE_JS_HASH_MISMATCH")
+    MIGRATE_JS_CLASSIFICATION="NEW_RUNTIME_HASH_MISMATCH"
+fi
+
+echo "Compiled Runner: migrate.js"
+echo "  Approved Package/Source Hash     : ${MIGRATE_JS_APPROVED_HASH}"
+echo "  Previously Observed Container    : ${MIGRATE_JS_HISTORICAL_HASH}"
+echo "  Currently Observed Container     : ${ACTUAL_MIGRATE_HASH}"
+echo "  Classification                   : ${MIGRATE_JS_CLASSIFICATION}"
+
+if [ "${MIGRATE_JS_CLASSIFICATION}" != "APPROVED_HASH_MATCH" ]; then
+    STEP5_FINDINGS+=("${MIGRATE_JS_CLASSIFICATION}")
 fi
 
 # 2. Audit migrationStatus.js inside socialpulse-staging-server-1
@@ -688,17 +696,24 @@ fi
 STATUS_RUNNER_STATUS=$?
 set -e
 
-echo "Compiled Runner: migrationStatus.js"
-echo "  Expected Package Hash  : ${MIGRATION_STATUS_JS_SRC_EXP}"
-echo "  Observed Container Hash: ${ACTUAL_STATUS_HASH}"
-if [ "${STATUS_RUNNER_STATUS}" -ne 0 ] || [ "${ACTUAL_STATUS_HASH}" = "MISSING" ]; then
-    echo "  Verdict                : MISSING"
-    STEP5_FINDINGS+=("MIGRATION_STATUS_JS_MISSING")
-elif [ "${ACTUAL_STATUS_HASH}" = "${MIGRATION_STATUS_JS_SRC_EXP}" ] || [ "${ACTUAL_STATUS_HASH}" = "${MIGRATION_STATUS_JS_CONTAINER_EXP}" ]; then
-    echo "  Verdict                : MATCH (Authoritative telemetry verified)"
+if [ "${STATUS_RUNNER_STATUS}" -ne 0 ] || [ "${ACTUAL_STATUS_HASH}" = "MISSING" ] || [ -z "${ACTUAL_STATUS_HASH}" ]; then
+    STATUS_JS_CLASSIFICATION="RUNNER_MISSING"
+elif [ "${ACTUAL_STATUS_HASH}" = "${MIGRATION_STATUS_JS_APPROVED_HASH}" ]; then
+    STATUS_JS_CLASSIFICATION="APPROVED_HASH_MATCH"
+elif [ "${ACTUAL_STATUS_HASH}" = "${MIGRATION_STATUS_JS_HISTORICAL_HASH}" ]; then
+    STATUS_JS_CLASSIFICATION="REPEATABLE_RUNTIME_HASH_MISMATCH"
 else
-    echo "  Verdict                : MISMATCH (Observed container Linux hash: ${ACTUAL_STATUS_HASH})"
-    STEP5_FINDINGS+=("MIGRATION_STATUS_JS_HASH_MISMATCH")
+    STATUS_JS_CLASSIFICATION="NEW_RUNTIME_HASH_MISMATCH"
+fi
+
+echo "Compiled Runner: migrationStatus.js"
+echo "  Approved Package/Source Hash     : ${MIGRATION_STATUS_JS_APPROVED_HASH}"
+echo "  Previously Observed Container    : ${MIGRATION_STATUS_JS_HISTORICAL_HASH}"
+echo "  Currently Observed Container     : ${ACTUAL_STATUS_HASH}"
+echo "  Classification                   : ${STATUS_JS_CLASSIFICATION}"
+
+if [ "${STATUS_JS_CLASSIFICATION}" != "APPROVED_HASH_MATCH" ]; then
+    STEP5_FINDINGS+=("${STATUS_JS_CLASSIFICATION}")
 fi
 
 # 3. Observational SQL Migration Directory & Inventory Audit

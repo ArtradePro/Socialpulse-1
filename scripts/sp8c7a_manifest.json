@@ -6,9 +6,9 @@
   "independent_reviewer": "ChatGPT",
   "execution_agent": "Antigravity (Google DeepMind)",
   "gate": "SP-8C-7A",
-  "revision": "R16",
+  "revision": "R17",
   "package_name": "socialpulse_phase_sp8c7a_review_package.zip",
-  "created_at_utc": "2026-09-05T15:30:00Z",
+  "created_at_utc": "2026-09-05T16:00:00Z",
   "execution_mode": "strictly_read_only_standstill_preflight_unified",
   "historical_execution_evidence": {
     "r12_canonical_log_path": "/root/sp8c7a_preflight_20260905_130932Z.log",
@@ -24,17 +24,17 @@
     "r14_canonical_log_mode": "0600"
   },
   "step5_authoritative_telemetry": {
-    "migrate_js_expected_package_hash": "ee62f5a8639767979a733dd1e55a19ff35ea64e76415bd77c3a254a2d08d19f6",
-    "migrate_js_observed_container_hash": "6f49b8054ea60be4067b4ebd5ee49ea23f9273f627d3bdf90f47e3aebae20822",
-    "migration_status_js_expected_package_hash": "6f87234943a331ea2872f6a198a02b39a90476f38085adfd8a4f6e32959e40ec",
-    "migration_status_js_observed_container_hash": "b86c1ebf1b5d19173f6286cd33c4e384a373da6cd1c035ce69c19abc7d8e48d4",
+    "migrate_js_approved_package_hash": "ee62f5a8639767979a733dd1e55a19ff35ea64e76415bd77c3a254a2d08d19f6",
+    "migrate_js_previously_observed_container_hash": "6f49b8054ea60be4067b4ebd5ee49ea23f9273f627d3bdf90f47e3aebae20822",
+    "migration_status_js_approved_package_hash": "6f87234943a331ea2872f6a198a02b39a90476f38085adfd8a4f6e32959e40ec",
+    "migration_status_js_previously_observed_container_hash": "b86c1ebf1b5d19173f6286cd33c4e384a373da6cd1c035ce69c19abc7d8e48d4",
     "migrations_directory_observed": "ABSENT_FROM_CONTAINER_IMAGE"
   },
   "guarantees_and_scope": {
     "zero_database_mutations": true,
     "zero_snapshots": true,
     "zero_container_mutations": true,
-    "zero_file_synchronization": true,
+    "zero_unapproved_file_synchronization": true,
     "modular_alternatives_removed": true,
     "controlled_log_creation": "/root/sp8c7a_preflight_<TIMESTAMP>.log",
     "controlled_temporary_files": "/tmp/sp8c7a_...",
@@ -50,6 +50,8 @@
     "complete_array_equality_enforced": true,
     "step5_findings_exclusively_discrepancies": true,
     "migration_inventory_status_tracked_separately": true,
+    "runner_hashes_compared_to_approved_source_only": true,
+    "historical_container_hashes_reconciliation_only": true,
     "directory_inspection_status_captured_explicitly": true,
     "operational_inspection_failure_fails_closed": true,
     "dynamic_ledger_summary_enforced": true,
@@ -74,24 +76,24 @@
   "members": [
     {
       "filename": "sp8c7a_preflight.sh",
-      "bytes": 57633,
-      "lines": 1374,
-      "sha256": "d0e35fcdf8e80400ba551d4d810f91b0689948979e69bdda2e2fb79c5434a416",
+      "bytes": 58213,
+      "lines": 1389,
+      "sha256": "a61920379bdd5a37ffc3bc939341f313a05b70b795a4781dd813d50439d133ef",
       "role": "unified_self_contained_strictly_read_only_host_preflight_script"
     },
     {
       "filename": "sp8c7a_preflight.sh.sha256",
       "bytes": 86,
       "lines": 1,
-      "sha256": "4e75506566b0091d93c3f7ba969edf1441d300fbee9684a1c93ad74e46dbed18",
+      "sha256": "e3387681aab28d3da24b15bb7dd80d8b58954aa455ea8db4da84a9edccbb8f38",
       "role": "corroborating_script_checksum_sidecar"
     },
     {
       "filename": "sp8c7a_preflight_runbook.md",
       "bytes": 8995,
       "lines": 90,
-      "sha256": "a9d80aa9bcdcb882b39e6f9e9ffbe67234dc4140507a3d2f95f8b32d19ff3983",
-      "role": "operational_preflight_runbook_and_invariants_revision_r16"
+      "sha256": "e75503044b0934f71cbecd39b3ccdbc7b6ba036d7587e721b27f5263165fde05",
+      "role": "operational_preflight_runbook_and_invariants_revision_r17"
     }
   ]
 }
