@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "project": "SocialPulse / Project Evergreen",
+  "governing_entity": "Higiene (Pty) Ltd \u2014 Higienlabs Technology Division",
+  "authorized_owner": "Vernon la Cock, CEO",
+  "independent_reviewer": "ChatGPT",
+  "execution_agent": "Antigravity (Google DeepMind)",
+  "gate": "SP-8C-7A",
+  "revision": "R5",
+  "package_name": "socialpulse_phase_sp8c7a_review_package.zip",
+  "created_at_utc": "2026-09-05T06:00:00Z",
+  "execution_mode": "strictly_read_only_standstill_preflight_unified",
+  "guarantees_and_scope": {
+    "zero_database_mutations": true,
+    "zero_snapshots": true,
+    "zero_container_mutations": true,
+    "zero_file_synchronization": true,
+    "modular_alternatives_removed": true,
+    "controlled_log_creation": "/root/sp8c7a_preflight_<TIMESTAMP>.log",
+    "controlled_temporary_files": "/tmp/sp8c7a_...",
+    "mandatory_external_trust_anchor": true,
+    "sidecar_corroborating_only": true,
+    "manifest_corroborating_only": true,
+    "zero_or_true_removed": true,
+    "zero_fabricated_fallback_evidence": true,
+    "explicit_command_status_capture": true,
+    "exact_config_image_equality": true,
+    "repodigests_supplemental_only": true,
+    "exact_migrations_directory_enforced": true,
+    "exact_sorted_twelve_file_basenames": true,
+    "canonical_compose_hash_enforced": true,
+    "compose_profiles_unset_prior_and_post_rendering": true,
+    "exact_migration_profile_brackets": true,
+    "exact_normalized_command": "node dist/database/migrate.js",
+    "exact_sole_network_brackets": true,
+    "extended_json_auditor_enforced": true,
+    "json_passed_without_source_interpolation": true,
+    "observational_database_evidence_only": true,
+    "no_migration_branch_authorized": true,
+    "status_preserving_signal_specific_absence_verified_cleanup": true,
+    "cleanup_containment_failure_fails_closed": true,
+    "mandatory_getfacl_inspection_success": true,
+    "reject_named_and_default_acls": true
+  },
+  "members": [
+    {
+      "filename": "sp8c7a_preflight.sh",
+      "bytes": 49060,
+      "lines": 1187,
+      "sha256": "d704fadd700f5ba1eaa9321c39c7e269aed6a7cebdb3fa890287a0e9c3fa8595",
+      "role": "unified_self_contained_strictly_read_only_host_preflight_script"
+    },
+    {
+      "filename": "sp8c7a_preflight.sh.sha256",
+      "bytes": 101,
+      "lines": 2,
+      "sha256": "13c16183a74a84f6f9d67e8b3eb2136cc22e7f681be77b84a80594d681ab1541",
+      "role": "corroborating_script_checksum_sidecar"
+    },
+    {
+      "filename": "sp8c7a_preflight_runbook.md",
+      "bytes": 5029,
+      "lines": 43,
+      "sha256": "a42211132d80010ff939e7373c0fdd9297f0ec5c90dddd1b3d948081b893e778",
+      "role": "operational_preflight_runbook_and_invariants_revision_r5"
+    }
+  ]
+}
