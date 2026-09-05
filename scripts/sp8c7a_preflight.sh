@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # HIGIENE (PTY) LTD — PROJECT EVERGREEN / SOCIALPULSE
-# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R13)
+# GATE SP-8C-7A: STRICTLY READ-ONLY HOST PREFLIGHT AUDIT SCRIPT (REVISION R14)
 # Identity: root (EUID 0) outer wrapper -> unprivileged github-runner (UID 1001) workload
 # Rootless Socket: unix:///run/user/1001/docker.sock
 # Scope: ZERO DATABASE MUTATIONS, ZERO SNAPSHOTS, ZERO CONTAINER MUTATIONS
@@ -107,7 +107,7 @@ chmod 0600 "${LOG_FILE}"
 chown root:root "${LOG_FILE}"
 
 echo "========================================================================"
-echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R13)"
+echo ">>> HIGIENE (PTY) LTD — GATE SP-8C-7A HOST PREFLIGHT AUDIT (REVISION R14)"
 echo ">>> UTC Timestamp      : ${TIMESTAMP}"
 echo ">>> Canonical Log      : ${LOG_FILE} (Controlled Log Creation)"
 echo ">>> Host Executor      : $(whoami) (EUID: $(id -u))"
@@ -476,20 +476,17 @@ echo "=== STEP 4: OBSERVATIONAL DATABASE CLASSIFICATION & TABLE-SET AUDIT ==="
 echo "NOTE: Observational evidence only. NO MIGRATION BRANCH IS AUTHORIZED."
 
 set +e
-DB_CATALOG_RAW=$(docker exec socialpulse-staging-postgres-1 sh -c '
-PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -A -c "
-SELECT json_build_object(
-  \x27runtime_public_tables\x27, (SELECT COALESCE(json_agg(table_name ORDER BY table_name), \x27[]\x27::json) 
-                                 FROM information_schema.tables 
-                                 WHERE table_schema = \x27public\x27 AND table_type = \x27BASE TABLE\x27),
-  \x27has_migration_ledger\x27, EXISTS (SELECT 1 FROM information_schema.tables 
-                                       WHERE table_schema = \x27public\x27 AND table_name = \x27schema_migrations\x27),
-  \x27has_trigger_fn\x27, EXISTS (SELECT 1 FROM pg_proc p 
-                                  JOIN pg_namespace n ON n.oid = p.pronamespace 
-                                  WHERE n.nspname = \x27public\x27 AND p.proname = \x27update_updated_at_column\x27)
-);
-"
-' | tr -d '\r')
+PG_CATALOG_QUERY='SELECT json_build_object(
+  $$runtime_public_tables$$, (SELECT COALESCE(json_agg(table_name ORDER BY table_name), $$[]$$::json) 
+                             FROM information_schema.tables 
+                             WHERE table_schema = $$public$$ AND table_type = $$BASE TABLE$$),
+  $$has_migration_ledger$$, EXISTS (SELECT 1 FROM information_schema.tables 
+                                   WHERE table_schema = $$public$$ AND table_name = $$schema_migrations$$),
+  $$has_trigger_fn$$, EXISTS (SELECT 1 FROM pg_proc p 
+                              JOIN pg_namespace n ON n.oid = p.pronamespace 
+                              WHERE n.nspname = $$public$$ AND p.proname = $$update_updated_at_column$$)
+);'
+DB_CATALOG_RAW=$(docker exec socialpulse-staging-postgres-1 sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -t -A -c "$1"' _ "${PG_CATALOG_QUERY}" | tr -d '\r')
 DB_CATALOG_STATUS=$?
 set -e
 
@@ -592,14 +589,11 @@ if [ "${HAS_LEDGER}" = "True" ] || [ "${HAS_LEDGER}" = "true" ]; then
     echo "Ledger table schema_migrations is PRESENT."
     echo "Querying schema_migrations table column definitions:"
     set +e
-    docker exec socialpulse-staging-postgres-1 sh -c '
-    PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
-      SELECT column_name, data_type, is_nullable, column_default 
+    PG_LEDGER_COL_QUERY='SELECT column_name, data_type, is_nullable, column_default 
       FROM information_schema.columns 
-      WHERE table_schema = \x27public\x27 AND table_name = \x27schema_migrations\x27 
-      ORDER BY ordinal_position;
-    "
-    '
+      WHERE table_schema = $$public$$ AND table_name = $$schema_migrations$$ 
+      ORDER BY ordinal_position;'
+    docker exec socialpulse-staging-postgres-1 sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' _ "${PG_LEDGER_COL_QUERY}"
     LEDGER_COL_STATUS=$?
     set -e
     if [ "${LEDGER_COL_STATUS}" -ne 0 ]; then
