@@ -6,9 +6,9 @@
   "independent_reviewer": "ChatGPT",
   "execution_agent": "Antigravity (Google DeepMind)",
   "gate": "SP-8C-7A",
-  "revision": "R21",
+  "revision": "R22",
   "package_name": "socialpulse_phase_sp8c7a_review_package.zip",
-  "created_at_utc": "2026-09-05T19:40:00Z",
+  "created_at_utc": "2026-09-05T20:45:00Z",
   "execution_mode": "strictly_read_only_standstill_preflight_unified",
   "historical_execution_evidence": {
     "r12_canonical_log_path": "/root/sp8c7a_preflight_20260905_130932Z.log",
@@ -51,6 +51,7 @@
     "immediate_path_registration_enforced": true,
     "reverse_order_restoration_enforced": true,
     "explicit_publication_state_machine_enforced": true,
+    "pre_armed_publication_state_prior_to_rename": true,
     "post_verification_commit_prior_to_backup_removal": true,
     "post_commit_destinations_preserved_on_cleanup_failure": true,
     "containment_residue_paths_retained_for_evidence": true,
@@ -98,22 +99,22 @@
       "filename": "sp8c7a_preflight.sh",
       "bytes": 61362,
       "lines": 1460,
-      "sha256": "d888624b5e1f41135942df99471823ca1b82afa98b9aeea8e7c62ba8b982f778",
+      "sha256": "ddb462530c7b318c47f7de3d585ebdcf06b3218a7177019bfa5990b6466168d9",
       "role": "unified_self_contained_strictly_read_only_host_preflight_script"
     },
     {
       "filename": "sp8c7a_preflight.sh.sha256",
       "bytes": 86,
       "lines": 1,
-      "sha256": "39af962da0624ae808087fbb60b3b360c5a82b1e94ff87f76563e4cabdca44f2",
+      "sha256": "28d63058f330d8c6ac5e57a9d0718f5f3bbdcec1ad5b68d9d22bc9b3ecf3c6b3",
       "role": "corroborating_script_checksum_sidecar"
     },
     {
       "filename": "sp8c7a_preflight_runbook.md",
-      "bytes": 16791,
-      "lines": 166,
-      "sha256": "a5c149928eb6d6934024752027b212a7e05386f8088ad807bdc847173381211c",
-      "role": "operational_preflight_runbook_and_invariants_revision_r21"
+      "bytes": 13057,
+      "lines": 125,
+      "sha256": "1279ca3453dad5b9179c3836ff9f55dcc34a0305141594a96e73907e7f0944af",
+      "role": "operational_preflight_runbook_and_invariants_revision_r22"
     }
   ]
 }

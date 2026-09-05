@@ -1,4 +1,4 @@
-# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R21)
+# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R22)
 
 **Governing Entity:** Higiene (Pty) Ltd — Project Evergreen — Higiene / Higienlabs Technology Division  
 **Corporate Spelling:** Strictly **"Higiene"** (governed corporate standard)  
@@ -8,7 +8,7 @@
 **Execution Agent:** Antigravity (Google DeepMind)  
 **Target Host Identity:** `srv1935605` (`2.24.130.251`)  
 **Gate:** `SP-8C-7A` (Read-Only Host Preflight Reconnaissance & Baseline)  
-**Revision:** `R21` (Single Consolidated Package Architecture)  
+**Revision:** `R22` (Single Consolidated Package Architecture)  
 **Status:** `AWAITING_INDEPENDENT_REVIEW — EXECUTION NOT AUTHORIZED`  
 **Guarantees & Scope:** Zero application/database mutations, zero snapshot creation, zero migration container execution. Acknowledges controlled root log file creation (`/root/sp8c7a_preflight_<TIMESTAMP>.log`) and unprivileged temporary file creation (`/tmp/sp8c7a_...`).
 
@@ -16,7 +16,7 @@
 
 ## 1. Scope & Execution Invariants
 
-Gate SP-8C-7A Revision R21 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
+Gate SP-8C-7A Revision R22 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
 * **Script SHA-256:** `81ab86857bb50dfcbfb41833ae77e7bc96db32730741033ea5b0e2e870ef143f`
 * **Script Size:** `61362 bytes` (1460 lines)
 * **Corroborating Sidecar SHA-256:** `95638fbe712b44cc45119cb8f83b7072b6d853d7934de5475bc0784c39072123` (86 bytes, `81ab86857bb50dfcbfb41833ae77e7bc96db32730741033ea5b0e2e870ef143f  sp8c7a_preflight.sh`)
@@ -109,58 +109,17 @@ Gate SP-8C-7A Revision R21 executes via one single self-contained unified script
   3. Destination artifact installation in `run_sp8c7a_r18.sh` allows atomic update when destination exists with differing contents.
 
 ---
-
-## 6. Architectural Controls: Revision R19 Transactional Publication & Strict Validation
-* **Transactional Publication, Backup & Rollback Architecture (`run_sp8c7a_r19.sh`):**
-  - **Separate Tracking Arrays:**
-    - `CREATED_BY_WRAPPER`: Tracks only destinations newly created by the wrapper (did not pre-exist).
-    - `REPLACED_DESTINATIONS`: Tracks only pre-existing destinations replaced by the wrapper.
-    - `DEST_BACKUP_MAP`: Maps each replaced destination to its verified backup file path.
-  - **Pre-Replacement Verified Backup:**
-    - Before replacing any existing destination, creates a protected backup (`chmod 0600`, `owner 1001:1001`).
-    - Verifies backup bytes, SHA-256, owner, and mode against recorded destination metadata.
-  - **Atomic Same-Filesystem Staged Rename:**
-    - Staged replacement temporary file created inside `/opt/socialpulse/scripts/` (`mktemp "${DEST_DIR}/.tmp_${fname}.XXXXXX"`).
-    - Temporary file completely verified (bytes, SHA-256, owner `1001:1001`, mode, non-symlink) prior to publication.
-    - Published atomically via same-filesystem rename (`mv -f "${tmp_dest}" "${dest_file}"`).
-  - **Deterministic Rollback on Pre-Commit Failure:**
-    - Deletes only newly created destinations (`CREATED_BY_WRAPPER`).
-    - Restores every replaced destination atomically from its verified backup.
-    - Re-verifies restored bytes, SHA-256, owner, and mode.
-    - Reports containment failure (`exit 1`) if any restoration is incomplete.
-  - **Post-Publication Verification & Backup Cleanup:**
-    - Backups are retained until all four destination files pass post-publication verification and `PUBLICATION_COMMITTED=1`.
-    - Backups are then cleanly removed and their absence verified.
-* **Step 5 Docker & Hash Command Status Capture & Regex Validation:**
-  - `MIGRATE_RUNNER_STATUS` and `STATUS_RUNNER_STATUS` are captured immediately from `$?` after command substitution before any trimming or parameter expansion.
-  - Every extracted runner and SQL migration hash is validated against regex `^[0-9a-f]{64}$`. Any non-missing invalid string format fails closed immediately.
-* **Step 6 Strict `/opt/socialpulse/.env` Audit & Rendered JSON Protection:**
-  - Requires `/opt/socialpulse/.env` to be a regular non-symlink at its canonical path (`readlink -f`).
-  - Enforces approved ownership (UID `0` or `1001`, GID `0` or `1001`), readability, and restrictive permissions (others `0`). Missing or invalid `.env` fails closed.
-  - Always invokes Compose with both `--project-directory /opt/socialpulse` and `--env-file /opt/socialpulse/.env`.
-  - Rendered JSON is written to a protected temporary file (`0600`), never printed or logged, and immediately removed with absence verified.
-
 ---
 
-## 7. Architectural Controls: Revision R20 Transaction Safety, Path Tracking & Reverse Rollback
-* **Transactional Publication Safety Controls (`run_sp8c7a_r20.sh`):**
-  - **Elimination of Top-Level Local:** All variable declarations at top level use standard global scope; publication commit logic is cleanly encapsulated in `commit_publication_transaction()`.
-  - **Elimination of Wildcards & `|| true`:** Wildcard deletion (`.tmp_*`) and `|| true` error masking are completely eliminated. Every file deletion targets a positively identified exact path.
-  - **Individual Path Tracking:** Dedicated tracking arrays `TRACKED_BACKUP_FILES` and `TRACKED_TEMP_FILES` track every created backup and staging path individually.
-  - **Immediate Path Registration:** Backup and temporary staging paths are registered in tracking arrays immediately upon path generation and before file creation.
-  - **Reverse-Order Restoration:** Pre-commit rollback restores replaced destinations in exact reverse publication order (LIFO), verifying restored attributes bit-for-bit.
-  - **Post-Cleanup Commit Boundary:** The transaction remains uncommitted (`PUBLICATION_COMMITTED=0`) until destination reverification AND complete backup/temporary-file removal and absence verification succeed.
-  - **Fail-Closed on Cleanup Failure:** If backup deletion or absence verification fails, the wrapper fails closed with non-zero exit code without declaring commit.
-
----
-
-## 8. Architectural Controls: Revision R21 Explicit Transaction State & Post-Commit Auxiliary Cleanup
-* **Two-State Publication Transaction Machine (`run_sp8c7a_r21.sh`):**
+## 6. Architectural Controls: Revision R22 Two-State Publication Transaction & Rollback Safety
+* **Two-State Publication Transaction Machine (`run_sp8c7a_r22.sh`):**
   - **Explicit States:** The wrapper tracks transactional publication strictly through `PUBLICATION_STATE`:
-    - `UNCOMMITTED`: Default state during staging, backup creation, atomic renaming, and destination reverification.
-    - `COMMITTED`: State entered immediately once all 4 destination files pass post-publication verification bit-for-bit against trust anchors.
-  - **Commit Boundary Position:** Declaring `PUBLICATION_STATE="COMMITTED"` occurs *before* backup removal. Backup deletion is strictly an auxiliary post-commit cleanup operation, not a condition of commit.
-  - **Exit Handler Behavior by State:**
-    - `UNCOMMITTED`: Any failure or interruption triggers full rollback: restores every replaced destination in reverse publication order from its backup, deletes newly created destinations, and cleans up temporary files and unneeded backups.
-    - `COMMITTED`: Published destinations are permanent and preserved intact. Rollback is strictly prohibited. The cleanup handler removes only remaining exact backup and temporary staging paths.
-  - **Containment Residue Reporting:** If any backup or temporary file cannot be removed after commit, the wrapper logs the exact failed path in `FAILED_CLEANUP_PATHS`, reports containment residue, and exits non-zero (fails closed) without ever attempting destination restoration from a partially deleted backup set.
+    - `UNCOMMITTED`: Active during staging, pre-replacement backup creation, pre-armed atomic renaming, and destination reverification.
+    - `COMMITTED`: Entered immediately once all four destination files pass bit-for-bit trust-anchor reverification.
+  - **Pre-Armed Atomic Rename:** Before invoking `mv -f "${tmp_dest}" "${dest_file}"`, the destination state is pre-armed via `DEST_PUBLISHED["${dest_file}"]=1`. If a signal or failure occurs before, during, or immediately after `mv`, rollback safely restores the verified backup over the destination, ensuring a complete and uncorrupted baseline.
+  - **Commit Boundary Precedes Backup Removal:** Declaring `PUBLICATION_STATE="COMMITTED"` occurs *before* auxiliary backup removal begins. Backup deletion is strictly an auxiliary post-commit cleanup operation.
+  - **State-Specific Exit Handler:**
+    - `UNCOMMITTED`: Rollback restores replaced destinations in reverse publication order (LIFO) from verified backups, deletes newly created destinations, removes temporary staging files, and verifies absence.
+    - `COMMITTED`: Published destinations are permanently preserved intact. Rollback is strictly prohibited. The cleanup handler removes only remaining auxiliary backup and temporary staging paths.
+  - **Containment Residue Reporting:** If any backup or temporary file cannot be deleted after commit, the wrapper records the exact failed path in `FAILED_CLEANUP_PATHS`, reports containment residue, and exits non-zero without ever attempting destination restoration from a partially deleted backup set.
+  - **Strict Corporate Standard:** Corporate entity name strictly maintained as **"Higiene"** across all documents and source files.
