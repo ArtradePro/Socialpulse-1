@@ -6,9 +6,9 @@
   "independent_reviewer": "ChatGPT",
   "execution_agent": "Antigravity (Google DeepMind)",
   "gate": "SP-8C-7A",
-  "revision": "R20",
+  "revision": "R21",
   "package_name": "socialpulse_phase_sp8c7a_review_package.zip",
-  "created_at_utc": "2026-09-05T18:35:00Z",
+  "created_at_utc": "2026-09-05T19:40:00Z",
   "execution_mode": "strictly_read_only_standstill_preflight_unified",
   "historical_execution_evidence": {
     "r12_canonical_log_path": "/root/sp8c7a_preflight_20260905_130932Z.log",
@@ -50,7 +50,10 @@
     "tracked_exact_paths_only": true,
     "immediate_path_registration_enforced": true,
     "reverse_order_restoration_enforced": true,
-    "post_cleanup_commit_boundary_enforced": true,
+    "explicit_publication_state_machine_enforced": true,
+    "post_verification_commit_prior_to_backup_removal": true,
+    "post_commit_destinations_preserved_on_cleanup_failure": true,
+    "containment_residue_paths_retained_for_evidence": true,
     "explicit_command_status_capture": true,
     "exact_config_image_equality": true,
     "repodigests_corroboration_removed": true,
@@ -95,22 +98,22 @@
       "filename": "sp8c7a_preflight.sh",
       "bytes": 61362,
       "lines": 1460,
-      "sha256": "ca7ed5f03073970d5dc025019090182b1b4c83d7b1c0078d21eb5bdc2a024a98",
+      "sha256": "d888624b5e1f41135942df99471823ca1b82afa98b9aeea8e7c62ba8b982f778",
       "role": "unified_self_contained_strictly_read_only_host_preflight_script"
     },
     {
       "filename": "sp8c7a_preflight.sh.sha256",
       "bytes": 86,
       "lines": 1,
-      "sha256": "3d694234da29cfccc6f4b8cedc1a7156feac59cc7458c466e5343a0f79be03fe",
+      "sha256": "39af962da0624ae808087fbb60b3b360c5a82b1e94ff87f76563e4cabdca44f2",
       "role": "corroborating_script_checksum_sidecar"
     },
     {
       "filename": "sp8c7a_preflight_runbook.md",
-      "bytes": 15240,
-      "lines": 153,
-      "sha256": "c5e1cb2a7bfffbc14f8c130e6920da3cd67c1265d2803b63b1b336a9d48b4020",
-      "role": "operational_preflight_runbook_and_invariants_revision_r20"
+      "bytes": 16791,
+      "lines": 166,
+      "sha256": "a5c149928eb6d6934024752027b212a7e05386f8088ad807bdc847173381211c",
+      "role": "operational_preflight_runbook_and_invariants_revision_r21"
     }
   ]
 }

@@ -1,4 +1,4 @@
-# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R20)
+# Phase SP-8C-7A: Strictly Read-Only Host Preflight Runbook (Revision R21)
 
 **Governing Entity:** Higiene (Pty) Ltd — Project Evergreen — Higiene / Higienlabs Technology Division  
 **Corporate Spelling:** Strictly **"Higiene"** (governed corporate standard)  
@@ -8,7 +8,7 @@
 **Execution Agent:** Antigravity (Google DeepMind)  
 **Target Host Identity:** `srv1935605` (`2.24.130.251`)  
 **Gate:** `SP-8C-7A` (Read-Only Host Preflight Reconnaissance & Baseline)  
-**Revision:** `R20` (Single Consolidated Package Architecture)  
+**Revision:** `R21` (Single Consolidated Package Architecture)  
 **Status:** `AWAITING_INDEPENDENT_REVIEW — EXECUTION NOT AUTHORIZED`  
 **Guarantees & Scope:** Zero application/database mutations, zero snapshot creation, zero migration container execution. Acknowledges controlled root log file creation (`/root/sp8c7a_preflight_<TIMESTAMP>.log`) and unprivileged temporary file creation (`/tmp/sp8c7a_...`).
 
@@ -16,7 +16,7 @@
 
 ## 1. Scope & Execution Invariants
 
-Gate SP-8C-7A Revision R20 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
+Gate SP-8C-7A Revision R21 executes via one single self-contained unified script: `sp8c7a_preflight.sh`.
 * **Script SHA-256:** `81ab86857bb50dfcbfb41833ae77e7bc96db32730741033ea5b0e2e870ef143f`
 * **Script Size:** `61362 bytes` (1460 lines)
 * **Corroborating Sidecar SHA-256:** `95638fbe712b44cc45119cb8f83b7072b6d853d7934de5475bc0784c39072123` (86 bytes, `81ab86857bb50dfcbfb41833ae77e7bc96db32730741033ea5b0e2e870ef143f  sp8c7a_preflight.sh`)
@@ -151,3 +151,16 @@ Gate SP-8C-7A Revision R20 executes via one single self-contained unified script
   - **Reverse-Order Restoration:** Pre-commit rollback restores replaced destinations in exact reverse publication order (LIFO), verifying restored attributes bit-for-bit.
   - **Post-Cleanup Commit Boundary:** The transaction remains uncommitted (`PUBLICATION_COMMITTED=0`) until destination reverification AND complete backup/temporary-file removal and absence verification succeed.
   - **Fail-Closed on Cleanup Failure:** If backup deletion or absence verification fails, the wrapper fails closed with non-zero exit code without declaring commit.
+
+---
+
+## 8. Architectural Controls: Revision R21 Explicit Transaction State & Post-Commit Auxiliary Cleanup
+* **Two-State Publication Transaction Machine (`run_sp8c7a_r21.sh`):**
+  - **Explicit States:** The wrapper tracks transactional publication strictly through `PUBLICATION_STATE`:
+    - `UNCOMMITTED`: Default state during staging, backup creation, atomic renaming, and destination reverification.
+    - `COMMITTED`: State entered immediately once all 4 destination files pass post-publication verification bit-for-bit against trust anchors.
+  - **Commit Boundary Position:** Declaring `PUBLICATION_STATE="COMMITTED"` occurs *before* backup removal. Backup deletion is strictly an auxiliary post-commit cleanup operation, not a condition of commit.
+  - **Exit Handler Behavior by State:**
+    - `UNCOMMITTED`: Any failure or interruption triggers full rollback: restores every replaced destination in reverse publication order from its backup, deletes newly created destinations, and cleans up temporary files and unneeded backups.
+    - `COMMITTED`: Published destinations are permanent and preserved intact. Rollback is strictly prohibited. The cleanup handler removes only remaining exact backup and temporary staging paths.
+  - **Containment Residue Reporting:** If any backup or temporary file cannot be removed after commit, the wrapper logs the exact failed path in `FAILED_CLEANUP_PATHS`, reports containment residue, and exits non-zero (fails closed) without ever attempting destination restoration from a partially deleted backup set.
