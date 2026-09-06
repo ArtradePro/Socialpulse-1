@@ -4,9 +4,12 @@
 # Entity: Higiene (Pty) Ltd
 # Project: Evergreen / SocialPulse
 # Purpose: Read-only fail-closed verification script auditing runtime image
-#          migration assets, controlled non-started container lifecycle,
-#          structural Compose JSON AST model, and host backup invariants.
+#          migration assets, rootless Docker daemon binding, controlled
+#          non-started container lifecycle, complete Compose JSON AST invariants,
+#          and host backup invariants.
 # Mode: Strictly read-only, non-mutating. Fail-closed.
+# Security: Enforces UID 1001 / rootless daemon DOCKER_HOST binding.
+#           Denies /var/run/docker.sock. Tracks and shreds temporary files.
 # Signal Handling: Preserves 129 (HUP), 130 (INT), 131 (QUIT), 143 (TERM).
 # ==============================================================================
 
@@ -38,6 +41,7 @@ INSPECTION_CONTAINER_PREARMED=0
 INSPECTION_CONTAINER_CREATED=0
 TEMP_AUDIT_DIR=""
 RECEIVED_SIGNAL=0
+declare -a TEMP_COMPOSE_FILES=()
 
 TOTAL_CHECKS=0
 PASSED_CHECKS=0
@@ -56,7 +60,7 @@ log_fail() {
 }
 
 # ------------------------------------------------------------------------------
-# Signal-Specific Trap Handlers & Cleanup (R5)
+# Signal-Specific Trap Handlers & Cleanup (R6)
 # ------------------------------------------------------------------------------
 cleanup_verifier() {
     local exit_code=$?
@@ -66,7 +70,18 @@ cleanup_verifier() {
 
     local cleanup_failed=0
 
-    # Pre-armed container cleanup (Finding 2 & 3)
+    # 1. Clean up temporary rendered Compose files securely (Finding: trap-managed files)
+    for tf in "${TEMP_COMPOSE_FILES[@]}"; do
+        if [[ -f "${tf}" ]]; then
+            rm -f "${tf}"
+            if [[ -f "${tf}" ]]; then
+                log_fail "Containment failure: could not delete temporary compose file ${tf}"
+                cleanup_failed=1
+            fi
+        fi
+    done
+
+    # 2. Pre-armed container cleanup (Findings: race protection + confirmed absence)
     if [[ "${INSPECTION_CONTAINER_PREARMED}" -eq 1 && -n "${INSPECTION_CONTAINER_TARGET}" ]]; then
         log_info "Inspecting pre-armed container status: ${INSPECTION_CONTAINER_TARGET}..."
         set +e
@@ -97,7 +112,7 @@ cleanup_verifier() {
                 fi
             fi
 
-            # Confirmed absence verification (Finding 3: status check distinguishing daemon error)
+            # Confirmed absence verification (status check distinguishing daemon error)
             set +e
             local post_check post_status
             post_check=$(docker ps -a --filter "name=^/${INSPECTION_CONTAINER_TARGET}$" --format '{{.ID}}' 2>&1)
@@ -116,6 +131,7 @@ cleanup_verifier() {
         fi
     fi
 
+    # 3. Clean up temporary extracted database audit directory
     if [[ -n "${TEMP_AUDIT_DIR}" && -d "${TEMP_AUDIT_DIR}" ]]; then
         rm -rf "${TEMP_AUDIT_DIR}"
         if [[ -d "${TEMP_AUDIT_DIR}" ]]; then
@@ -157,7 +173,7 @@ record_check() {
 }
 
 assert_mandatory_tools() {
-    log_info "--- Preflight: Validating Mandatory Tools ---"
+    log_info "--- Preflight: Validating Mandatory Tools & Runtime Security ---"
     local missing=0
     for tool in docker sha256sum stat readlink df getfacl awk; do
         if ! command -v "${tool}" >/dev/null 2>&1; then
@@ -174,6 +190,34 @@ assert_mandatory_tools() {
         exit 1
     fi
     log_pass "All mandatory verification tools present."
+
+    # Enforce Rootless Docker Socket Binding & Rootful Denial (Finding: Rootless daemon binding)
+    if [[ "${ALLOW_CUSTOM_DOCKER_HOST:-0}" -ne 1 ]]; then
+        local current_docker_host="${DOCKER_HOST:-}"
+        if [[ "${current_docker_host}" != "unix:///run/user/1001/docker.sock" ]]; then
+            log_fail "Security violation: DOCKER_HOST must be strictly 'unix:///run/user/1001/docker.sock', got '${current_docker_host}'"
+            exit 1
+        fi
+        log_pass "Confirmed DOCKER_HOST bound to rootless socket (unix:///run/user/1001/docker.sock)."
+
+        # Assert rootful socket denial
+        if [[ -S "/var/run/docker.sock" && -w "/var/run/docker.sock" ]]; then
+            log_fail "Security violation: Rootful daemon socket /var/run/docker.sock is writable! Access must be strictly denied."
+            exit 1
+        fi
+        log_pass "Confirmed rootful daemon socket access is strictly denied."
+    fi
+
+    # Unprivileged workload user check
+    if [[ "${ALLOW_ANY_UID:-0}" -ne 1 ]]; then
+        local cur_uid
+        cur_uid="$(id -u)"
+        if [[ "${cur_uid}" -ne 1001 ]]; then
+            log_fail "Security violation: Verifier must execute as unprivileged github-runner (UID 1001). Current UID: ${cur_uid}"
+            exit 1
+        fi
+        log_pass "Confirmed executing as unprivileged user UID 1001 (github-runner)."
+    fi
 }
 
 PYTHON_BIN="python3"
@@ -222,7 +266,6 @@ check_backup_directory() {
         record_check "FAIL" "Permissions mismatch: got 0${actual_perms} (expected 0${REQUIRED_PERMS})."
     fi
 
-    # Check zero ACLs via awk parser without failure masking
     local acl_raw
     acl_raw=$(getfacl -p "${BACKUP_DIR}")
     local extended_acls
@@ -252,7 +295,7 @@ check_backup_directory() {
 }
 
 # ------------------------------------------------------------------------------
-# Check 2: Structural Docker Compose Audit (Rendered JSON AST - Finding 1)
+# Check 2: Structural Docker Compose Audit (Rendered JSON AST - Complete Invariants)
 # ------------------------------------------------------------------------------
 check_compose_structural() {
     log_info "--- Checking Structural Docker Compose Invariants (Rendered JSON AST) ---"
@@ -272,13 +315,15 @@ check_compose_structural() {
     chmod 0600 "${compose_json_tmp}"
     umask "${saved_umask}"
 
+    # Immediately register temporary files for trap cleanup
+    TEMP_COMPOSE_FILES+=("${compose_json_tmp}" "${compose_json_tmp}.err")
+
     local compose_cmd=(docker compose --project-directory "${BASE_DIR}" -f "${COMPOSE_FILE}")
     if [[ -f "${BASE_DIR}/.env" ]]; then
         compose_cmd+=(--env-file "${BASE_DIR}/.env")
     fi
     compose_cmd+=(--profile migration config --format json)
 
-    # Export approved image references if unset so config can render unmasked
     local exported_backend=0 exported_frontend=0
     if [[ -z "${SOCIALPULSE_BACKEND_IMAGE:-}" ]]; then
         export SOCIALPULSE_BACKEND_IMAGE="artradepro/socialpulse-backend@${EXPECTED_BACKEND_DIGEST}"
@@ -305,12 +350,10 @@ check_compose_structural() {
         local err_sample
         err_sample="$(head -n 5 "${compose_json_tmp}.err" 2>/dev/null | tr '\n' ' ')"
         record_check "FAIL" "docker compose config failed with unmasked exit status ${compose_status}: ${err_sample}"
-        rm -f "${compose_json_tmp}" "${compose_json_tmp}.err"
         return
     fi
-    rm -f "${compose_json_tmp}.err"
 
-    # Structural AST parse via Python
+    # Complete Structural AST Audit via Python
     local ast_audit
     ast_audit=$("${PYTHON_BIN}" - "${compose_json_tmp}" "${EXPECTED_BACKEND_DIGEST}" "${EXPECTED_FRONTEND_DIGEST}" << 'PYEOF'
 import sys, json
@@ -318,6 +361,9 @@ import sys, json
 json_path = sys.argv[1]
 exp_backend_digest = sys.argv[2]
 exp_frontend_digest = sys.argv[3]
+
+expected_backend_ref = f"artradepro/socialpulse-backend@{exp_backend_digest}"
+expected_frontend_ref = f"artradepro/socialpulse-frontend@{exp_frontend_digest}"
 
 try:
     with open(json_path, "r", encoding="utf-8") as f:
@@ -335,41 +381,83 @@ for svc in required_services:
     if svc not in services:
         sys.exit(f"FAIL: Required service missing from Compose model: {svc}")
 
-# 2. Server service image and network
+# 2. Server service exact image and network
 srv = services["server"]
 srv_img = srv.get("image", "")
-if exp_backend_digest not in srv_img:
-    sys.exit(f"FAIL: server service image mismatch: got '{srv_img}', expected '{exp_backend_digest}'")
+if srv_img != expected_backend_ref:
+    sys.exit(f"FAIL: server service image mismatch: got '{srv_img}', expected '{expected_backend_ref}'")
 
-# 3. Client service image and network
+# 3. Client service exact image and network
 cli = services["client"]
 cli_img = cli.get("image", "")
-if exp_frontend_digest not in cli_img:
-    sys.exit(f"FAIL: client service image mismatch: got '{cli_img}', expected '{exp_frontend_digest}'")
+if cli_img != expected_frontend_ref:
+    sys.exit(f"FAIL: client service image mismatch: got '{cli_img}', expected '{expected_frontend_ref}'")
 
-# 4. Migrate service profile, command, restart, image
+# 4. Migrate service exact invariants
 mig = services["migrate"]
+
+# a. Exact migration profile: strictly ["migration"]
 mig_profiles = mig.get("profiles", [])
-if "migration" not in mig_profiles:
-    sys.exit(f"FAIL: migrate service missing 'migration' profile: {mig_profiles}")
+if mig_profiles != ["migration"]:
+    sys.exit(f"FAIL: migrate service profiles mismatch: got {mig_profiles}, expected strictly ['migration']")
 
+# b. Exact image reference equality
 mig_img = mig.get("image", "")
-if exp_backend_digest not in mig_img:
-    sys.exit(f"FAIL: migrate service image mismatch: got '{mig_img}', expected '{exp_backend_digest}'")
+if mig_img != expected_backend_ref:
+    sys.exit(f"FAIL: migrate service image mismatch: got '{mig_img}', expected '{expected_backend_ref}'")
 
+# c. Exact command: "node dist/database/migrate.js"
 mig_cmd = mig.get("command", [])
-cmd_str = " ".join(mig_cmd) if isinstance(mig_cmd, list) else str(mig_cmd)
-if "dist/database/migrate.js" not in cmd_str:
-    sys.exit(f"FAIL: migrate service command invalid: got '{cmd_str}', expected 'node dist/database/migrate.js'")
+cmd_str = " ".join(mig_cmd) if isinstance(mig_cmd, list) else str(mig_cmd).strip()
+if cmd_str != "node dist/database/migrate.js":
+    sys.exit(f"FAIL: migrate service command mismatch: got '{cmd_str}', expected 'node dist/database/migrate.js'")
 
-# 5. Networks check
+# d. Exact restart policy: "no"
+restart = mig.get("restart", "")
+if restart != "no":
+    sys.exit(f"FAIL: migrate service restart policy mismatch: got '{restart}', expected strictly 'no'")
+
+# e. Exact dependencies: postgres with condition service_healthy
+depends = mig.get("depends_on", {})
+if not isinstance(depends, dict) or "postgres" not in depends:
+    sys.exit(f"FAIL: migrate depends_on must declare postgres, got: {depends}")
+pg_dep = depends["postgres"]
+pg_cond = pg_dep.get("condition", "") if isinstance(pg_dep, dict) else str(pg_dep)
+if pg_cond != "service_healthy":
+    sys.exit(f"FAIL: migrate postgres dependency condition is '{pg_cond}', expected 'service_healthy'")
+
+# f. Exact networks membership: strictly ["staging_net"]
 for svc_name in ["server", "client", "migrate"]:
     svc_nets = services[svc_name].get("networks", {})
-    net_names = list(svc_nets.keys()) if isinstance(svc_nets, dict) else list(svc_nets)
-    if "staging_net" not in net_names:
-        sys.exit(f"FAIL: {svc_name} service missing 'staging_net' network: {net_names}")
+    net_names = sorted(list(svc_nets.keys()) if isinstance(svc_nets, dict) else list(svc_nets))
+    if net_names != ["staging_net"]:
+        sys.exit(f"FAIL: {svc_name} service networks mismatch: got {net_names}, expected ['staging_net']")
 
-# 6. Volumes root model check (zero named backup volumes)
+# g. Zero published ports on migrate
+ports = mig.get("ports", [])
+if ports and len(ports) > 0:
+    sys.exit(f"FAIL: Prohibited published ports on migrate service: {ports}")
+
+# h. Zero devices
+devices = mig.get("devices", [])
+if devices and len(devices) > 0:
+    sys.exit(f"FAIL: Prohibited devices on migrate service: {devices}")
+
+# i. Zero privileged or host namespaces
+if mig.get("privileged") is True:
+    sys.exit("FAIL: migrate service has privileged: true!")
+for ns in ["network_mode", "ipc", "pid"]:
+    if mig.get(ns) == "host":
+        sys.exit(f"FAIL: migrate service has {ns}: host!")
+
+# j. Zero Docker socket mounts
+mig_vols = mig.get("volumes", [])
+for v in mig_vols:
+    v_str = str(v).lower()
+    if "docker.sock" in v_str:
+        sys.exit(f"FAIL: Prohibited Docker socket mount in migrate service: {v}")
+
+# 5. Top-level volume model check
 for vol_name in volumes.keys():
     if "backup" in vol_name.lower():
         sys.exit(f"FAIL: Prohibited named backup volume '{vol_name}' in Compose model")
@@ -378,10 +466,9 @@ print("COMPOSE_AST_PASS")
 PYEOF
 )
     local py_status=$?
-    rm -f "${compose_json_tmp}"
 
     if [[ ${py_status} -eq 0 && "${ast_audit}" == "COMPOSE_AST_PASS" ]]; then
-        record_check "PASS" "Rendered Compose JSON AST structural audit verified (services, profiles, images, networks, volumes)."
+        record_check "PASS" "Rendered Compose JSON AST structural audit verified (exact services, profile, images, command, dependencies, networks, volumes, zero socket mounts)."
     else
         record_check "FAIL" "Compose JSON AST audit failed: ${ast_audit}"
     fi
@@ -502,7 +589,6 @@ check_runtime_image_artifacts() {
     local image_ref="artradepro/socialpulse-backend@${EXPECTED_BACKEND_DIGEST}"
     log_info "Inspecting local presence of backend image: ${image_ref}..."
 
-    # Operational Docker inspect: FAIL-CLOSED if absent or Docker operational error (Finding 1)
     if ! docker image inspect "${image_ref}" >/dev/null 2>&1; then
         log_fail "CRITICAL: Image ${image_ref} is NOT present in local Docker engine (IMAGE_NOT_PRESENT)."
         record_check "FAIL" "IMAGE_NOT_PRESENT: ${image_ref} not found in local Docker engine."
@@ -510,7 +596,6 @@ check_runtime_image_artifacts() {
     fi
     record_check "PASS" "Image inspect succeeded for ${image_ref}."
 
-    # Collision rejection on inspection container name
     INSPECTION_CONTAINER="sp8c7a_inspect_${$}_${RANDOM}"
     set +e
     local col_check col_status
@@ -528,11 +613,9 @@ check_runtime_image_artifacts() {
         return 1
     fi
 
-    # Pre-arm inspection container ownership before docker create (Finding 2)
     INSPECTION_CONTAINER_TARGET="${INSPECTION_CONTAINER}"
     INSPECTION_CONTAINER_PREARMED=1
 
-    # Create controlled non-started inspection container and capture ID
     log_info "Creating controlled non-started inspection container: ${INSPECTION_CONTAINER}..."
     set +e
     RECORDED_CONTAINER_ID="$(docker create --name "${INSPECTION_CONTAINER}" "${image_ref}" true 2>&1)"
@@ -547,7 +630,6 @@ check_runtime_image_artifacts() {
     INSPECTION_CONTAINER_CREATED=1
     log_info "Created inspection container ID: ${RECORDED_CONTAINER_ID}"
 
-    # Extract /app/dist/database
     TEMP_AUDIT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/sp8c7a_image_audit_${$}_XXXXXX")
     log_info "Extracting in-image database assets to ${TEMP_AUDIT_DIR}..."
 
@@ -564,7 +646,6 @@ check_runtime_image_artifacts() {
     fi
     record_check "PASS" "Successfully extracted /app/dist/database from image."
 
-    # Locate enclosed source artifacts for comparison
     local src_dir="${BASE_DIR}/scripts/source_artifacts/database"
     if [[ ! -d "${src_dir}" ]]; then
         if [[ -d "scripts/source_artifacts/database" ]]; then
@@ -590,7 +671,7 @@ artifacts = inv.get("artifacts", [])
 failures = []
 
 for item in artifacts:
-    in_img_path = item["in_image_path"] # e.g. /app/dist/database/migrate.js
+    in_img_path = item["in_image_path"]
     rel_sub = in_img_path.replace("/app/dist/database/", "")
     extracted_file = os.path.join(extracted_db, rel_sub.replace("/", os.sep))
 
@@ -601,19 +682,15 @@ for item in artifacts:
     extracted_bytes = open(extracted_file, "rb").read()
     extracted_sha = hashlib.sha256(extracted_bytes).hexdigest()
 
-    # Compare with source artifact if available
     src_file = os.path.join(src_dir, item["source_path"].replace("src/database/", "").replace("/", os.sep))
     if os.path.isfile(src_file):
         src_bytes = open(src_file, "rb").read()
-        # LF normalized sha
-        src_lf = src_bytes.replace(b"
-", b"
-")
+        # Normalized LF bytes without escape conflicts
+        src_lf = b"\n".join(src_bytes.splitlines()) + (b"\n" if src_bytes.endswith((b"\n", b"\r")) else b"")
         src_sha = hashlib.sha256(src_lf).hexdigest()
         if extracted_sha != src_sha:
             failures.append(f"HASH_MISMATCH: {in_img_path} (img: {extracted_sha} vs src_lf: {src_sha})")
     else:
-        # Check against expected sha in inventory if present
         exp_sha = item.get("sha256_lf") or item.get("sha256")
         if exp_sha and extracted_sha != exp_sha:
             failures.append(f"HASH_MISMATCH: {in_img_path} (img: {extracted_sha} vs inv: {exp_sha})")

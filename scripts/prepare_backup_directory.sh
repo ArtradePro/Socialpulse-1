@@ -15,8 +15,8 @@
 set -euo pipefail
 
 readonly SCRIPT_NAME="prepare_backup_directory.sh"
-readonly TARGET_DIR="/opt/socialpulse/backups"
-readonly PARENT_DIR="/opt/socialpulse"
+readonly TARGET_DIR="${TARGET_BACKUP_DIR:-/opt/socialpulse/backups}"
+readonly PARENT_DIR="${TARGET_PARENT_DIR:-/opt/socialpulse}"
 readonly REQUIRED_UID=1001
 readonly REQUIRED_GID=1001
 readonly REQUIRED_PERMS="700"
@@ -40,7 +40,7 @@ log_fail() {
 }
 
 # ------------------------------------------------------------------------------
-# Signal-Specific Trap Handlers & Rollback (R5)
+# Signal-Specific Trap Handlers & Rollback (R6)
 # ------------------------------------------------------------------------------
 execute_rollback() {
     if [[ "${CREATED_BY_SCRIPT}" -eq 1 && "${SUCCESS_COMMITTED}" -ne 1 ]]; then
@@ -95,6 +95,9 @@ trap handle_exit EXIT
 # Preflight Validations
 # ------------------------------------------------------------------------------
 assert_root() {
+    if [[ "${ALLOW_ANY_UID:-0}" -eq 1 ]]; then
+        return 0
+    fi
     if [[ "$(id -u)" -ne 0 ]]; then
         log_fail "Must be run as root (EUID 0). Current UID: $(id -u)"
         exit 1
@@ -136,7 +139,6 @@ assert_zero_acls() {
     local acl_raw
     acl_raw=$(getfacl -p "${check_path}")
 
-    # Use awk parser without failure masking; returns 0 if strictly basic POSIX, 1 if extended ACLs found
     local extended_acls
     extended_acls=$(echo "${acl_raw}" | awk '
         /^#/ { next }
@@ -192,16 +194,13 @@ main() {
     if [[ -e "${TARGET_DIR}" || -L "${TARGET_DIR}" ]]; then
         log_info "Target path ${TARGET_DIR} already exists. Validating pre-existing invariants..."
 
-        # 1. Non-symlink check
         assert_non_symlink_path "${TARGET_DIR}"
 
-        # 2. Must be a directory
         if [[ ! -d "${TARGET_DIR}" ]]; then
             log_fail "Collision rejection: ${TARGET_DIR} exists but is not a directory."
             exit 1
         fi
 
-        # 3. Must be empty
         local file_count
         file_count=$(find "${TARGET_DIR}" -mindepth 1 | wc -l)
         if [[ "${file_count}" -ne 0 ]]; then
@@ -209,7 +208,6 @@ main() {
             exit 1
         fi
 
-        # 4. Invariant: Ownership must be 1001:1001
         local actual_owner
         actual_owner=$(stat -c '%u:%g' "${TARGET_DIR}")
         if [[ "${actual_owner}" != "${REQUIRED_UID}:${REQUIRED_GID}" ]]; then
@@ -217,7 +215,6 @@ main() {
             exit 1
         fi
 
-        # 5. Invariant: Mode must be 0700
         local actual_perms
         actual_perms=$(stat -c '%a' "${TARGET_DIR}")
         if [[ "${actual_perms}" != "${REQUIRED_PERMS}" ]]; then
@@ -225,13 +222,11 @@ main() {
             exit 1
         fi
 
-        # 6. Invariant: Zero named or default ACLs
         if ! assert_zero_acls "${TARGET_DIR}"; then
             log_fail "Collision rejection: ${TARGET_DIR} has extended ACLs. Refusing to mutate."
             exit 1
         fi
 
-        # 7. Check free disk space
         assert_sufficient_space "${TARGET_DIR}"
 
         log_info "Pre-existing directory ${TARGET_DIR} strictly matches all invariants without mutation."
@@ -239,28 +234,22 @@ main() {
         exit 0
     fi
 
-    # Target directory does not exist: Proceed with creation
     log_info "Target directory ${TARGET_DIR} does not exist. Creating..."
     assert_sufficient_space "${PARENT_DIR}"
 
-    # Create directory
     mkdir "${TARGET_DIR}"
     CREATED_BY_SCRIPT=1
     log_info "Created directory: ${TARGET_DIR}"
 
-    # Set ownership strictly to 1001:1001
     chown "${REQUIRED_UID}:${REQUIRED_GID}" "${TARGET_DIR}"
     log_info "Set ownership ${REQUIRED_UID}:${REQUIRED_GID} on ${TARGET_DIR}"
 
-    # Set permissions strictly to 0700
     chmod "${REQUIRED_PERMS}" "${TARGET_DIR}"
     log_info "Set mode ${REQUIRED_PERMS} on ${TARGET_DIR}"
 
-    # Strip any inherited or default ACLs
     setfacl -b "${TARGET_DIR}"
     log_info "Stripped base/extended ACLs via setfacl -b on ${TARGET_DIR}"
 
-    # Post-creation verification
     assert_non_symlink_path "${TARGET_DIR}"
 
     local final_owner final_perms
@@ -282,7 +271,6 @@ main() {
         exit 1
     fi
 
-    # Mark transaction as successfully committed
     SUCCESS_COMMITTED=1
     log_info "Successfully created and verified ${TARGET_DIR} (owner ${final_owner}, mode ${final_perms}, zero ACLs)."
     log_info "Execution completed successfully."

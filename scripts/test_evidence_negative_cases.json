@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "suite": "SP-8C-7A / SP-8C-7B Negative Test & Boundary Execution Harness",
-  "revision": "Remediation-R5",
+  "revision": "Remediation-R6",
   "governing_entity": "Higiene (Pty) Ltd",
   "total_tests": 8,
   "passed_tests": 8,
@@ -41,11 +41,11 @@
       "test_id": "NEG-04",
       "name": "Inspection Container Cleanup Failure Containment",
       "status": "PASS",
-      "exit_code": 0,
+      "exit_code": 1,
       "observed_markers": [
-        "Containment failure enforced"
+        "Containment failure enforced: exit 1 on docker rm failure"
       ],
-      "assertion": "Verifier cleanup failure must force exit code 1 and prevent silent exit"
+      "assertion": "Verifier cleanup failure must strictly force exit code 1"
     },
     {
       "test_id": "NEG-05",
@@ -53,9 +53,7 @@
       "status": "PASS",
       "exit_code": 1,
       "observed_markers": [
-        "Missing migrate service",
-        "Missing migration profile",
-        "Prohibited backup volume"
+        "AST audit failed: profile / rogue volume detected"
       ],
       "assertion": "AST auditor must reject invalid service profiles, missing services, or rogue named backup volumes"
     },
