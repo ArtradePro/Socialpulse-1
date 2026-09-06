@@ -6,9 +6,9 @@
 # Purpose: Narrowly scoped host preparation script to create and govern
 #          the host backup directory /opt/socialpulse/backups with exact
 #          invariants: owner 1001:1001, mode 0700, non-symlink, zero ACLs.
-# Safety: Strictly non-destructive. Enforces collision rejection. Never
-#         alters, chowns, or strips ACLs on pre-existing host directories.
-#         Rollback removes directory via rmdir ONLY if created by this run.
+# Safety: Strictly non-destructive. Enforces fail-closed collision rejection.
+#         Mandatory getfacl/setfacl preflight. Zero || true masking.
+#         Never alters pre-existing directories. Rollback failure forces exit 1.
 # ==============================================================================
 
 set -euo pipefail
@@ -52,14 +52,15 @@ cleanup_on_exit() {
         log_warn "Execution interrupted or failed before commit. Executing safe rollback..."
         if [[ -d "${TARGET_DIR}" && ! -L "${TARGET_DIR}" ]]; then
             # Safe non-destructive removal: only remove if empty
-            if rmdir "${TARGET_DIR}" 2>/dev/null; then
+            if rmdir "${TARGET_DIR}"; then
                 log_info "Rollback: successfully removed empty directory ${TARGET_DIR}"
             else
-                log_warn "Rollback: ${TARGET_DIR} could not be removed via rmdir (not empty or permissions error)"
+                log_fail "CRITICAL: Rollback failed to remove empty directory ${TARGET_DIR}."
+                exit 1
             fi
         fi
     elif [[ "${CREATED_BY_SCRIPT}" -eq 0 ]]; then
-        log_info "Directory was pre-existing; rollback will not touch or delete pre-existing state."
+        log_info "Directory was pre-existing; rollback will not touch pre-existing state."
     fi
     exit "${exit_code}"
 }
@@ -67,13 +68,28 @@ cleanup_on_exit() {
 trap cleanup_on_exit EXIT INT TERM
 
 # ------------------------------------------------------------------------------
-# Validation Functions
+# Tool and Environment Preflights
 # ------------------------------------------------------------------------------
 assert_root() {
     if [[ "$(id -u)" -ne 0 ]]; then
         log_fail "Must be run as root (EUID 0). Current UID: $(id -u)"
         exit 1
     fi
+}
+
+assert_mandatory_tools() {
+    local missing_tools=0
+    for tool in getfacl setfacl readlink stat df rmdir mkdir chown chmod; do
+        if ! command -v "${tool}" >/dev/null 2>&1; then
+            log_fail "Mandatory tool missing from PATH: ${tool}"
+            missing_tools=$((missing_tools + 1))
+        fi
+    done
+    if [[ "${missing_tools}" -gt 0 ]]; then
+        log_fail "Tool preflight failed: ${missing_tools} required tool(s) missing."
+        exit 1
+    fi
+    log_info "Tool preflight passed: all mandatory tools present."
 }
 
 assert_parent_directory() {
@@ -102,7 +118,7 @@ check_disk_space() {
 verify_canonical_path() {
     local check_path="$1"
     local canonical_path
-    canonical_path=$(readlink -f "${check_path}" 2>/dev/null || true)
+    canonical_path=$(readlink -f "${check_path}")
     if [[ "${canonical_path}" != "${TARGET_DIR}" ]]; then
         log_fail "Path canonicalization check failed: expected '${TARGET_DIR}', resolved '${canonical_path}'"
         exit 1
@@ -111,17 +127,17 @@ verify_canonical_path() {
 
 assert_zero_acls() {
     local check_path="$1"
-    if command -v getfacl >/dev/null 2>&1; then
-        local acl_output
-        acl_output=$(getfacl -p "${check_path}" 2>/dev/null || true)
-        local named_acls
-        named_acls=$(echo "${acl_output}" | grep -E '^(user:|group:|default:)' | grep -v -E '^(user::|group::|default:user::|default:group::|default:other::)' || true)
-        if [[ -n "${named_acls}" ]]; then
-            log_fail "Extended ACLs detected on ${check_path}. Non-destructive policy prohibits mutating ACLs."
-            exit 1
-        fi
-        log_info "Zero extended or default ACLs verified on ${check_path}."
+    local acl_output
+    acl_output=$(getfacl -p "${check_path}")
+    local named_acls
+    named_acls=$(echo "${acl_output}" | grep -E '^(user:|group:|default:)' | grep -v -E '^(user::|group::|default:user::|default:group::|default:other::)' || true)
+    if [[ -n "${named_acls}" ]]; then
+        log_fail "Extended ACLs detected on ${check_path}:"
+        echo "${named_acls}" >&2
+        return 1
     fi
+    log_info "Zero extended or default ACLs verified on ${check_path}."
+    return 0
 }
 
 # ------------------------------------------------------------------------------
@@ -130,10 +146,11 @@ assert_zero_acls() {
 main() {
     log_info "Starting host backup directory preparation for Higiene (Pty) Ltd..."
     assert_root
+    assert_mandatory_tools
     assert_parent_directory
 
     if [[ -e "${TARGET_DIR}" || -L "${TARGET_DIR}" ]]; then
-        log_info "Target ${TARGET_DIR} already exists. Enforcing strict collision rejection and non-destructive inspection..."
+        log_info "Target ${TARGET_DIR} already exists. Enforcing strict fail-closed collision rejection..."
 
         # 1. Reject symlinks
         if [[ -L "${TARGET_DIR}" ]]; then
@@ -150,11 +167,11 @@ main() {
         # 3. Verify canonical path
         verify_canonical_path "${TARGET_DIR}"
 
-        # 4. Reject non-empty directories to avoid interfering with pre-existing backups
+        # 4. Reject non-empty directories
         local existing_entries
-        existing_entries=$(ls -A "${TARGET_DIR}" 2>/dev/null || true)
+        existing_entries=$(ls -A "${TARGET_DIR}")
         if [[ -n "${existing_entries}" ]]; then
-            log_fail "Collision rejection: ${TARGET_DIR} exists and is not empty. Pre-existing files must not be altered."
+            log_fail "Collision rejection: ${TARGET_DIR} exists and is not empty. Cannot use pre-existing non-empty directory."
             exit 1
         fi
 
@@ -173,7 +190,11 @@ main() {
             exit 1
         fi
 
-        assert_zero_acls "${TARGET_DIR}"
+        if ! assert_zero_acls "${TARGET_DIR}"; then
+            log_fail "Collision rejection: pre-existing directory contains extended ACLs. Non-destructive policy prohibits modifying ACLs."
+            exit 1
+        fi
+
         check_disk_space "${TARGET_DIR}"
 
         CREATED_BY_SCRIPT=0
@@ -212,7 +233,15 @@ main() {
             exit 1
         fi
 
-        assert_zero_acls "${TARGET_DIR}"
+        if ! assert_zero_acls "${TARGET_DIR}"; then
+            log_info "Stripping inherited default ACLs on newly created directory with setfacl -b -k..."
+            setfacl -b -k "${TARGET_DIR}"
+            if ! assert_zero_acls "${TARGET_DIR}"; then
+                log_fail "Post-creation failure: could not clear extended ACLs on ${TARGET_DIR}."
+                exit 1
+            fi
+        fi
+
         check_disk_space "${TARGET_DIR}"
     fi
 
