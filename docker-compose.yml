@@ -34,7 +34,8 @@ services:
     ports:
       - "5000:5000"
     env_file:
-      - ./socialPulse-app/backend/.env
+      - path: ./socialPulse-app/backend/.env
+        required: false
     environment:
       DATABASE_URL: postgresql://postgres:password@postgres:5432/socialpulse
       REDIS_HOST: redis
@@ -55,7 +56,8 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - ./socialPulse-app/frontend/.env
+      - path: ./socialPulse-app/frontend/.env
+        required: false
     environment:
       VITE_API_URL: http://localhost:5000/api
     depends_on:

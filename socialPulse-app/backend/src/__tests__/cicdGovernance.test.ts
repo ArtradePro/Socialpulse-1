@@ -335,9 +335,9 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
         });
 
         it('Control 32: Bounded /health/ready polling parses JSON response safely without raw log leaks', () => {
-            expect(deployContent).toContain('http://127.0.0.1:5000/health/ready');
-            expect(deployContent).toContain('data.ready === true');
-            expect(deployContent).toContain('Readiness probe passed (ready: true)');
+            expect(deployContent).toContain('http://127.0.0.1:3001/health/ready');
+            expect(deployContent).toContain('data.coreReady === true');
+            expect(deployContent).toContain('Readiness probe passed (coreReady: true)');
         });
 
         it('Control 33: No SSH action or database migration command exists in deployment path', () => {
@@ -372,7 +372,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(deployContent).toContain('COMPOSE_EXIT=0');
             expect(deployContent).toContain('export SOCIALPULSE_BACKEND_IMAGE="$PREV_BACKEND"');
             expect(deployContent).toContain('export SOCIALPULSE_FRONTEND_IMAGE="$PREV_FRONTEND"');
-            expect(deployContent).toContain('Verifying rollback readiness on http://127.0.0.1:5000/health/ready');
+            expect(deployContent).toContain('Verifying rollback readiness on http://127.0.0.1:3001/health/ready');
             expect(deployContent).toContain('Rollback failed! Compose exit: $COMPOSE_EXIT, Readiness: $ROLLBACK_READY');
         });
 
