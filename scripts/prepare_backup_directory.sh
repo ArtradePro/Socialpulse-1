@@ -6,16 +6,14 @@
 # Purpose: Narrowly scoped host preparation script to create and govern
 #          the host backup directory /opt/socialpulse/backups with exact
 #          invariants: owner 1001:1001, mode 0700, non-symlink, zero ACLs.
-# Safety: Strictly non-destructive. Enforces fail-closed collision rejection.
-#         Mandatory getfacl/setfacl preflight. Zero || true masking.
-#         Never alters pre-existing directories. Rollback failure forces exit 1.
+# Safety: Strictly non-destructive. Fail-closed collision rejection.
+#         Mandatory getfacl/setfacl preflight. Zero failure-masking operators.
+#         Signal-specific exit traps (130 for INT, 143 for TERM).
+#         Rollback failure forces exit 1.
 # ==============================================================================
 
 set -euo pipefail
 
-# ------------------------------------------------------------------------------
-# Constants and Invariants
-# ------------------------------------------------------------------------------
 readonly SCRIPT_NAME="prepare_backup_directory.sh"
 readonly TARGET_DIR="/opt/socialpulse/backups"
 readonly PARENT_DIR="/opt/socialpulse"
@@ -28,9 +26,6 @@ readonly MIN_FREE_KB=102400  # 100 MB in KB
 CREATED_BY_SCRIPT=0
 SUCCESS_COMMITTED=0
 
-# ------------------------------------------------------------------------------
-# Logging Functions
-# ------------------------------------------------------------------------------
 log_info() {
     echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] [INFO] [${SCRIPT_NAME}] $*"
 }
@@ -44,31 +39,53 @@ log_fail() {
 }
 
 # ------------------------------------------------------------------------------
-# Rollback / Exit Trap Handler
+# Signal-Specific Trap Handlers & Rollback
 # ------------------------------------------------------------------------------
-cleanup_on_exit() {
-    local exit_code=$?
+execute_rollback() {
     if [[ "${CREATED_BY_SCRIPT}" -eq 1 && "${SUCCESS_COMMITTED}" -ne 1 ]]; then
         log_warn "Execution interrupted or failed before commit. Executing safe rollback..."
         if [[ -d "${TARGET_DIR}" && ! -L "${TARGET_DIR}" ]]; then
-            # Safe non-destructive removal: only remove if empty
             if rmdir "${TARGET_DIR}"; then
                 log_info "Rollback: successfully removed empty directory ${TARGET_DIR}"
             else
                 log_fail "CRITICAL: Rollback failed to remove empty directory ${TARGET_DIR}."
-                exit 1
+                return 1
             fi
         fi
     elif [[ "${CREATED_BY_SCRIPT}" -eq 0 ]]; then
         log_info "Directory was pre-existing; rollback will not touch pre-existing state."
     fi
+    return 0
+}
+
+handle_signal() {
+    local sig_code="$1"
+    local sig_name="$2"
+    log_warn "Caught signal ${sig_name} (${sig_code}). Triggering rollback..."
+    if ! execute_rollback; then
+        log_fail "Rollback failure overrides signal ${sig_name}; forcing exit 1."
+        exit 1
+    fi
+    exit "${sig_code}"
+}
+
+handle_exit() {
+    local exit_code=$?
+    if [[ "${exit_code}" -ne 0 ]]; then
+        if ! execute_rollback; then
+            log_fail "Rollback failure on exit; forcing exit 1."
+            exit 1
+        fi
+    fi
     exit "${exit_code}"
 }
 
-trap cleanup_on_exit EXIT INT TERM
+trap 'handle_signal 130 SIGINT' INT
+trap 'handle_signal 143 SIGTERM' TERM
+trap handle_exit EXIT
 
 # ------------------------------------------------------------------------------
-# Tool and Environment Preflights
+# Preflight Validations
 # ------------------------------------------------------------------------------
 assert_root() {
     if [[ "$(id -u)" -ne 0 ]]; then
@@ -79,7 +96,7 @@ assert_root() {
 
 assert_mandatory_tools() {
     local missing_tools=0
-    for tool in getfacl setfacl readlink stat df rmdir mkdir chown chmod; do
+    for tool in getfacl setfacl readlink stat df rmdir mkdir chown chmod awk; do
         if ! command -v "${tool}" >/dev/null 2>&1; then
             log_fail "Mandatory tool missing from PATH: ${tool}"
             missing_tools=$((missing_tools + 1))
@@ -127,13 +144,24 @@ verify_canonical_path() {
 
 assert_zero_acls() {
     local check_path="$1"
-    local acl_output
-    acl_output=$(getfacl -p "${check_path}")
-    local named_acls
-    named_acls=$(echo "${acl_output}" | grep -E '^(user:|group:|default:)' | grep -v -E '^(user::|group::|default:user::|default:group::|default:other::)' || true)
-    if [[ -n "${named_acls}" ]]; then
+    local acl_raw
+    acl_raw=$(getfacl -p "${check_path}")
+
+    # Use awk parser without failure masking; returns 0 if strictly basic POSIX, 1 if extended ACLs found
+    local extended_acls
+    extended_acls=$(echo "${acl_raw}" | awk '
+        /^#/ { next }
+        /^user::/ { next }
+        /^group::/ { next }
+        /^other::/ { next }
+        /^[a-z]+:/ { print; has_ext=1 }
+        END { exit (has_ext ? 1 : 0) }
+    ')
+    local awk_status=$?
+
+    if [[ "${awk_status}" -ne 0 || -n "${extended_acls}" ]]; then
         log_fail "Extended ACLs detected on ${check_path}:"
-        echo "${named_acls}" >&2
+        echo "${extended_acls}" >&2
         return 1
     fi
     log_info "Zero extended or default ACLs verified on ${check_path}."

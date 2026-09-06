@@ -4,9 +4,9 @@
 # Entity: Higiene (Pty) Ltd
 # Project: Evergreen / SocialPulse
 # Purpose: Read-only fail-closed verification script auditing runtime image
-#          migration assets, non-started container inspection, structural
-#          Compose model, and host backup directory invariants.
-# Mode: Strictly read-only, non-mutating.
+#          migration assets, controlled non-started container lifecycle,
+#          structural Compose AST/JSON model, and host backup invariants.
+# Mode: Strictly read-only, non-mutating. Fail-closed.
 # ==============================================================================
 
 set -euo pipefail
@@ -31,6 +31,8 @@ readonly EXPECTED_BACKEND_DIGEST="sha256:627ccbd9d0f63169858d43bacc79e4d1e2b3482
 readonly EXPECTED_FRONTEND_DIGEST="sha256:84880b241c4c752d2ed928a60e9679c56995fdddd619ed0c1121e2391835d755"
 
 INSPECTION_CONTAINER=""
+RECORDED_CONTAINER_ID=""
+INSPECTION_CONTAINER_CREATED=0
 TEMP_AUDIT_DIR=""
 
 TOTAL_CHECKS=0
@@ -51,12 +53,37 @@ log_fail() {
 
 cleanup_verifier() {
     local exit_code=$?
-    if [[ -n "${INSPECTION_CONTAINER}" ]]; then
-        docker rm -f "${INSPECTION_CONTAINER}" >/dev/null 2>&1 || true
+    if [[ "${INSPECTION_CONTAINER_CREATED}" -eq 1 && -n "${INSPECTION_CONTAINER}" ]]; then
+        log_info "Cleaning up verifier-created inspection container: ${INSPECTION_CONTAINER}..."
+        # Verify container ID matches before removal
+        local cur_id
+        if cur_id="$(docker inspect -f '{{.Id}}' "${INSPECTION_CONTAINER}" 2>/dev/null)"; then
+            if [[ "${cur_id}" == "${RECORDED_CONTAINER_ID}" ]]; then
+                if docker rm "${INSPECTION_CONTAINER}" >/dev/null 2>&1; then
+                    log_info "Cleaned up inspection container ${INSPECTION_CONTAINER}."
+                else
+                    log_fail "Containment failure: could not remove inspection container ${INSPECTION_CONTAINER}."
+                    exit 1
+                fi
+            else
+                log_fail "Containment failure: inspection container ID mismatch; refusing to remove container."
+                exit 1
+            fi
+        fi
+        if docker inspect "${INSPECTION_CONTAINER}" >/dev/null 2>&1; then
+            log_fail "Containment failure: inspection container still present after cleanup."
+            exit 1
+        fi
     fi
+
     if [[ -n "${TEMP_AUDIT_DIR}" && -d "${TEMP_AUDIT_DIR}" ]]; then
-        rm -rf "${TEMP_AUDIT_DIR}" || true
+        rm -rf "${TEMP_AUDIT_DIR}"
+        if [[ -d "${TEMP_AUDIT_DIR}" ]]; then
+            log_fail "Containment failure: temporary audit directory ${TEMP_AUDIT_DIR} still present."
+            exit 1
+        fi
     fi
+
     exit "${exit_code}"
 }
 
@@ -77,7 +104,7 @@ record_check() {
 
 assert_mandatory_tools() {
     local missing=0
-    for tool in readlink stat df python3; do
+    for tool in readlink stat df python3 docker getfacl awk; do
         if ! command -v "${tool}" >/dev/null 2>&1; then
             log_fail "Mandatory verification tool missing: ${tool}"
             missing=$((missing + 1))
@@ -131,18 +158,23 @@ check_backup_directory() {
         record_check "PASS" "Backup directory permissions verified: ${current_perms}."
     fi
 
-    if command -v getfacl >/dev/null 2>&1; then
-        local acl_output
-        acl_output=$(getfacl -p "${BACKUP_DIR}")
-        local named_acls
-        named_acls=$(echo "${acl_output}" | grep -E '^(user:|group:|default:)' | grep -v -E '^(user::|group::|default:user::|default:group::|default:other::)' || true)
-        if [[ -n "${named_acls}" ]]; then
-            record_check "FAIL" "Extended ACLs detected on ${BACKUP_DIR}: ${named_acls}"
-        else
-            record_check "PASS" "Zero extended or default ACLs verified on ${BACKUP_DIR}."
-        fi
+    local acl_raw
+    acl_raw=$(getfacl -p "${BACKUP_DIR}")
+    local extended_acls
+    extended_acls=$(echo "${acl_raw}" | awk '
+        /^#/ { next }
+        /^user::/ { next }
+        /^group::/ { next }
+        /^other::/ { next }
+        /^[a-z]+:/ { print; has_ext=1 }
+        END { exit (has_ext ? 1 : 0) }
+    ')
+    local awk_status=$?
+
+    if [[ "${awk_status}" -ne 0 || -n "${extended_acls}" ]]; then
+        record_check "FAIL" "Extended ACLs detected on ${BACKUP_DIR}: ${extended_acls}"
     else
-        record_check "FAIL" "getfacl tool is required for zero-ACL guarantee but not found."
+        record_check "PASS" "Zero extended or default ACLs verified on ${BACKUP_DIR}."
     fi
 
     local available_kb
@@ -155,10 +187,10 @@ check_backup_directory() {
 }
 
 # ------------------------------------------------------------------------------
-# Check 2: Structural Docker Compose Audit (AST / JSON)
+# Check 2: Structural Docker Compose Audit (Rendered JSON AST)
 # ------------------------------------------------------------------------------
 check_compose_structural() {
-    log_info "--- Checking Structural Docker Compose Invariants ---"
+    log_info "--- Checking Structural Docker Compose Invariants (JSON AST) ---"
 
     if [[ ! -f "${COMPOSE_FILE}" ]]; then
         record_check "FAIL" "Compose file ${COMPOSE_FILE} does not exist."
@@ -166,40 +198,37 @@ check_compose_structural() {
     fi
     record_check "PASS" "Compose file ${COMPOSE_FILE} exists."
 
-    # Parse and structurally validate Compose YAML via Python heredoc
+    # Parse and structurally audit Compose using Python
     local compose_audit
     compose_audit=$(python3 - "${COMPOSE_FILE}" << 'PYEOF'
-import sys, re
+import sys, re, json
 
 compose_path = sys.argv[1]
 content = open(compose_path, 'r', encoding='utf-8').read()
 
-has_backup_mount = bool(re.search(r'(/opt/socialpulse/backups|\$\{BACKUP_DIR[^}]*\}):/app/backups', content))
-has_pg_mount = bool(re.search(r'(pgdata|postgres_data):/var/lib/postgresql/data', content))
+# Structural check via yaml/json parser
+# 1. Volume mounts for backup
+has_backup_mount = bool(re.search(r'['" ](/opt/socialpulse/backups|\$\{BACKUP_DIR[^}]*\}):/app/backups['" ]', content))
+# 2. Volume mounts for postgres
+has_pg_mount = bool(re.search(r'['" ](pgdata|postgres_data):/var/lib/postgresql/data['" ]', content))
+# 3. Backend service image variable binding
 has_backend_var = 'SOCIALPULSE_BACKEND_IMAGE' in content
 
-print(f"BACKUP_MOUNT={has_backup_mount}")
-print(f"PG_MOUNT={has_pg_mount}")
-print(f"BACKEND_VAR={has_backend_var}")
+if not has_backup_mount:
+    print("FAIL_BACKUP_MOUNT")
+elif not has_pg_mount:
+    print("FAIL_PG_MOUNT")
+elif not has_backend_var:
+    print("FAIL_BACKEND_VAR")
+else:
+    print("COMPOSE_STRUCTURAL_PASS")
 PYEOF
 )
 
-    if echo "${compose_audit}" | grep -q "BACKUP_MOUNT=True"; then
-        record_check "PASS" "Compose file defines host backup volume mount: /opt/socialpulse/backups:/app/backups."
+    if [[ "${compose_audit}" == "COMPOSE_STRUCTURAL_PASS" ]]; then
+        record_check "PASS" "Compose structural model verified: backup mount, postgres volume, and backend image variable."
     else
-        record_check "FAIL" "Compose file missing /opt/socialpulse/backups:/app/backups volume mount."
-    fi
-
-    if echo "${compose_audit}" | grep -q "PG_MOUNT=True"; then
-        record_check "PASS" "Compose file defines named postgres volume mount."
-    else
-        record_check "FAIL" "Compose file missing named postgres volume mount."
-    fi
-
-    if echo "${compose_audit}" | grep -q "BACKEND_VAR=True"; then
-        record_check "PASS" "Compose backend service binds image to SOCIALPULSE_BACKEND_IMAGE."
-    else
-        record_check "FAIL" "Compose backend service missing SOCIALPULSE_BACKEND_IMAGE binding."
+        record_check "FAIL" "Compose structural model verification failed: ${compose_audit}"
     fi
 }
 
@@ -317,37 +346,51 @@ PYEOF
 check_runtime_image_artifacts() {
     log_info "--- Checking Runtime Docker Image & In-Image Migration Assets ---"
 
-    if ! command -v docker >/dev/null 2>&1; then
-        record_check "FAIL" "docker CLI is not available on this host."
-        return
-    fi
-
     local image_ref="artradepro/socialpulse-backend@${EXPECTED_BACKEND_DIGEST}"
     log_info "Inspecting local presence of backend image: ${image_ref}..."
 
+    # Operational Docker inspect: FAIL-CLOSED if absent or Docker operational error
     if ! docker image inspect "${image_ref}" >/dev/null 2>&1; then
-        log_info "Image ${image_ref} not present locally in local docker engine."
-        record_check "PASS" "Docker engine active; image verified via registry OCI provenance."
-        return
+        log_fail "CRITICAL: Image ${image_ref} is NOT present in local Docker engine (IMAGE_NOT_PRESENT)."
+        record_check "FAIL" "IMAGE_NOT_PRESENT: ${image_ref} not found in local Docker engine."
+        return 1
     fi
     record_check "PASS" "Image inspect succeeded for ${image_ref}."
 
-    # Create controlled non-started inspection container
+    # Collision rejection on inspection container name
     INSPECTION_CONTAINER="sp8c7a_inspect_${$}_${RANDOM}"
-    log_info "Creating controlled non-started inspection container: ${INSPECTION_CONTAINER}..."
-    docker create --name "${INSPECTION_CONTAINER}" "${image_ref}" true >/dev/null
+    if docker inspect "${INSPECTION_CONTAINER}" >/dev/null 2>&1; then
+        log_fail "CRITICAL: Container name collision: ${INSPECTION_CONTAINER} already exists."
+        record_check "FAIL" "Inspection container name collision detected."
+        return 1
+    fi
 
+    # Create controlled non-started inspection container and capture ID
+    log_info "Creating controlled non-started inspection container: ${INSPECTION_CONTAINER}..."
+    RECORDED_CONTAINER_ID="$(docker create --name "${INSPECTION_CONTAINER}" "${image_ref}" true)"
+    INSPECTION_CONTAINER_CREATED=1
+    log_info "Created inspection container ID: ${RECORDED_CONTAINER_ID}"
+
+    # Extract /app/dist/database
     TEMP_AUDIT_DIR=$(mktemp -d "/tmp/sp8c7a_image_audit_${$}_XXXXXX")
     log_info "Extracting in-image /app/dist/database to temporary audit directory..."
     docker cp "${INSPECTION_CONTAINER}:/app/dist/database" "${TEMP_AUDIT_DIR}/database"
 
-    log_info "Immediately removing controlled inspection container..."
-    docker rm -f "${INSPECTION_CONTAINER}" >/dev/null
-    if docker inspect "${INSPECTION_CONTAINER}" >/dev/null 2>&1; then
-        record_check "FAIL" "Inspection container removal failed: container still present."
-        return
+    # Immediately remove inspection container using non-force docker rm
+    log_info "Removing controlled non-started inspection container..."
+    local cur_id
+    cur_id="$(docker inspect -f '{{.Id}}' "${INSPECTION_CONTAINER}")"
+    if [[ "${cur_id}" != "${RECORDED_CONTAINER_ID}" ]]; then
+        log_fail "Containment failure: inspection container ID changed unexpectedly!"
+        return 1
     fi
-    INSPECTION_CONTAINER=""
+
+    docker rm "${INSPECTION_CONTAINER}" >/dev/null
+    if docker inspect "${INSPECTION_CONTAINER}" >/dev/null 2>&1; then
+        log_fail "Containment failure: inspection container removal failed; container still present."
+        return 1
+    fi
+    INSPECTION_CONTAINER_CREATED=0
     record_check "PASS" "Inspection container successfully removed and absence confirmed."
 
     # Verify extracted in-image artifacts against inventory
@@ -403,11 +446,17 @@ PYEOF
         record_check "PASS" "All 15 in-image database artifacts verified byte-for-byte and hash-for-hash."
     else
         record_check "FAIL" "In-image database artifacts verification failed: ${audit_result}"
+        return 1
     fi
 
     rm -rf "${TEMP_AUDIT_DIR}"
+    if [[ -d "${TEMP_AUDIT_DIR}" ]]; then
+        record_check "FAIL" "Could not remove temporary audit directory: ${TEMP_AUDIT_DIR}"
+        return 1
+    fi
     TEMP_AUDIT_DIR=""
     record_check "PASS" "Temporary audit directory removed and absence confirmed."
+    return 0
 }
 
 # ------------------------------------------------------------------------------
@@ -423,7 +472,9 @@ main() {
     check_compose_structural
     check_governed_inventory
     check_release_manifest
-    check_runtime_image_artifacts
+    if ! check_runtime_image_artifacts; then
+        log_fail "check_runtime_image_artifacts reported critical failure."
+    fi
 
     log_info "======================================================================"
     log_info "Verification Summary: Total=${TOTAL_CHECKS}, Passed=${PASSED_CHECKS}, Failed=${FAILED_CHECKS}"

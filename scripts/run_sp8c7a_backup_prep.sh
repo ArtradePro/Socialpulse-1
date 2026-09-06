@@ -5,7 +5,7 @@
 # Project: Evergreen / SocialPulse
 # Purpose: Governed root execution wrapper for host backup directory preparation
 #          and read-only remediation verification with external trust anchors,
-#          canonical root-owned 0600 evidence logging, and PIPESTATUS capture.
+#          collision-safe 0600 evidence logging, and atomic multi-element PIPESTATUS capture.
 # ==============================================================================
 
 set -euo pipefail
@@ -18,10 +18,10 @@ readonly BASE_DIR="/opt/socialpulse"
 readonly SCRIPTS_DIR="${BASE_DIR}/scripts"
 
 readonly PREP_SCRIPT="${SCRIPTS_DIR}/prepare_backup_directory.sh"
-readonly EXPECTED_PREP_SHA256="432954e16b746067a18e3274e59d68f3080f60c638702aa1a22491b66322db70"
+readonly EXPECTED_PREP_SHA256="d6d6dd5ddba81b53b6d32850fefecd8cd28ffdafdc40c8a861e5e04a47a0ff35"
 
 readonly VERIFY_SCRIPT="${SCRIPTS_DIR}/verify_remediation.sh"
-readonly EXPECTED_VERIFY_SHA256="84acc3639ac3fc6671a173f7acbe3bae51cced851303d5e3ef9622ecc04c83df"
+readonly EXPECTED_VERIFY_SHA256="db2a79108078e666b2f1563ae93e83c406f66ddeb1be13550f737bc468342916"
 
 readonly RELEASE_MANIFEST="${SCRIPTS_DIR}/approved_release_manifest.json"
 readonly EXPECTED_MANIFEST_SHA256="2f4cb9980ffeb9c00ac8dbee3c39e72094036843b903a44d07bd41eb30a77c1b"
@@ -43,9 +43,42 @@ assert_root() {
 }
 
 init_canonical_log() {
+    # Finding 6: Collision-safe root log creation
+    if [[ -e "${CANONICAL_LOG}" || -L "${CANONICAL_LOG}" ]]; then
+        echo "[FAIL] Canonical log collision detected: ${CANONICAL_LOG} already exists or is a symlink." >&2
+        exit 1
+    fi
+
+    # Set strict umask for log creation
+    local saved_umask
+    saved_umask="$(umask)"
+    umask 077
+
     touch "${CANONICAL_LOG}"
     chmod 0600 "${CANONICAL_LOG}"
     chown 0:0 "${CANONICAL_LOG}"
+
+    umask "${saved_umask}"
+
+    if [[ ! -f "${CANONICAL_LOG}" || -L "${CANONICAL_LOG}" ]]; then
+        echo "[FAIL] Canonical log creation verification failed: ${CANONICAL_LOG} is not a regular file or is a symlink." >&2
+        exit 1
+    fi
+
+    local actual_log_owner actual_log_mode
+    actual_log_owner="$(stat -c '%u:%g' "${CANONICAL_LOG}")"
+    actual_log_mode="$(stat -c '%a' "${CANONICAL_LOG}")"
+
+    if [[ "${actual_log_owner}" != "0:0" ]]; then
+        echo "[FAIL] Canonical log ownership mismatch: expected 0:0, got ${actual_log_owner}" >&2
+        exit 1
+    fi
+
+    if [[ "${actual_log_mode}" != "600" ]]; then
+        echo "[FAIL] Canonical log mode mismatch: expected 600, got ${actual_log_mode}" >&2
+        exit 1
+    fi
+
     log_wrapper "Initialized canonical evidence log: ${CANONICAL_LOG} (mode 0600, owner 0:0)"
 }
 
@@ -110,31 +143,48 @@ main() {
     verify_script_trust_anchor "${VERIFY_SCRIPT}" "${EXPECTED_VERIFY_SHA256}" "Remediation Verifier Script"
     verify_release_manifest_anchor
 
-    chmod +x "${PREP_SCRIPT}" "${VERIFY_SCRIPT}"
-
-    log_wrapper "Executing prepare_backup_directory.sh under governed tee pipeline..."
+    # Finding 7: Execute via /bin/bash without mutating filesystem permissions (no execute bit modifications)
+    log_wrapper "Executing prepare_backup_directory.sh under governed tee pipeline via /bin/bash..."
     set +e
-    "${PREP_SCRIPT}" 2>&1 | tee -a "${CANONICAL_LOG}"
-    local prep_status="${PIPESTATUS[0]}"
+    /bin/bash "${PREP_SCRIPT}" 2>&1 | tee -a "${CANONICAL_LOG}"
+    local -a prep_pipe_statuses=("${PIPESTATUS[@]}")
     set -e
 
-    log_wrapper "prepare_backup_directory.sh exited with status: ${prep_status}"
-    if [[ "${prep_status}" -ne 0 ]]; then
-        log_wrapper "FAIL: prepare_backup_directory.sh failed (exit ${prep_status}). Halting."
-        exit "${prep_status}"
+    # Finding 5: Validate entire pipeline exit statuses atomically
+    if [[ ${#prep_pipe_statuses[@]} -ne 2 ]]; then
+        log_wrapper "FAIL: Unexpected PIPESTATUS element count for prepare_backup_directory.sh: ${#prep_pipe_statuses[@]}"
+        exit 1
     fi
+    if [[ ${prep_pipe_statuses[0]} -ne 0 ]]; then
+        log_wrapper "FAIL: prepare_backup_directory.sh failed with exit code ${prep_pipe_statuses[0]}. Halting."
+        exit "${prep_pipe_statuses[0]}"
+    fi
+    if [[ ${prep_pipe_statuses[1]} -ne 0 ]]; then
+        log_wrapper "FAIL: Evidence logging pipeline (tee) failed with exit code ${prep_pipe_statuses[1]}. Halting."
+        exit "${prep_pipe_statuses[1]}"
+    fi
+    log_wrapper "PASS: prepare_backup_directory.sh and tee pipeline completed with code 0."
 
-    log_wrapper "Executing read-only verify_remediation.sh under governed tee pipeline..."
+    log_wrapper "Executing read-only verify_remediation.sh under governed tee pipeline via /bin/bash..."
     set +e
-    "${VERIFY_SCRIPT}" 2>&1 | tee -a "${CANONICAL_LOG}"
-    local verify_status="${PIPESTATUS[0]}"
+    /bin/bash "${VERIFY_SCRIPT}" 2>&1 | tee -a "${CANONICAL_LOG}"
+    local -a verify_pipe_statuses=("${PIPESTATUS[@]}")
     set -e
 
-    log_wrapper "verify_remediation.sh exited with status: ${verify_status}"
-    if [[ "${verify_status}" -ne 0 ]]; then
-        log_wrapper "FAIL: verify_remediation.sh failed (exit ${verify_status})."
-        exit "${verify_status}"
+    # Finding 5: Validate entire pipeline exit statuses atomically
+    if [[ ${#verify_pipe_statuses[@]} -ne 2 ]]; then
+        log_wrapper "FAIL: Unexpected PIPESTATUS element count for verify_remediation.sh: ${#verify_pipe_statuses[@]}"
+        exit 1
     fi
+    if [[ ${verify_pipe_statuses[0]} -ne 0 ]]; then
+        log_wrapper "FAIL: verify_remediation.sh failed with exit code ${verify_pipe_statuses[0]}. Halting."
+        exit "${verify_pipe_statuses[0]}"
+    fi
+    if [[ ${verify_pipe_statuses[1]} -ne 0 ]]; then
+        log_wrapper "FAIL: Evidence logging pipeline (tee) failed with exit code ${verify_pipe_statuses[1]}. Halting."
+        exit "${verify_pipe_statuses[1]}"
+    fi
+    log_wrapper "PASS: verify_remediation.sh and tee pipeline completed with code 0."
 
     # Canonical log verification
     if [[ ! -s "${CANONICAL_LOG}" ]]; then

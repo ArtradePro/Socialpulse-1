@@ -6,8 +6,8 @@
   "independent_reviewer": "ChatGPT",
   "execution_agent": "Antigravity (Google DeepMind)",
   "gate": "SP-8C-7A / SP-8C-7B",
-  "revision": "Remediation-R3",
-  "created_at_utc": "2026-09-06T11:00:00Z",
+  "revision": "Remediation-R4",
+  "created_at_utc": "2026-09-06T12:00:00Z",
   "operating_mode": "strictly_passive_read_only_standstill_remediation_review",
   "source_repository": "ArtradePro/Socialpulse-1",
   "source_branch": "scripts/backup-r10",
@@ -42,28 +42,35 @@
     "root_owned_0600_evidence_logging": true,
     "structural_compose_ast_audit": true,
     "controlled_non_started_image_inspection": true,
+    "image_absence_fail_closed_enforced": true,
+    "inspection_container_lifecycle_isolated": true,
+    "atomic_multi_element_pipestatus_captured": true,
+    "collision_safe_canonical_log_creation": true,
+    "zero_ungoverned_chmod_mutations": true,
+    "signal_specific_trap_handling_enforced": true,
     "all_15_raw_database_artifacts_enclosed": true,
     "cryptographic_baseline_reconciliation_enclosed": true,
-    "release_04_provenance_and_oci_evidence_enclosed": true
+    "release_04_provenance_and_oci_evidence_enclosed": true,
+    "negative_test_evidence_enclosed": true
   },
   "governance_components": [
     {
       "path": "run_sp8c7a_backup_prep.sh",
-      "bytes": 6245,
-      "lines": 164,
-      "sha256": "12c999c0a8bf380a9380adf862e69b163c4d9107c510705a684eaa80579b7600"
+      "bytes": 8546,
+      "lines": 214,
+      "sha256": "0582791b4a2ca3bc57ee058273045e5608c7c80dbe03ed7623202fa72afc7d6a"
     },
     {
       "path": "prepare_backup_directory.sh",
-      "bytes": 10205,
-      "lines": 259,
-      "sha256": "432954e16b746067a18e3274e59d68f3080f60c638702aa1a22491b66322db70"
+      "bytes": 10617,
+      "lines": 287,
+      "sha256": "d6d6dd5ddba81b53b6d32850fefecd8cd28ffdafdc40c8a861e5e04a47a0ff35"
     },
     {
       "path": "verify_remediation.sh",
-      "bytes": 17865,
-      "lines": 441,
-      "sha256": "84acc3639ac3fc6671a173f7acbe3bae51cced851303d5e3ef9622ecc04c83df"
+      "bytes": 19934,
+      "lines": 492,
+      "sha256": "db2a79108078e666b2f1563ae93e83c406f66ddeb1be13550f737bc468342916"
     },
     {
       "path": "approved_release_manifest.json",
@@ -97,9 +104,15 @@
     },
     {
       "path": "sp8c7a_remediation_runbook.md",
-      "bytes": 5146,
-      "lines": 80,
-      "sha256": "2151fe03bbb80508a7694649da2614e939137925942c09846227deebe6cd0632"
+      "bytes": 6909,
+      "lines": 92,
+      "sha256": "5993a3e535125907498c49add1ae0762b2275c8157b3da9c3d6ffb2f3461ed20"
+    },
+    {
+      "path": "test_evidence_negative_cases.md",
+      "bytes": 11576,
+      "lines": 236,
+      "sha256": "e5cb570855e72ed57c9e222355379964137bfe02bdf53ddbfad3fc0f9836e814"
     }
   ],
   "enclosed_source_artifacts": [
