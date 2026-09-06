@@ -43,6 +43,9 @@ CREATE TABLE IF NOT EXISTS posts (
     published_at  TIMESTAMP,
     ai_generated  BOOLEAN      DEFAULT false,
     campaign_id   UUID,
+    approval_token VARCHAR(64) UNIQUE,
+    approval_feedback TEXT,
+    approved_at   TIMESTAMP,
     created_at    TIMESTAMP    DEFAULT NOW(),
     updated_at    TIMESTAMP    DEFAULT NOW()
 );
@@ -100,7 +103,6 @@ CREATE TABLE IF NOT EXISTS hashtag_sets (
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_social_accounts_user_id  ON social_accounts(user_id);
 CREATE INDEX IF NOT EXISTS idx_posts_user_id            ON posts(user_id);
-CREATE INDEX IF NOT EXISTS idx_posts_user_status        ON posts(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_posts_status             ON posts(status);
 CREATE INDEX IF NOT EXISTS idx_posts_scheduled_at       ON posts(scheduled_at) WHERE status = 'scheduled';
 CREATE INDEX IF NOT EXISTS idx_posts_campaign_id        ON posts(campaign_id);
@@ -393,6 +395,13 @@ CREATE TABLE IF NOT EXISTS workspaces (
     slug        VARCHAR(100) UNIQUE,
     logo_url    TEXT,
     owner_id    UUID      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    brand_color    VARCHAR(20)  DEFAULT '#6366f1',
+    brand_name     VARCHAR(255),
+    brand_logo_url TEXT,
+    custom_domain  VARCHAR(255) UNIQUE,
+    ai_guidelines  TEXT,
+    purchase_url   TEXT,
+    product_info   TEXT,
     created_at  TIMESTAMP DEFAULT NOW(),
     updated_at  TIMESTAMP DEFAULT NOW()
 );
@@ -426,14 +435,195 @@ ALTER TABLE posts           ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCE
 ALTER TABLE social_accounts ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
 ALTER TABLE media_files     ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
 ALTER TABLE campaigns       ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
+ALTER TABLE rss_feeds       ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
+ALTER TABLE listening_rules ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
+ALTER TABLE templates       ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
+ALTER TABLE hashtag_sets    ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
+ALTER TABLE inbox_messages  ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_posts_workspace    ON posts(workspace_id)           WHERE workspace_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_sa_workspace       ON social_accounts(workspace_id) WHERE workspace_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_media_workspace    ON media_files(workspace_id)     WHERE workspace_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_campaigns_workspace ON campaigns(workspace_id)      WHERE workspace_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_rss_workspace      ON rss_feeds(workspace_id)       WHERE workspace_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_listening_workspace ON listening_rules(workspace_id) WHERE workspace_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_templates_workspace ON templates(workspace_id)       WHERE workspace_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_hs_workspace        ON hashtag_sets(workspace_id)    WHERE workspace_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_im_workspace        ON inbox_messages(workspace_id)    WHERE workspace_id IS NOT NULL;
 
--- ─── White-label Branding ─────────────────────────────────────────────────────
-ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_color    VARCHAR(20)  DEFAULT '#6366f1';
-ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_name     VARCHAR(255);
-ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_logo_url TEXT;
-ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS custom_domain  VARCHAR(255) UNIQUE;
+-- ─── P3: URL Shortener ────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS short_links (
+    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID        REFERENCES workspaces(id) ON DELETE SET NULL,
+    long_url     TEXT        NOT NULL,
+    short_code   VARCHAR(12) NOT NULL UNIQUE,
+    clicks       INTEGER     DEFAULT 0,
+    created_at   TIMESTAMP   DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_short_links_workspace ON short_links(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_short_links_code      ON short_links(short_code);
+
+-- ─── P3: Granular Scheduling ──────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS schedules (
+    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id      UUID        NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    user_id      UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    platform     VARCHAR(50) NOT NULL,
+    scheduled_at TIMESTAMP   NOT NULL,
+    status       VARCHAR(50) DEFAULT 'pending', -- pending | processing | published | failed
+    error_message TEXT,
+    job_id       VARCHAR(255),
+    created_at   TIMESTAMP   DEFAULT NOW(),
+    updated_at   TIMESTAMP   DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_schedules_post    ON schedules(post_id);
+CREATE INDEX IF NOT EXISTS idx_schedules_user    ON schedules(user_id);
+CREATE INDEX IF NOT EXISTS idx_schedules_status  ON schedules(status);
+CREATE INDEX IF NOT EXISTS idx_schedules_time    ON schedules(scheduled_at);
+
+CREATE OR REPLACE TRIGGER trg_schedules_updated_at
+  BEFORE UPDATE ON schedules
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ─── Outscraper Lead Generation & GHL Automations Tables ───
+
+-- Scrape Tasks Table
+CREATE TABLE IF NOT EXISTS scrape_tasks (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id   UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    query          VARCHAR(255) NOT NULL,
+    location       VARCHAR(255) NOT NULL,
+    limit_count    INTEGER      DEFAULT 20,
+    status         VARCHAR(50)  DEFAULT 'PENDING',
+    leads_found    INTEGER      DEFAULT 0,
+    leads_ingested INTEGER      DEFAULT 0,
+    schedule       VARCHAR(50),
+    error_message  TEXT,
+    created_at     TIMESTAMP    DEFAULT NOW(),
+    updated_at     TIMESTAMP    DEFAULT NOW()
+);
+
+-- Scraped Leads Table
+CREATE TABLE IF NOT EXISTS scraped_leads (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id      UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    business_name     VARCHAR(255) NOT NULL,
+    email             VARCHAR(255),
+    phone             VARCHAR(50),
+    address           TEXT,
+    city              VARCHAR(100),
+    category          VARCHAR(150),
+    rating            NUMERIC(3,2),
+    reviews_count     INTEGER      DEFAULT 0,
+    website           TEXT,
+    competitor_rating NUMERIC(3,2),
+    status            VARCHAR(50)  DEFAULT 'SCRAPED',
+    crm_lead_id       UUID,
+    tag_applied       VARCHAR(100),
+    created_at        TIMESTAMP    DEFAULT NOW(),
+    updated_at        TIMESTAMP    DEFAULT NOW()
+);
+
+-- Automation Workflows Table
+CREATE TABLE IF NOT EXISTS automation_workflows (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    name         VARCHAR(255) NOT NULL,
+    trigger_type VARCHAR(100) NOT NULL,
+    is_active    BOOLEAN      DEFAULT true,
+    steps        TEXT         NOT NULL,
+    created_at   TIMESTAMP    DEFAULT NOW(),
+    updated_at   TIMESTAMP    DEFAULT NOW()
+);
+
+-- Automation Queue Table
+CREATE TABLE IF NOT EXISTS automation_queue (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id    UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    workflow_id     UUID NOT NULL REFERENCES automation_workflows(id) ON DELETE CASCADE,
+    scraped_lead_id UUID NOT NULL REFERENCES scraped_leads(id) ON DELETE CASCADE,
+    current_step    INTEGER      DEFAULT 0,
+    execute_at      TIMESTAMP    NOT NULL,
+    status          VARCHAR(50)  DEFAULT 'PENDING',
+    logs            JSONB        DEFAULT '[]',
+    created_at      TIMESTAMP    DEFAULT NOW(),
+    updated_at      TIMESTAMP    DEFAULT NOW()
+);
+
+-- Automation Activity Logs Table
+CREATE TABLE IF NOT EXISTS automation_activity_logs (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    task_name    VARCHAR(100) NOT NULL,
+    level        VARCHAR(20)  DEFAULT 'INFO',
+    message      TEXT         NOT NULL,
+    details      JSONB,
+    created_at   TIMESTAMP    DEFAULT NOW()
+);
+
+-- Indexes for performance & workspace isolation
+CREATE INDEX IF NOT EXISTS idx_scrape_tasks_workspace       ON scrape_tasks(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_scraped_leads_workspace      ON scraped_leads(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_scraped_leads_email_phone    ON scraped_leads(email, phone);
+CREATE INDEX IF NOT EXISTS idx_automation_workflows_wk      ON automation_workflows(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_automation_queue_wk          ON automation_queue(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_automation_queue_status      ON automation_queue(status);
+CREATE INDEX IF NOT EXISTS idx_automation_activity_logs_wk  ON automation_activity_logs(workspace_id);
+
+-- Updated_at triggers
+CREATE OR REPLACE TRIGGER trg_scrape_tasks_updated_at
+  BEFORE UPDATE ON scrape_tasks
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE OR REPLACE TRIGGER trg_scraped_leads_updated_at
+  BEFORE UPDATE ON scraped_leads
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE OR REPLACE TRIGGER trg_automation_workflows_updated_at
+  BEFORE UPDATE ON automation_workflows
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE OR REPLACE TRIGGER trg_automation_queue_updated_at
+  BEFORE UPDATE ON automation_queue
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Brand Voices Table
+CREATE TABLE IF NOT EXISTS brand_voices (
+    workspace_id     UUID PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
+    tone_of_voice    VARCHAR(255) DEFAULT 'professional, friendly',
+    value_proposition TEXT,
+    target_keywords  TEXT[]       DEFAULT '{}',
+    forbidden_words  TEXT[]       DEFAULT '{}',
+    created_at       TIMESTAMP    DEFAULT NOW(),
+    updated_at       TIMESTAMP    DEFAULT NOW()
+);
+
+-- Buyer Personas Table
+CREATE TABLE IF NOT EXISTS buyer_personas (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    workspace_id   UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    name           VARCHAR(255) NOT NULL,
+    industry       VARCHAR(255),
+    role           VARCHAR(255),
+    pain_points    TEXT[]       DEFAULT '{}',
+    goals          TEXT[]       DEFAULT '{}',
+    objections     TEXT[]       DEFAULT '{}',
+    copy_prompt    TEXT,
+    is_active      BOOLEAN      DEFAULT true,
+    created_at     TIMESTAMP    DEFAULT NOW(),
+    updated_at     TIMESTAMP    DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_buyer_personas_wk ON buyer_personas(workspace_id);
+
+-- Triggers for updated_at
+CREATE OR REPLACE TRIGGER trg_brand_voices_updated_at
+  BEFORE UPDATE ON brand_voices
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE OR REPLACE TRIGGER trg_buyer_personas_updated_at
+  BEFORE UPDATE ON buyer_personas
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+

@@ -1,0 +1,243 @@
+{
+  "schemaVersion": "1.0.0",
+  "releaseId": "sp-8c-staging-release-04",
+  "targetEnvironment": "staging",
+  "buildProvenance": {
+    "schemaVersion": "1.0.0",
+    "releaseId": "sp-8c-staging-release-04",
+    "repository": "ArtradePro/Socialpulse-1",
+    "sourceCommit": "89e1cb37b4bac97711580c19616df716ea48b648",
+    "targetEnvironment": "staging",
+    "workflow": {
+      "id": 347826950,
+      "name": "Release Images",
+      "path": ".github/workflows/release-images.yml",
+      "runId": 33992192586,
+      "runNumber": 4,
+      "runAttempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "createdAt": "2026-09-05T21:09:16Z",
+      "updatedAt": "2026-09-05T21:11:58Z",
+      "htmlUrl": "https://github.com/ArtradePro/Socialpulse-1/actions/runs/33992192586"
+    },
+    "artifacts": {
+      "backend": {
+        "imageRepository": "artradepro/socialpulse-backend",
+        "tag": "sha-89e1cb37b4bac97711580c19616df716ea48b648",
+        "digest": "sha256:627ccbd9d0f63169858d43bacc79e4d1e2b3482bfd482bc4932a7df5a622b5ba"
+      },
+      "frontend": {
+        "imageRepository": "artradepro/socialpulse-frontend",
+        "tag": "sha-89e1cb37b4bac97711580c19616df716ea48b648",
+        "digest": "sha256:84880b241c4c752d2ed928a60e9679c56995fdddd619ed0c1121e2391835d755"
+      },
+      "releaseManifest": {
+        "bytes": 725,
+        "sha256": "2f4cb9980ffeb9c00ac8dbee3c39e72094036843b903a44d07bd41eb30a77c1b"
+      }
+    },
+    "buildStepsSummary": [
+      {
+        "stepNumber": 1,
+        "name": "Set up job",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-09-05T21:09:21Z",
+        "completedAt": "2026-09-05T21:09:23Z"
+      },
+      {
+        "stepNumber": 2,
+        "name": "Validate Commit SHA Format & Target Environment",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-09-05T21:09:23Z",
+        "completedAt": "2026-09-05T21:09:23Z"
+      },
+      {
+        "stepNumber": 3,
+        "name": "Checkout Exact Commit",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-09-05T21:09:23Z",
+        "completedAt": "2026-09-05T21:09:24Z"
+      },
+      {
+        "stepNumber": 4,
+        "name": "Verify Checked Out Commit",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-09-05T21:09:24Z",
+        "completedAt": "2026-09-05T21:09:24Z"
+      },
+      {
+        "stepNumber": 5,
+        "name": "Log in to Docker Hub",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-09-05T21:09:24Z",
+        "completedAt": "2026-09-05T21:09:25Z"
+      },
+      {
+        "stepNumber": 6,
+        "name": "Set up Docker Buildx",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-09-05T21:09:25Z",
+        "completedAt": "2026-09-05T21:09:29Z"
+      },
+      {
+        "stepNumber": 7,
+        "name": "Build & Push Backend Immutable Image",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-09-05T21:09:29Z",
+        "completedAt": "2026-09-05T21:10:56Z"
+      },
+      {
+        "stepNumber": 8,
+        "name": "Build & Push Frontend Immutable Image",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-09-05T21:10:56Z",
+        "completedAt": "2026-09-05T21:11:50Z"
+      },
+      {
+        "stepNumber": 9,
+        "name": "Generate Release Manifest Artifact",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-09-05T21:11:50Z",
+        "completedAt": "2026-09-05T21:11:50Z"
+      },
+      {
+        "stepNumber": 10,
+        "name": "Upload Release Manifest",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-09-05T21:11:50Z",
+        "completedAt": "2026-09-05T21:11:51Z"
+      },
+      {
+        "stepNumber": 16,
+        "name": "Post Build & Push Frontend Immutable Image",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-09-05T21:11:51Z",
+        "completedAt": "2026-09-05T21:11:51Z"
+      },
+      {
+        "stepNumber": 17,
+        "name": "Post Build & Push Backend Immutable Image",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-09-05T21:11:51Z",
+        "completedAt": "2026-09-05T21:11:51Z"
+      },
+      {
+        "stepNumber": 18,
+        "name": "Post Set up Docker Buildx",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-09-05T21:11:51Z",
+        "completedAt": "2026-09-05T21:11:55Z"
+      },
+      {
+        "stepNumber": 19,
+        "name": "Post Log in to Docker Hub",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-09-05T21:11:55Z",
+        "completedAt": "2026-09-05T21:11:55Z"
+      },
+      {
+        "stepNumber": 20,
+        "name": "Post Checkout Exact Commit",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-09-05T21:11:55Z",
+        "completedAt": "2026-09-05T21:11:55Z"
+      },
+      {
+        "stepNumber": 21,
+        "name": "Complete job",
+        "status": "completed",
+        "conclusion": "success",
+        "startedAt": "2026-09-05T21:11:55Z",
+        "completedAt": "2026-09-05T21:11:55Z"
+      }
+    ]
+  },
+  "registryEvidence": {
+    "dockerHubRepository": "artradepro/socialpulse-backend",
+    "tag": "sha-89e1cb37b4bac97711580c19616df716ea48b648",
+    "indexDigest": "sha256:627ccbd9d0f63169858d43bacc79e4d1e2b3482bfd482bc4932a7df5a622b5ba",
+    "linuxAmd64ManifestDigest": "sha256:604dabc8c657f9ae97123178d7dc8e9850d96750afb9937b744ac944f127e9a8",
+    "linuxAmd64ConfigDigest": "sha256:ec70c9d300e27ce96eb5f05514570539bfe53c9fcf517438bc2f140e504b5a5b",
+    "attestationManifestDigest": "sha256:00908677bdf7c3b2608acf03fcfdeab419bb30dbee83b3cc963154c8a18f4ce3",
+    "layerCount": 11,
+    "layers": [
+      {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "digest": "sha256:a8ac7f6c67abc236e4c745052c404112b8fab6fe8ac3a329d1ef3b867ad67c71",
+        "size": 28232655
+      },
+      {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "digest": "sha256:cea7eb9bbe80eabf8356efb28b3796ab904f36a32049aeb6b435920ca93f9285",
+        "size": 3314
+      },
+      {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "digest": "sha256:51c53f95c2cae3d00dfc0350297c92dea913fe129ec38b8deb8313e5f3e0297d",
+        "size": 49938210
+      },
+      {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "digest": "sha256:3cddab114edadc7cf5a7b0b591e59f6312aade3dc4fb68e88aacca5eb1cc1c03",
+        "size": 1712979
+      },
+      {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "digest": "sha256:0282d618b52cd2eb8fcf041e780cd66b15e7ebae519a4054c5d293eae6b6d34f",
+        "size": 447
+      },
+      {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "digest": "sha256:a6ae89723d77b86e028842262a79d81102899b54d68684dba588885b93afb957",
+        "size": 93
+      },
+      {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "digest": "sha256:f8c36d5ccb9cb17b08343ea0e20e692d02de7db2c6bd66ae091efe6a35109a55",
+        "size": 179611
+      },
+      {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "digest": "sha256:f10a84e41ca818b8e223a2440f38b040e22548552cbf671ca76dd8a66f1cfbd2",
+        "size": 139244331
+      },
+      {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "digest": "sha256:f81f60d2b99b52e420fab152e64efc2cd4636eaf9ee30e5216e407b591a28f8e",
+        "size": 311480
+      },
+      {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "digest": "sha256:398adb855cc2a05ae25431fa746b2c610b24db2a8041aa30247beafa5eee690e",
+        "size": 4121
+      },
+      {
+        "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+        "digest": "sha256:f5704daf7cf2352fd5caf2fff07ff7a2681b6f1d7b4e0892fb1d18bfa3492bff",
+        "size": 5134
+      }
+    ],
+    "verifiedBuildkitHistory": [
+      "COPY /app/dist ./dist # buildkit",
+      "COPY /app/src/database/migrations ./dist/database/migrations # buildkit",
+      "COPY /app/src/database/schema.sql ./dist/database/schema.sql # buildkit",
+      "CMD [\"node\" \"dist/server.js\"]"
+    ]
+  }
+}

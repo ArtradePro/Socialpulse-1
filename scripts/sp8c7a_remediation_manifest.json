@@ -1,0 +1,232 @@
+{
+  "schema_version": "1.0",
+  "project": "SocialPulse / Project Evergreen",
+  "governing_entity": "Higiene (Pty) Ltd \u2014 Higienlabs Technology Division",
+  "authorized_owner": "Vernon la Cock, CEO",
+  "independent_reviewer": "ChatGPT",
+  "execution_agent": "Antigravity (Google DeepMind)",
+  "gate": "SP-8C-7A / SP-8C-7B",
+  "revision": "Remediation-R6",
+  "created_at_utc": "2026-09-06T13:40:00Z",
+  "operating_mode": "strictly_passive_read_only_standstill_remediation_review",
+  "source_repository": "ArtradePro/Socialpulse-1",
+  "source_branch": "scripts/backup-r10",
+  "source_commit": "89e1cb37b4bac97711580c19616df716ea48b648",
+  "release_id": "sp-8c-staging-release-04",
+  "workflow_run_id": "33992192586",
+  "immutable_backend_image": {
+    "repository": "artradepro/socialpulse-backend",
+    "tag": "sha-89e1cb37b4bac97711580c19616df716ea48b648",
+    "digest": "sha256:627ccbd9d0f63169858d43bacc79e4d1e2b3482bfd482bc4932a7df5a622b5ba"
+  },
+  "immutable_frontend_image": {
+    "repository": "artradepro/socialpulse-frontend",
+    "tag": "sha-89e1cb37b4bac97711580c19616df716ea48b648",
+    "digest": "sha256:84880b241c4c752d2ed928a60e9679c56995fdddd619ed0c1121e2391835d755"
+  },
+  "governance_guarantees": {
+    "zero_host_mutations_prior_to_authorization": true,
+    "zero_database_mutations": true,
+    "zero_snapshots_prior_to_authorization": true,
+    "zero_container_recreation_prior_to_authorization": true,
+    "strictly_higiene_corporate_spelling": true,
+    "target_backup_directory": "/opt/socialpulse/backups",
+    "target_backup_owner": "1001:1001",
+    "target_backup_mode": "0700",
+    "collision_rejection_fail_closed": true,
+    "non_destructive_preexisting_validation": true,
+    "zero_chown_chmod_setfacl_on_preexisting": true,
+    "mandatory_getfacl_setfacl_preflight": true,
+    "zero_or_true_masking_enforced": true,
+    "governed_root_execution_wrapper_provided": true,
+    "root_owned_0600_evidence_logging": true,
+    "structural_compose_ast_audit": true,
+    "controlled_non_started_image_inspection": true,
+    "image_absence_fail_closed_enforced": true,
+    "inspection_container_lifecycle_isolated": true,
+    "inspection_container_creation_race_protected": true,
+    "docker_daemon_operational_failure_fail_closed": true,
+    "atomic_multi_element_pipestatus_captured": true,
+    "collision_safe_canonical_log_creation": true,
+    "zero_ungoverned_chmod_mutations": true,
+    "signal_specific_trap_handling_enforced": true,
+    "all_15_raw_database_artifacts_enclosed": true,
+    "cryptographic_baseline_reconciliation_enclosed": true,
+    "release_04_provenance_and_oci_evidence_enclosed": true,
+    "negative_test_executable_harness_enclosed": true,
+    "negative_test_machine_readable_ledger_enclosed": true,
+    "portable_reproducible_negative_test_suite": true,
+    "neg04_cleanup_exit_code_1_strictly_asserted": true,
+    "in_image_python_heredoc_lf_normalization_verified": true,
+    "complete_compose_ast_invariants_audited": true,
+    "trap_managed_compose_temporary_files": true,
+    "rootless_docker_daemon_enforced": true,
+    "backup_prep_signal_traps_and_sourcing_guard": true
+  },
+  "governance_components": [
+    {
+      "path": "run_sp8c7a_backup_prep.sh",
+      "bytes": 9512,
+      "lines": 233,
+      "sha256": "8c4224a99831769226d7b3ed302213542ce08d825882325ae568e15692eedf7c"
+    },
+    {
+      "path": "prepare_backup_directory.sh",
+      "bytes": 9801,
+      "lines": 282,
+      "sha256": "bf0d8a94f8b39f6a49cbc69d3c6c1febdac47cc01d37d4d4cc7601e17b84358a"
+    },
+    {
+      "path": "verify_remediation.sh",
+      "bytes": 29711,
+      "lines": 748,
+      "sha256": "2a6acb86f1adfc1bea352e2ec7465457c076375b12c12f72cbb78bfb69adcdc5"
+    },
+    {
+      "path": "approved_release_manifest.json",
+      "bytes": 725,
+      "lines": 19,
+      "sha256": "2f4cb9980ffeb9c00ac8dbee3c39e72094036843b903a44d07bd41eb30a77c1b"
+    },
+    {
+      "path": "governed_migration_inventory.json",
+      "bytes": 5523,
+      "lines": 131,
+      "sha256": "d9bbeb5252720ac6203ef28ac59d4f7612b026abc5e4416813231b98ae38da97"
+    },
+    {
+      "path": "baseline_reconciliation.md",
+      "bytes": 6029,
+      "lines": 70,
+      "sha256": "3580eac666480982d13c3b2eb99cc51f07a5983bc8e32e87ba88615874feaf6e"
+    },
+    {
+      "path": "release_04_provenance_evidence.json",
+      "bytes": 8509,
+      "lines": 243,
+      "sha256": "d7e45551d0a7fad749b2e590d173195399cff8178fac126cd39c42b4140aa324"
+    },
+    {
+      "path": "release_04_provenance_evidence.md",
+      "bytes": 2251,
+      "lines": 37,
+      "sha256": "6d036a04045d1c74f9ff0a3bf0d2ca60d2ad137b6761e6e045f42abf6fab5658"
+    },
+    {
+      "path": "run_negative_tests.py",
+      "bytes": 18020,
+      "lines": 362,
+      "sha256": "0d6f4dc36b927a4f346706ffcfa2fe432afc8594c69a2d93774925d0e6381518"
+    },
+    {
+      "path": "test_evidence_negative_cases.json",
+      "bytes": 2892,
+      "lines": 93,
+      "sha256": "20baa83c9a41575f864168e716b86d625e5d5fe8bfe841763524c6f164a0ce19"
+    },
+    {
+      "path": "test_evidence_negative_cases.md",
+      "bytes": 6288,
+      "lines": 102,
+      "sha256": "f4959652b433b95b7916ef2c8fe9e3c52bcb526145107f79585e0c16cf7469b4"
+    },
+    {
+      "path": "sp8c7a_remediation_runbook.md",
+      "bytes": 7689,
+      "lines": 105,
+      "sha256": "cbdc080fc15ef76742f63cc66f6feb858a5f5cc9b457edf270edbc2c015d287e"
+    }
+  ],
+  "enclosed_source_artifacts": [
+    {
+      "path": "source_artifacts/database/migrate.js",
+      "bytes": 4495,
+      "lines": 98,
+      "sha256": "6fa5f0895aa64ac46efb73bcbb36ed565ca2257972f027db43b519edeaa28022"
+    },
+    {
+      "path": "source_artifacts/database/schema.sql",
+      "bytes": 28983,
+      "lines": 629,
+      "sha256": "77385a63886c8e520888d221afc935aa5b72230ef6d19ffc50a07e0fdcd710ca"
+    },
+    {
+      "path": "source_artifacts/database/migrations/20260515_ecommerce.sql",
+      "bytes": 3047,
+      "lines": 68,
+      "sha256": "df7d737a8357296ebfff5139710dd25d644143ba24c7dca608327b2bff2ad9fa"
+    },
+    {
+      "path": "source_artifacts/database/migrations/20260515_ecommerce_add_seller_id.sql",
+      "bytes": 128,
+      "lines": 2,
+      "sha256": "a109f2a5bb37ac174a96b74979ad15abf82e539579127e6bee9724a927c5c4c9"
+    },
+    {
+      "path": "source_artifacts/database/migrations/20260522_add_workspace_id_to_missing_tables.sql",
+      "bytes": 805,
+      "lines": 9,
+      "sha256": "a8bdf063875994117dd075eabb5a8fc3ac779d7026f9a4857623c53bc7e7655f"
+    },
+    {
+      "path": "source_artifacts/database/migrations/20260613_paid_ads.sql",
+      "bytes": 1934,
+      "lines": 46,
+      "sha256": "cd19a384496a427712f6638a380ea6e52bff2f55d8cf8762a2275bde6bb80a53"
+    },
+    {
+      "path": "source_artifacts/database/migrations/20260613_sales_pages.sql",
+      "bytes": 2006,
+      "lines": 45,
+      "sha256": "b747897965313186903008c21559301f9588d17fff68a55249f98e7634b9ca62"
+    },
+    {
+      "path": "source_artifacts/database/migrations/20260613_zeely_expansion.sql",
+      "bytes": 2430,
+      "lines": 46,
+      "sha256": "e921882476f3bf29d04dc72d2191f01667e1a826e4508a3d50f30fdb2f9ffada"
+    },
+    {
+      "path": "source_artifacts/database/migrations/20260614_add_product_info_to_workspaces.sql",
+      "bytes": 67,
+      "lines": 1,
+      "sha256": "1023eb17652d4fb3aea45786996a8b7ad543b8eee895a5d55412b057ba7ae435"
+    },
+    {
+      "path": "source_artifacts/database/migrations/20260717_omnichannel_marketing.sql",
+      "bytes": 2442,
+      "lines": 55,
+      "sha256": "5af3e7cb71db94d9d478e3ab72fbd9895a62685ecc802088f6994a6af2848987"
+    },
+    {
+      "path": "source_artifacts/database/migrations/20260830_add_unique_stripe_session_id.sql",
+      "bytes": 310,
+      "lines": 6,
+      "sha256": "3066fc96b7e79c1b59109902b68a2fab1859bc1c79aba98422aff779f1227b00"
+    },
+    {
+      "path": "source_artifacts/database/migrations/20260831_claims_library_and_brand_governance.sql",
+      "bytes": 978,
+      "lines": 20,
+      "sha256": "c6d9566a16f98ad117d0dd03eaa59e3de15984073518b7be3e7882555ef2982f"
+    },
+    {
+      "path": "source_artifacts/database/migrations/20260831_evergreen_integration_and_suppression.sql",
+      "bytes": 1995,
+      "lines": 42,
+      "sha256": "6b8c2106a3e5efbed2e12378e4ce7d3ac9de7baf9aadb58a7c0f6cca2fcead4e"
+    },
+    {
+      "path": "source_artifacts/database/migrations/20260831_omnisend_and_q2c_sync.sql",
+      "bytes": 1109,
+      "lines": 25,
+      "sha256": "b7c3a1b6c3bef1c2384780bd623d403c54180fcfbf5dc614700424006c4aa36c"
+    },
+    {
+      "path": "source_artifacts/database/scripts/migrationStatus.js",
+      "bytes": 17058,
+      "lines": 386,
+      "sha256": "b86c1ebf1b5d19173f6286cd33c4e384a373da6cd1c035ce69c19abc7d8e48d4"
+    }
+  ]
+}

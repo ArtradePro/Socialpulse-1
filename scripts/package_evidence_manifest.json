@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "1.0.0",
+  "packageId": "socialpulse-phase-sp8c6r-r33",
+  "releaseId": "sp-8c-staging-release-03",
+  "sourceCommit": "721e731a2e4af9c9903af92a788ab52a3c21b47e",
+  "workflowRunId": "33721136048",
+  "targetEnvironment": "staging",
+  "governingEntity": "Higiene (Pty) Ltd — Project Evergreen — Higiene / Higienlabs Technology Division",
+  "trustAnchor": {
+    "manifestSha256": "856de11c682858e6639f820b45277a96e101149599420073f7c4c010b54d1de7",
+    "backendImage": "artradepro/socialpulse-backend@sha256:73e9d3366edd4e714e4ade1acd45e78cc20c9e84803572dda96b0ba65818eb2a",
+    "frontendImage": "artradepro/socialpulse-frontend@sha256:8fa2708cfbff2c38b7708e7d3a7830ba738d3407e2ae986561da008a965d9aa8",
+    "postgresImage": "postgres@sha256:fe0737ba566a2c5b2a28f34433c0a423261900ec17b9bf7ad115e1aae7e57f1b",
+    "redisImage": "redis@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf"
+  },
+  "deliverables": [
+    {
+      "file": "docker-compose.staging.yml",
+      "gate": "SP-8C-6R",
+      "description": "Staging Docker Compose model with Node-native health probe, 3001:3000 and 8081:3000 loopback ports, and migration profile isolation",
+      "bytes": 5051,
+      "lines": 141,
+      "sha256": "e97d729f597657d589257f74acaa8467d2e5d034b32bb946692dfef73ee3a008"
+    },
+    {
+      "file": "approved_release_manifest.json",
+      "gate": "SP-8C-6R",
+      "description": "Authentic Release 03 manifest artifact from GitHub Actions Run 33721136048",
+      "bytes": 725,
+      "lines": 19,
+      "sha256": "856de11c682858e6639f820b45277a96e101149599420073f7c4c010b54d1de7"
+    },
+    {
+      "file": "audit_compose_model.js",
+      "gate": "SP-8C-6R",
+      "description": "Standalone Node.js AST security model auditor with dual-mode verification (--mode default for 4 unprofiled services, --mode migration for 5 profiled services with exact single-network staging_net and healthy PostgreSQL dependency validation), external trust anchor, and zero secret leakage",
+      "bytes": 22358,
+      "lines": 496,
+      "sha256": "ae8d7fd8da35b0fef7eeeab29f30db8c914509715ca747d38d3eadaffc8d6b82"
+    },
+    {
+      "file": "validate_staging_compose.sh",
+      "gate": "SP-8C-6S",
+      "description": "Read-only static compose and host cleanliness validation script with dual-mode audit pipeline (default + migration modes) and trust anchor verification",
+      "bytes": 9121,
+      "lines": 194,
+      "sha256": "ea618e9a8a420457c54c7adda28bd72ef027e6044346d13f0cc574b3d5705098"
+    },
+    {
+      "file": "deploy_staging.sh",
+      "gate": "SP-8C-6T",
+      "description": "Controlled staging host deployment script with dual-mode pre-mutation static gate, strictly unprofiled compose launch, explicit 4-image digest pulls, and fail-closed scoped rollback",
+      "bytes": 15264,
+      "lines": 325,
+      "sha256": "c3d711460dcb154c15f6d0567779a8f1f7b58b9bc407015f9ffa41a73e522ab5"
+    },
+    {
+      "file": "migration_prohibition_proof.md",
+      "gate": "SP-8C-6R",
+      "description": "Source-bound cryptographic and code evidence proving backend startup migration immunity at source commit 721e731a2e4af9c9903af92a788ab52a3c21b47e",
+      "bytes": 5423,
+      "lines": 140,
+      "sha256": "01d797f8c64a6324ac6b475d56ae22fea1978723283bb65eb0b3311a00085d23"
+    }
+  ],
+  "reproducibleTestSuite": {
+    "positiveTests": [
+      { "name": "Pos 1: Valid Default Model (4 services)", "mode": "default", "expectedExit": 0, "actualExit": 0, "verdict": "PASS" },
+      { "name": "Pos 2: Valid Migration Model (5 services)", "mode": "migration", "expectedExit": 0, "actualExit": 0, "verdict": "PASS" }
+    ],
+    "negativeTests": [
+      { "name": "Neg 1: Migrate Present in Default Mode", "mode": "default", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 2: Migrate Absent in Migration Mode", "mode": "migration", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 3: Wrong Migration Profile", "mode": "migration", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 4: Wrong Migration Command", "mode": "migration", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 5: Published Migration Port", "mode": "migration", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 6: Missing Mode Argument", "mode": "none", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 7: Unknown Mode Argument", "mode": "invalid", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 8: Altered Image Digest", "mode": "default", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 9: Extra Service in Default Mode", "mode": "default", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 10: Non-Loopback Port", "mode": "default", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 11: Prohibited Docker Socket Mount", "mode": "default", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 12: Corrupted Manifest Checksum", "mode": "default", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 13: Mutable Image Tag without Digest", "mode": "default", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 14: Unproven Healthcheck Utility (wget)", "mode": "default", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 15: Extra Migration Network", "mode": "migration", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 16: Absent PostgreSQL Dependency", "mode": "migration", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 17: Additional Dependency on Migrate", "mode": "migration", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" },
+      { "name": "Neg 18: PostgreSQL Dependency Condition other than service_healthy", "mode": "migration", "expectedExit": 1, "actualExit": 1, "verdict": "PASS" }
+    ],
+    "overallVerdict": "ALL_20_TESTS_PASSED_100_PERCENT"
+  }
+}

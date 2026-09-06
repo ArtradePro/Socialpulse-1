@@ -1,0 +1,131 @@
+{
+  "schemaVersion": "1.0.0",
+  "entity": "Higiene (Pty) Ltd",
+  "project": "Evergreen / SocialPulse",
+  "component": "Database Migration and Schema Governed Inventory",
+  "totalGovernedArtifacts": 15,
+  "runners": [
+    {
+      "name": "migrate.js",
+      "inImagePath": "/app/dist/database/migrate.js",
+      "relativePath": "dist/database/migrate.js",
+      "bytes": 4495,
+      "sha256": "6fa5f0895aa64ac46efb73bcbb36ed565ca2257972f027db43b519edeaa28022",
+      "type": "migration_runner"
+    },
+    {
+      "name": "migrationStatus.js",
+      "inImagePath": "/app/dist/database/scripts/migrationStatus.js",
+      "relativePath": "dist/database/scripts/migrationStatus.js",
+      "bytes": 17058,
+      "sha256": "b86c1ebf1b5d19173f6286cd33c4e384a373da6cd1c035ce69c19abc7d8e48d4",
+      "type": "migration_status_reporter"
+    }
+  ],
+  "schema": {
+    "name": "schema.sql",
+    "inImagePath": "/app/dist/database/schema.sql",
+    "relativePath": "dist/database/schema.sql",
+    "bytes": 28983,
+    "sha256": "77385a63886c8e520888d221afc935aa5b72230ef6d19ffc50a07e0fdcd710ca",
+    "type": "ddl_baseline"
+  },
+  "migrations": [
+    {
+      "order": 1,
+      "name": "20260515_ecommerce.sql",
+      "inImagePath": "/app/dist/database/migrations/20260515_ecommerce.sql",
+      "relativePath": "dist/database/migrations/20260515_ecommerce.sql",
+      "bytes": 3047,
+      "sha256": "df7d737a8357296ebfff5139710dd25d644143ba24c7dca608327b2bff2ad9fa"
+    },
+    {
+      "order": 2,
+      "name": "20260515_ecommerce_add_seller_id.sql",
+      "inImagePath": "/app/dist/database/migrations/20260515_ecommerce_add_seller_id.sql",
+      "relativePath": "dist/database/migrations/20260515_ecommerce_add_seller_id.sql",
+      "bytes": 128,
+      "sha256": "a109f2a5bb37ac174a96b74979ad15abf82e539579127e6bee9724a927c5c4c9"
+    },
+    {
+      "order": 3,
+      "name": "20260522_add_workspace_id_to_missing_tables.sql",
+      "inImagePath": "/app/dist/database/migrations/20260522_add_workspace_id_to_missing_tables.sql",
+      "relativePath": "dist/database/migrations/20260522_add_workspace_id_to_missing_tables.sql",
+      "bytes": 805,
+      "sha256": "a8bdf063875994117dd075eabb5a8fc3ac779d7026f9a4857623c53bc7e7655f"
+    },
+    {
+      "order": 4,
+      "name": "20260613_paid_ads.sql",
+      "inImagePath": "/app/dist/database/migrations/20260613_paid_ads.sql",
+      "relativePath": "dist/database/migrations/20260613_paid_ads.sql",
+      "bytes": 1934,
+      "sha256": "cd19a384496a427712f6638a380ea6e52bff2f55d8cf8762a2275bde6bb80a53"
+    },
+    {
+      "order": 5,
+      "name": "20260613_sales_pages.sql",
+      "inImagePath": "/app/dist/database/migrations/20260613_sales_pages.sql",
+      "relativePath": "dist/database/migrations/20260613_sales_pages.sql",
+      "bytes": 2006,
+      "sha256": "b747897965313186903008c21559301f9588d17fff68a55249f98e7634b9ca62"
+    },
+    {
+      "order": 6,
+      "name": "20260613_zeely_expansion.sql",
+      "inImagePath": "/app/dist/database/migrations/20260613_zeely_expansion.sql",
+      "relativePath": "dist/database/migrations/20260613_zeely_expansion.sql",
+      "bytes": 2430,
+      "sha256": "e921882476f3bf29d04dc72d2191f01667e1a826e4508a3d50f30fdb2f9ffada"
+    },
+    {
+      "order": 7,
+      "name": "20260614_add_product_info_to_workspaces.sql",
+      "inImagePath": "/app/dist/database/migrations/20260614_add_product_info_to_workspaces.sql",
+      "relativePath": "dist/database/migrations/20260614_add_product_info_to_workspaces.sql",
+      "bytes": 67,
+      "sha256": "1023eb17652d4fb3aea45786996a8b7ad543b8eee895a5d55412b057ba7ae435"
+    },
+    {
+      "order": 8,
+      "name": "20260717_omnichannel_marketing.sql",
+      "inImagePath": "/app/dist/database/migrations/20260717_omnichannel_marketing.sql",
+      "relativePath": "dist/database/migrations/20260717_omnichannel_marketing.sql",
+      "bytes": 2442,
+      "sha256": "5af3e7cb71db94d9d478e3ab72fbd9895a62685ecc802088f6994a6af2848987"
+    },
+    {
+      "order": 9,
+      "name": "20260830_add_unique_stripe_session_id.sql",
+      "inImagePath": "/app/dist/database/migrations/20260830_add_unique_stripe_session_id.sql",
+      "relativePath": "dist/database/migrations/20260830_add_unique_stripe_session_id.sql",
+      "bytes": 310,
+      "sha256": "3066fc96b7e79c1b59109902b68a2fab1859bc1c79aba98422aff779f1227b00"
+    },
+    {
+      "order": 10,
+      "name": "20260831_claims_library_and_brand_governance.sql",
+      "inImagePath": "/app/dist/database/migrations/20260831_claims_library_and_brand_governance.sql",
+      "relativePath": "dist/database/migrations/20260831_claims_library_and_brand_governance.sql",
+      "bytes": 978,
+      "sha256": "c6d9566a16f98ad117d0dd03eaa59e3de15984073518b7be3e7882555ef2982f"
+    },
+    {
+      "order": 11,
+      "name": "20260831_evergreen_integration_and_suppression.sql",
+      "inImagePath": "/app/dist/database/migrations/20260831_evergreen_integration_and_suppression.sql",
+      "relativePath": "dist/database/migrations/20260831_evergreen_integration_and_suppression.sql",
+      "bytes": 1995,
+      "sha256": "6b8c2106a3e5efbed2e12378e4ce7d3ac9de7baf9aadb58a7c0f6cca2fcead4e"
+    },
+    {
+      "order": 12,
+      "name": "20260831_omnisend_and_q2c_sync.sql",
+      "inImagePath": "/app/dist/database/migrations/20260831_omnisend_and_q2c_sync.sql",
+      "relativePath": "dist/database/migrations/20260831_omnisend_and_q2c_sync.sql",
+      "bytes": 1109,
+      "sha256": "b7c3a1b6c3bef1c2384780bd623d403c54180fcfbf5dc614700424006c4aa36c"
+    }
+  ]
+}

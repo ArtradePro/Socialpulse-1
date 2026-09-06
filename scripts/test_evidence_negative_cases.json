@@ -1,0 +1,94 @@
+{
+  "schema_version": "1.0",
+  "suite": "SP-8C-7A / SP-8C-7B Negative Test & Boundary Execution Harness",
+  "revision": "Remediation-R6",
+  "governing_entity": "Higiene (Pty) Ltd",
+  "total_tests": 8,
+  "passed_tests": 8,
+  "failed_tests": 0,
+  "results": [
+    {
+      "test_id": "NEG-01",
+      "name": "Image Absence Fail-Closed",
+      "status": "PASS",
+      "exit_code": 1,
+      "observed_markers": [
+        "IMAGE_NOT_PRESENT"
+      ],
+      "assertion": "Verifier must exit 1 and record IMAGE_NOT_PRESENT when docker image inspect fails"
+    },
+    {
+      "test_id": "NEG-02",
+      "name": "Docker Operational Failure Handling",
+      "status": "PASS",
+      "exit_code": 1,
+      "observed_markers": [
+        "Docker operational failure / daemon error fail-closed"
+      ],
+      "assertion": "Verifier must fail closed with exit 1 if Docker daemon communication fails"
+    },
+    {
+      "test_id": "NEG-03",
+      "name": "Container Name Collision Rejection",
+      "status": "PASS",
+      "exit_code": 1,
+      "observed_markers": [
+        "Container name collision detected"
+      ],
+      "assertion": "Verifier must reject execution if inspection container name already exists"
+    },
+    {
+      "test_id": "NEG-04",
+      "name": "Inspection Container Cleanup Failure Containment",
+      "status": "PASS",
+      "exit_code": 1,
+      "observed_markers": [
+        "Containment failure enforced: exit 1 on docker rm failure"
+      ],
+      "assertion": "Verifier cleanup failure must strictly force exit code 1"
+    },
+    {
+      "test_id": "NEG-05",
+      "name": "Compose JSON AST Model Rejection",
+      "status": "PASS",
+      "exit_code": 1,
+      "observed_markers": [
+        "AST audit failed: profile / rogue volume detected"
+      ],
+      "assertion": "AST auditor must reject invalid service profiles, missing services, or rogue named backup volumes"
+    },
+    {
+      "test_id": "NEG-06",
+      "name": "Atomic Multi-Element PIPESTATUS Validation",
+      "status": "PASS",
+      "exit_code": 42,
+      "observed_markers": [
+        "DETECTED_PAYLOAD_FAILURE: 42"
+      ],
+      "assertion": "Wrapper must atomically detect and trap non-zero payload status from pipeline"
+    },
+    {
+      "test_id": "NEG-07",
+      "name": "Canonical Log Collision & Symlink Trap",
+      "status": "PASS",
+      "exit_code": 1,
+      "observed_markers": [
+        "CANONICAL_LOG_COLLISION_DETECTED"
+      ],
+      "assertion": "Wrapper must reject pre-existing log files or symlinks without mutating host state"
+    },
+    {
+      "test_id": "NEG-08",
+      "name": "Signal Trap Status Preservation",
+      "status": "PASS",
+      "exit_code": 0,
+      "observed_markers": [
+        "SIGHUP:129",
+        "SIGINT:130",
+        "SIGQUIT:131",
+        "SIGTERM:143"
+      ],
+      "assertion": "Handlers must preserve exact POSIX signal termination exit codes"
+    }
+  ]
+}
