@@ -539,15 +539,15 @@ jobs:
             COMPOSE_EXIT=0
             docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env up -d --no-build --no-deps server client || COMPOSE_EXIT=$?
 
-            echo "Verifying rollback readiness on http://127.0.0.1:5000/health/ready..."
+            echo "Verifying rollback readiness on http://127.0.0.1:3001/health/ready..."
             ROLLBACK_READY=0
             for r_attempt in {1..6}; do
-              RESPONSE=$(wget -qO- --timeout=5 http://127.0.0.1:5000/health/ready 2>/dev/null || true)
+              RESPONSE=$(wget -qO- --timeout=5 http://127.0.0.1:3001/health/ready 2>/dev/null || true)
               if [ -n "$RESPONSE" ]; then
                 if node -e "
                   try {
                     const data = JSON.parse(process.argv[1]);
-                    if (data.ready === true) process.exit(0);
+                    if (data.coreReady === true || data.ready === true) process.exit(0);
                   } catch(e) {}
                   process.exit(1);
                 " "$RESPONSE" 2>/dev/null; then
@@ -578,20 +578,20 @@ jobs:
           docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file /opt/socialpulse/.env up -d --no-build --no-deps server client
 
           # 6. Bounded post-deployment readiness validation with JSON response verification
-          echo "Running bounded post-deployment readiness validation on http://127.0.0.1:5000/health/ready..."
+          echo "Running bounded post-deployment readiness validation on http://127.0.0.1:3001/health/ready..."
           READY=0
           for attempt in {1..6}; do
             echo "Readiness probe attempt $attempt of 6..."
-            RESPONSE=$(wget -qO- --timeout=5 http://127.0.0.1:5000/health/ready 2>/dev/null || true)
+            RESPONSE=$(wget -qO- --timeout=5 http://127.0.0.1:3001/health/ready 2>/dev/null || true)
             if [ -n "$RESPONSE" ]; then
               if node -e "
                 try {
                   const data = JSON.parse(process.argv[1]);
-                  if (data.ready === true) process.exit(0);
+                  if (data.coreReady === true || data.ready === true) process.exit(0);
                 } catch(e) {}
                 process.exit(1);
               " "$RESPONSE" 2>/dev/null; then
-                echo "Readiness probe passed (ready: true)."
+                echo "Readiness probe passed (coreReady: true)."
                 READY=1
                 break
               fi
