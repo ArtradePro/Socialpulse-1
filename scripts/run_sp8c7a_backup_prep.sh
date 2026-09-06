@@ -5,7 +5,8 @@
 # Project: Evergreen / SocialPulse
 # Purpose: Governed root execution wrapper for host backup directory preparation
 #          and read-only remediation verification with external trust anchors,
-#          collision-safe 0600 evidence logging, and atomic multi-element PIPESTATUS capture.
+#          collision-safe 0600 evidence logging, atomic multi-element PIPESTATUS capture,
+#          and signal preservation (129:HUP, 130:INT, 131:QUIT, 143:TERM).
 # ==============================================================================
 
 set -euo pipefail
@@ -18,14 +19,16 @@ readonly BASE_DIR="/opt/socialpulse"
 readonly SCRIPTS_DIR="${BASE_DIR}/scripts"
 
 readonly PREP_SCRIPT="${SCRIPTS_DIR}/prepare_backup_directory.sh"
-readonly EXPECTED_PREP_SHA256="d6d6dd5ddba81b53b6d32850fefecd8cd28ffdafdc40c8a861e5e04a47a0ff35"
+readonly EXPECTED_PREP_SHA256="a419551d52273d27effe15d2ad7b0ae74c074fd833a354bcd0348b358601065c"
 
 readonly VERIFY_SCRIPT="${SCRIPTS_DIR}/verify_remediation.sh"
-readonly EXPECTED_VERIFY_SHA256="db2a79108078e666b2f1563ae93e83c406f66ddeb1be13550f737bc468342916"
+readonly EXPECTED_VERIFY_SHA256="0e97be42f5d93a9b266710194d526d1bc55bc220a044a812c6b4a4ceb58f12ff"
 
 readonly RELEASE_MANIFEST="${SCRIPTS_DIR}/approved_release_manifest.json"
 readonly EXPECTED_MANIFEST_SHA256="2f4cb9980ffeb9c00ac8dbee3c39e72094036843b903a44d07bd41eb30a77c1b"
 readonly EXPECTED_MANIFEST_BYTES=725
+
+RECEIVED_SIGNAL=0
 
 log_wrapper() {
     local msg="[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] [WRAPPER] $*"
@@ -34,6 +37,17 @@ log_wrapper() {
         echo "${msg}" >> "${CANONICAL_LOG}"
     fi
 }
+
+handle_sig() {
+    RECEIVED_SIGNAL="$1"
+    log_wrapper "Caught signal $2 (${RECEIVED_SIGNAL}). Halting wrapper..."
+    exit "${RECEIVED_SIGNAL}"
+}
+
+trap 'handle_sig 129 SIGHUP' HUP
+trap 'handle_sig 130 SIGINT' INT
+trap 'handle_sig 131 SIGQUIT' QUIT
+trap 'handle_sig 143 SIGTERM' TERM
 
 assert_root() {
     if [[ "$(id -u)" -ne 0 ]]; then
@@ -49,7 +63,6 @@ init_canonical_log() {
         exit 1
     fi
 
-    # Set strict umask for log creation
     local saved_umask
     saved_umask="$(umask)"
     umask 077

@@ -1,92 +1,82 @@
-# Gate SP-8C-7A / SP-8C-7B Remediation Runbook (Revision R4)
+# Gate SP-8C-7A / SP-8C-7B Remediation Runbook (Revision R5)
 
 **Governing Entity:** Higiene (Pty) Ltd — Higienlabs Technology Division  
 **Project:** Evergreen / SocialPulse  
 **Authorized Owner:** Vernon la Cock, CEO  
 **Independent Reviewer:** ChatGPT  
 **Execution Agent:** Antigravity (Google DeepMind)  
-**Document Revision:** Remediation Package R4  
+**Document Revision:** Remediation Package R5  
 **Operating Mode:** Strictly Passive Read-Only Standstill  
 
 ---
 
-## 1. Executive Summary & Resolution of R3 Blocking Findings
+## 1. Executive Summary & Resolution of R4 Blocking Findings
 
-Remediation Package Revision R4 resolves all nine blocking findings from the independent review of Revision R3 with mathematically verifiable, fail-closed boundaries:
+Remediation Package Revision R5 addresses and resolves all six blocking findings from the independent review of Revision R4:
 
-1. **Image Absence Fail-Closed (Finding 1):**
-   In `verify_remediation.sh`, image presence is verified before inspection. If `docker image inspect` fails, the verifier explicitly records `IMAGE_NOT_PRESENT` and `FAIL`, halting execution with exit code 1. It never emits a PASS verdict or proceeds when the image is absent locally.
+1. **True Rendered Docker Compose JSON AST Model Audit (Finding 1):**  
+   Eliminated raw YAML regex parsing in `verify_remediation.sh`. The verifier invokes `docker compose --project-directory "${BASE_DIR}" -f "${COMPOSE_FILE}" --profile migration config --format json` with unmasked exit status capture (`compose_status=$?`). Rendered JSON is written to a protected temporary file (`umask 077`, mode `0600`) without leaking secrets. A Python JSON AST parser structurally asserts all services (`postgres`, `redis`, `server`, `client`, `migrate`), profile `["migration"]`, normalized command `node dist/database/migrate.js`, image digests matching trust anchors, networks (`staging_net`), and confirms absence of rogue named backup volumes.
 
-2. **Inspection Container Cleanup Collision & Lifecycle Safety (Finding 2):**
-   `INSPECTION_CONTAINER_CREATED` is initialized to 0. The script checks whether `sp8c7a_remediation_inspect` already exists prior to invocation; if present, execution aborts to prevent collision. When created, the container ID is captured via `docker create`, validated against `docker inspect -f '{{.Id}}'` prior to non-force removal, and container absence is verified post-removal. Any lingering container forces exit code 1.
+2. **Pre-Armed Inspection Container Race Protection (Finding 2):**  
+   Eliminated the container creation race. Before executing `docker create`, `INSPECTION_CONTAINER_TARGET` is set and `INSPECTION_CONTAINER_PREARMED=1` is armed. If an interruption occurs between container creation and flag assignment, the cleanup handler detects the pre-armed container name and removes it safely.
 
-3. **Elimination of Masked Cleanups (`|| true`) (Finding 3):**
-   All occurrences of `|| true` and forced wildcard removals (`docker rm -f`, `rm -rf ... || true`) have been eradicated across all scripts. Cleanup operations verify targets and report errors deterministically. Containment failures force an immediate non-zero exit.
+3. **Confirmed Absence vs. Docker Operational Failure (Finding 3):**  
+   Absence verification after `docker rm` now checks the exit code of `docker ps -a --filter "name=^/${INSPECTION_CONTAINER_TARGET}$"`. If Docker returns a non-zero exit status (e.g. daemon unreachable, socket timeout), it is recognized as a containment failure and forces exit code 1, rather than being mistaken for confirmed absence.
 
-4. **Docker Compose Model AST Structural Audit (Finding 4):**
-   Replaced regex pattern matching with Python-based JSON AST structural parsing of `docker compose config`. The parser inspects `services.backend.volumes` and `services.backend-migration.volumes` for exact bind mount source `/opt/socialpulse/backups` and target `/opt/socialpulse/backups`, asserts that the top-level `volumes` section contains only `postgres_data` (zero named backup volumes), and verifies that both services bind to `${SOCIALPULSE_BACKEND_IMAGE}`.
+4. **Complete Signal Trap Protocol (HUP, INT, QUIT, TERM) (Finding 4):**  
+   Both `prepare_backup_directory.sh` and `verify_remediation.sh` implement dedicated trap handlers for `SIGHUP` (129), `SIGINT` (130), `SIGQUIT` (131), and `SIGTERM` (143), preserving exact POSIX exit codes upon signal interruption. Any failure during rollback or container cleanup forces an immediate exit code 1.
 
-5. **Atomic Multi-Element PIPESTATUS Capture (Finding 5):**
-   In `run_sp8c7a_backup_prep.sh`, `${PIPESTATUS[@]}` is atomically captured into an array immediately after pipeline execution. The wrapper asserts that the array contains exactly 2 elements and requires both `${PIPE_STATUSES[0]} -eq 0` and `${PIPE_STATUSES[1]} -eq 0`. A failure in either the payload script or the `tee` evidence logging process triggers an immediate halt and non-zero exit.
+5. **Executable Negative Tests & Machine-Readable Ledger (Finding 5):**  
+   Delivered [`run_negative_tests.py`](file:///C:/Users/Venon/OneDrive/SocialPulse/socialPulse-1/scripts/run_negative_tests.py), an executable test harness validating 8 negative execution boundaries, generating machine-readable proof in [`test_evidence_negative_cases.json`](file:///C:/Users/Venon/OneDrive/SocialPulse/socialPulse-1/scripts/test_evidence_negative_cases.json). Documentation in [`test_evidence_negative_cases.md`](file:///C:/Users/Venon/OneDrive/SocialPulse/socialPulse-1/scripts/test_evidence_negative_cases.md) quotes enclosed code verbatim.
 
-6. **Collision-Safe Canonical Root Log Creation (Finding 6):**
-   The wrapper sets `umask 077` and verifies that `/root/sp8c7a_backup_prep_<TIMESTAMP>.log` does not pre-exist as a file or symlink (`! -e && ! -L`). After creation, it explicitly asserts mode `0600`, ownership `0:0`, regular file status (`-f`), and non-symlink status (`! -L`).
-
-7. **Elimination of Ungoverned Permissions Mutations (`chmod +x`) (Finding 7):**
-   Removed `chmod +x` from the wrapper entirely. Scripts are executed explicitly via `/bin/bash "${PREP_SCRIPT}"` and `/bin/bash "${VERIFY_SCRIPT}"` without mutating filesystem permissions on the host.
-
-8. **Deterministic Fail-Closed ACL Parser (Finding 8):**
-   Replaced loose parsing with an explicit `awk` parser without `|| true`. Any exit code deviation or unexpected ACL entry immediately halts with exit code 1.
-
-9. **Signal-Specific Trap Handling & Rollback Override (Finding 9):**
-   `prepare_backup_directory.sh` implements separate traps for `SIGINT` (exit code 130) and `SIGTERM` (exit code 143). If rollback fails during signal termination, the exit code is overridden to `1` to signal containment failure.
-
-10. **Negative Test Evidence Document (Finding 10):**
-    Enclosed `test_evidence_negative_cases.md` providing reproducible harness documentation for image absence, container collision, cleanup failure, Compose AST mismatches, pipeline logging failure, and signal handling.
+6. **Reconciled Manifest Governance Claims (Finding 6):**  
+   The manifest claim `"structural_compose_ast_audit": true` is now strictly supported by the enclosed, executable Compose JSON AST model verifier.
 
 ---
 
-## 2. Package Inventory & Structure (26 Members)
+## 2. Package Inventory & Structure (28 Members)
 
-The package contains exactly 26 members across two logical tiers:
+The package contains exactly 28 members:
 
-### Governance Components (11 Files)
-1. `run_sp8c7a_backup_prep.sh`: Root execution wrapper (0600 evidence logging, atomic PIPESTATUS, no `chmod +x`).
-2. `prepare_backup_directory.sh`: Non-destructive host backup directory preparation (`0700`, `1001:1001`, collision rejection).
-3. `verify_remediation.sh`: Fail-closed verifier (AST Compose audit, in-image extraction, image absence fail-closed).
-4. `approved_release_manifest.json`: Cryptographic trust anchor for staging release (725 bytes, `2f4cb998...`).
-5. `governed_migration_inventory.json`: 15-member migration and runner asset ledger.
-6. `baseline_reconciliation.md`: Line-ending (CRLF vs LF) reconciliation and mathematical proof.
+### Governance Components & Verifiers (13 Files)
+1. `run_sp8c7a_backup_prep.sh`: Governed root wrapper with 0600 evidence logging, atomic PIPESTATUS, and signal traps.
+2. `prepare_backup_directory.sh`: Non-destructive host backup prep script (owner `1001:1001`, mode `0700`, zero ACLs).
+3. `verify_remediation.sh`: Read-only verifier auditing rendered Compose JSON AST, in-image assets, and container lifecycle.
+4. `approved_release_manifest.json`: Release manifest cryptographic trust anchor (725 bytes, `2f4cb998...`).
+5. `governed_migration_inventory.json`: 15-artifact migration ledger.
+6. `baseline_reconciliation.md`: Mathematical proof of CRLF vs LF normalization.
 7. `release_04_provenance_evidence.json`: Build provenance and GitHub Actions run evidence.
-8. `release_04_provenance_evidence.md`: Human-readable build provenance report.
-9. `sp8c7a_remediation_runbook.md`: This operational runbook.
-10. `test_evidence_negative_cases.md`: Verification evidence for negative cases and fault boundaries.
-11. `sp8c7a_remediation_manifest.json`: Cryptographic package manifest with exact byte, line, and hash metrics.
+8. `release_04_provenance_evidence.md`: Human-readable provenance document.
+9. `run_negative_tests.py`: Executable negative test harness.
+10. `test_evidence_negative_cases.json`: Machine-readable negative test results.
+11. `test_evidence_negative_cases.md`: Documented negative test evidence and verbatim code proofs.
+12. `sp8c7a_remediation_runbook.md`: This operational runbook.
+13. `sp8c7a_remediation_manifest.json`: Package manifest with exact byte, line, and hash metrics.
 
 ### Raw Enclosed Database Artifacts (15 Files under `source_artifacts/database/`)
-12. `migrate.js`
-13. `scripts/migrationStatus.js`
-14. `schema.sql`
-15. `migrations/20260515_ecommerce.sql`
-16. `migrations/20260515_ecommerce_add_seller_id.sql`
-17. `migrations/20260522_add_workspace_id_to_missing_tables.sql`
-18. `migrations/20260613_paid_ads.sql`
-19. `migrations/20260613_sales_pages.sql`
-20. `migrations/20260613_zeely_expansion.sql`
-21. `migrations/20260614_add_product_info_to_workspaces.sql`
-22. `migrations/20260717_omnichannel_marketing.sql`
-23. `migrations/20260830_add_unique_stripe_session_id.sql`
-24. `migrations/20260831_claims_library_and_brand_governance.sql`
-25. `migrations/20260831_evergreen_integration_and_suppression.sql`
-26. `migrations/20260831_omnisend_and_q2c_sync.sql`
+14. `migrate.js`
+15. `scripts/migrationStatus.js`
+16. `schema.sql`
+17. `migrations/20260515_ecommerce.sql`
+18. `migrations/20260515_ecommerce_add_seller_id.sql`
+19. `migrations/20260522_add_workspace_id_to_missing_tables.sql`
+20. `migrations/20260613_paid_ads.sql`
+21. `migrations/20260613_sales_pages.sql`
+22. `migrations/20260613_zeely_expansion.sql`
+23. `migrations/20260614_add_product_info_to_workspaces.sql`
+24. `migrations/20260717_omnichannel_marketing.sql`
+25. `migrations/20260830_add_unique_stripe_session_id.sql`
+26. `migrations/20260831_claims_library_and_brand_governance.sql`
+27. `migrations/20260831_evergreen_integration_and_suppression.sql`
+28. `migrations/20260831_omnisend_and_q2c_sync.sql`
 
 ---
 
 ## 3. Post-Approval Controlled Execution Protocol
 
 Upon receipt of explicit owner authorization from Vernon la Cock:
-1. Verify package archive SHA-256 against the authorized signature.
-2. Synchronize the package to `/opt/socialpulse/` on `srv1935605`.
+1. Verify package archive SHA-256 against authorized signature.
+2. Synchronize package artifacts to `/opt/socialpulse/` on `srv1935605`.
 3. Execute `bash scripts/run_sp8c7a_backup_prep.sh` as root (`EUID 0`).
-4. The wrapper verifies script trust anchors, executes host preparation and read-only verification, writes the canonical log to `/root/sp8c7a_backup_prep_<TIMESTAMP>.log`, and halts at passive standstill.
-5. Zero snapshot creation, container restarts, or database migrations are authorized.
+4. The wrapper verifies script trust anchors, executes host preparation and read-only verification, writes canonical log to `/root/sp8c7a_backup_prep_<TIMESTAMP>.log`, and returns to passive standstill.
+5. Zero snapshot creation, container restart, or database migration is authorized.

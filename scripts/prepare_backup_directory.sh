@@ -8,7 +8,7 @@
 #          invariants: owner 1001:1001, mode 0700, non-symlink, zero ACLs.
 # Safety: Strictly non-destructive. Fail-closed collision rejection.
 #         Mandatory getfacl/setfacl preflight. Zero failure-masking operators.
-#         Signal-specific exit traps (130 for INT, 143 for TERM).
+#         Signal-specific exit traps (129:HUP, 130:INT, 131:QUIT, 143:TERM).
 #         Rollback failure forces exit 1.
 # ==============================================================================
 
@@ -25,6 +25,7 @@ readonly MIN_FREE_KB=102400  # 100 MB in KB
 # Transaction state flags
 CREATED_BY_SCRIPT=0
 SUCCESS_COMMITTED=0
+RECEIVED_SIGNAL=0
 
 log_info() {
     echo "[$(date -u +'%Y-%m-%dT%H:%M:%SZ')] [INFO] [${SCRIPT_NAME}] $*"
@@ -39,7 +40,7 @@ log_fail() {
 }
 
 # ------------------------------------------------------------------------------
-# Signal-Specific Trap Handlers & Rollback
+# Signal-Specific Trap Handlers & Rollback (R5)
 # ------------------------------------------------------------------------------
 execute_rollback() {
     if [[ "${CREATED_BY_SCRIPT}" -eq 1 && "${SUCCESS_COMMITTED}" -ne 1 ]]; then
@@ -61,6 +62,7 @@ execute_rollback() {
 handle_signal() {
     local sig_code="$1"
     local sig_name="$2"
+    RECEIVED_SIGNAL="${sig_code}"
     log_warn "Caught signal ${sig_name} (${sig_code}). Triggering rollback..."
     if ! execute_rollback; then
         log_fail "Rollback failure overrides signal ${sig_name}; forcing exit 1."
@@ -71,6 +73,9 @@ handle_signal() {
 
 handle_exit() {
     local exit_code=$?
+    if [[ "${RECEIVED_SIGNAL}" -ne 0 ]]; then
+        exit_code="${RECEIVED_SIGNAL}"
+    fi
     if [[ "${exit_code}" -ne 0 ]]; then
         if ! execute_rollback; then
             log_fail "Rollback failure on exit; forcing exit 1."
@@ -80,7 +85,9 @@ handle_exit() {
     exit "${exit_code}"
 }
 
+trap 'handle_signal 129 SIGHUP' HUP
 trap 'handle_signal 130 SIGINT' INT
+trap 'handle_signal 131 SIGQUIT' QUIT
 trap 'handle_signal 143 SIGTERM' TERM
 trap handle_exit EXIT
 
@@ -109,31 +116,13 @@ assert_mandatory_tools() {
     log_info "Tool preflight passed: all mandatory tools present."
 }
 
-assert_parent_directory() {
-    if [[ ! -d "${PARENT_DIR}" ]]; then
-        log_fail "Parent directory ${PARENT_DIR} does not exist or is not a directory."
-        exit 1
-    fi
-
-    if [[ -L "${PARENT_DIR}" ]]; then
-        log_fail "Parent directory ${PARENT_DIR} is a symlink. Symlinks are prohibited."
-        exit 1
-    fi
-}
-
-check_disk_space() {
+assert_non_symlink_path() {
     local check_path="$1"
-    local available_kb
-    available_kb=$(df -k -P "${check_path}" | awk 'NR==2 {print $4}')
-    if [[ -z "${available_kb}" || "${available_kb}" -lt "${MIN_FREE_KB}" ]]; then
-        log_fail "Insufficient disk space on ${check_path}: available ${available_kb:-0} KB, minimum required ${MIN_FREE_KB} KB."
+    if [[ -L "${check_path}" ]]; then
+        log_fail "Symlink detected: ${check_path} must not be a symbolic link."
         exit 1
     fi
-    log_info "Disk space verified: ${available_kb} KB available (>= ${MIN_FREE_KB} KB required)"
-}
 
-verify_canonical_path() {
-    local check_path="$1"
     local canonical_path
     canonical_path=$(readlink -f "${check_path}")
     if [[ "${canonical_path}" != "${TARGET_DIR}" ]]; then
@@ -159,129 +148,147 @@ assert_zero_acls() {
     ')
     local awk_status=$?
 
-    if [[ "${awk_status}" -ne 0 || -n "${extended_acls}" ]]; then
+    if [[ ${awk_status} -ne 0 || -n "${extended_acls}" ]]; then
         log_fail "Extended ACLs detected on ${check_path}:"
         echo "${extended_acls}" >&2
         return 1
     fi
-    log_info "Zero extended or default ACLs verified on ${check_path}."
     return 0
 }
 
+assert_sufficient_space() {
+    local parent_dir="$1"
+    local available_kb
+    available_kb=$(df -k -P "${parent_dir}" | awk 'NR==2 {print $4}')
+    if [[ -z "${available_kb}" || "${available_kb}" -lt "${MIN_FREE_KB}" ]]; then
+        log_fail "Insufficient free space on ${parent_dir}: ${available_kb:-0} KB available (required: ${MIN_FREE_KB} KB)."
+        exit 1
+    fi
+    log_info "Free space check passed: ${available_kb} KB available on ${parent_dir}."
+}
+
 # ------------------------------------------------------------------------------
-# Main Execution
+# Main Logic
 # ------------------------------------------------------------------------------
 main() {
-    log_info "Starting host backup directory preparation for Higiene (Pty) Ltd..."
+    log_info "======================================================================"
+    log_info "Higiene (Pty) Ltd - Host Backup Directory Preparation"
+    log_info "======================================================================"
+
     assert_root
     assert_mandatory_tools
-    assert_parent_directory
 
+    # Validate parent directory
+    if [[ ! -d "${PARENT_DIR}" ]]; then
+        log_fail "Parent directory does not exist: ${PARENT_DIR}"
+        exit 1
+    fi
+    if [[ -L "${PARENT_DIR}" ]]; then
+        log_fail "Parent directory is a symbolic link: ${PARENT_DIR}"
+        exit 1
+    fi
+
+    # Check if TARGET_DIR already exists
     if [[ -e "${TARGET_DIR}" || -L "${TARGET_DIR}" ]]; then
-        log_info "Target ${TARGET_DIR} already exists. Enforcing strict fail-closed collision rejection..."
+        log_info "Target path ${TARGET_DIR} already exists. Validating pre-existing invariants..."
 
-        # 1. Reject symlinks
-        if [[ -L "${TARGET_DIR}" ]]; then
-            log_fail "Collision rejection: ${TARGET_DIR} exists as a symlink. Symlinks are prohibited."
-            exit 1
-        fi
+        # 1. Non-symlink check
+        assert_non_symlink_path "${TARGET_DIR}"
 
-        # 2. Reject non-directories
+        # 2. Must be a directory
         if [[ ! -d "${TARGET_DIR}" ]]; then
             log_fail "Collision rejection: ${TARGET_DIR} exists but is not a directory."
             exit 1
         fi
 
-        # 3. Verify canonical path
-        verify_canonical_path "${TARGET_DIR}"
-
-        # 4. Reject non-empty directories
-        local existing_entries
-        existing_entries=$(ls -A "${TARGET_DIR}")
-        if [[ -n "${existing_entries}" ]]; then
-            log_fail "Collision rejection: ${TARGET_DIR} exists and is not empty. Cannot use pre-existing non-empty directory."
+        # 3. Must be empty
+        local file_count
+        file_count=$(find "${TARGET_DIR}" -mindepth 1 | wc -l)
+        if [[ "${file_count}" -ne 0 ]]; then
+            log_fail "Collision rejection: ${TARGET_DIR} exists but is not empty (${file_count} items found)."
             exit 1
         fi
 
-        # 5. Passive invariant validation (zero mutation of pre-existing state)
-        local current_owner
-        current_owner=$(stat -c "%u:%g" "${TARGET_DIR}")
-        if [[ "${current_owner}" != "${REQUIRED_UID}:${REQUIRED_GID}" ]]; then
-            log_fail "Collision rejection: pre-existing directory owner is ${current_owner} (expected strictly ${REQUIRED_UID}:${REQUIRED_GID}). Non-destructive policy prohibits altering owner."
+        # 4. Invariant: Ownership must be 1001:1001
+        local actual_owner
+        actual_owner=$(stat -c '%u:%g' "${TARGET_DIR}")
+        if [[ "${actual_owner}" != "${REQUIRED_UID}:${REQUIRED_GID}" ]]; then
+            log_fail "Collision rejection: ${TARGET_DIR} ownership is ${actual_owner} (expected ${REQUIRED_UID}:${REQUIRED_GID}). Refusing to mutate."
             exit 1
         fi
 
-        local current_perms
-        current_perms=$(stat -c "%a" "${TARGET_DIR}")
-        if [[ "${current_perms}" != "${REQUIRED_PERMS}" ]]; then
-            log_fail "Collision rejection: pre-existing directory mode is ${current_perms} (expected strictly ${REQUIRED_PERMS}). Non-destructive policy prohibits altering mode."
+        # 5. Invariant: Mode must be 0700
+        local actual_perms
+        actual_perms=$(stat -c '%a' "${TARGET_DIR}")
+        if [[ "${actual_perms}" != "${REQUIRED_PERMS}" ]]; then
+            log_fail "Collision rejection: ${TARGET_DIR} permissions are ${actual_perms} (expected ${REQUIRED_PERMS}). Refusing to mutate."
             exit 1
         fi
 
+        # 6. Invariant: Zero named or default ACLs
         if ! assert_zero_acls "${TARGET_DIR}"; then
-            log_fail "Collision rejection: pre-existing directory contains extended ACLs. Non-destructive policy prohibits modifying ACLs."
+            log_fail "Collision rejection: ${TARGET_DIR} has extended ACLs. Refusing to mutate."
             exit 1
         fi
 
-        check_disk_space "${TARGET_DIR}"
+        # 7. Check free disk space
+        assert_sufficient_space "${TARGET_DIR}"
 
-        CREATED_BY_SCRIPT=0
-        log_info "Pre-existing directory ${TARGET_DIR} strictly satisfies all governance invariants without mutation."
-    else
-        log_info "Target directory ${TARGET_DIR} does not exist. Checking free space on parent directory..."
-        check_disk_space "${PARENT_DIR}"
-
-        log_info "Creating ${TARGET_DIR} with mode 0700..."
-        CREATED_BY_SCRIPT=1
-        mkdir -m 0700 "${TARGET_DIR}"
-
-        log_info "Configuring ownership 1001:1001 on newly created ${TARGET_DIR}..."
-        chown "${REQUIRED_UID}:${REQUIRED_GID}" "${TARGET_DIR}"
-        chmod "${REQUIRED_PERMS}" "${TARGET_DIR}"
-
-        # Post-creation verification
-        log_info "Verifying newly created directory invariants..."
-        if [[ -L "${TARGET_DIR}" || ! -d "${TARGET_DIR}" ]]; then
-            log_fail "Post-creation failure: ${TARGET_DIR} is invalid."
-            exit 1
-        fi
-        verify_canonical_path "${TARGET_DIR}"
-
-        local new_owner
-        new_owner=$(stat -c "%u:%g" "${TARGET_DIR}")
-        if [[ "${new_owner}" != "${REQUIRED_UID}:${REQUIRED_GID}" ]]; then
-            log_fail "Post-creation failure: owner is ${new_owner}, expected ${REQUIRED_UID}:${REQUIRED_GID}"
-            exit 1
-        fi
-
-        local new_perms
-        new_perms=$(stat -c "%a" "${TARGET_DIR}")
-        if [[ "${new_perms}" != "${REQUIRED_PERMS}" ]]; then
-            log_fail "Post-creation failure: mode is ${new_perms}, expected ${REQUIRED_PERMS}"
-            exit 1
-        fi
-
-        if ! assert_zero_acls "${TARGET_DIR}"; then
-            log_info "Stripping inherited default ACLs on newly created directory with setfacl -b -k..."
-            setfacl -b -k "${TARGET_DIR}"
-            if ! assert_zero_acls "${TARGET_DIR}"; then
-                log_fail "Post-creation failure: could not clear extended ACLs on ${TARGET_DIR}."
-                exit 1
-            fi
-        fi
-
-        check_disk_space "${TARGET_DIR}"
+        log_info "Pre-existing directory ${TARGET_DIR} strictly matches all invariants without mutation."
+        SUCCESS_COMMITTED=1
+        exit 0
     fi
 
-    # Commit transaction
+    # Target directory does not exist: Proceed with creation
+    log_info "Target directory ${TARGET_DIR} does not exist. Creating..."
+    assert_sufficient_space "${PARENT_DIR}"
+
+    # Create directory
+    mkdir "${TARGET_DIR}"
+    CREATED_BY_SCRIPT=1
+    log_info "Created directory: ${TARGET_DIR}"
+
+    # Set ownership strictly to 1001:1001
+    chown "${REQUIRED_UID}:${REQUIRED_GID}" "${TARGET_DIR}"
+    log_info "Set ownership ${REQUIRED_UID}:${REQUIRED_GID} on ${TARGET_DIR}"
+
+    # Set permissions strictly to 0700
+    chmod "${REQUIRED_PERMS}" "${TARGET_DIR}"
+    log_info "Set mode ${REQUIRED_PERMS} on ${TARGET_DIR}"
+
+    # Strip any inherited or default ACLs
+    setfacl -b "${TARGET_DIR}"
+    log_info "Stripped base/extended ACLs via setfacl -b on ${TARGET_DIR}"
+
+    # Post-creation verification
+    assert_non_symlink_path "${TARGET_DIR}"
+
+    local final_owner final_perms
+    final_owner=$(stat -c '%u:%g' "${TARGET_DIR}")
+    final_perms=$(stat -c '%a' "${TARGET_DIR}")
+
+    if [[ "${final_owner}" != "${REQUIRED_UID}:${REQUIRED_GID}" ]]; then
+        log_fail "Post-creation verification failed: ownership is ${final_owner} (expected ${REQUIRED_UID}:${REQUIRED_GID})."
+        exit 1
+    fi
+
+    if [[ "${final_perms}" != "${REQUIRED_PERMS}" ]]; then
+        log_fail "Post-creation verification failed: permissions are ${final_perms} (expected ${REQUIRED_PERMS})."
+        exit 1
+    fi
+
+    if ! assert_zero_acls "${TARGET_DIR}"; then
+        log_fail "Post-creation verification failed: extended ACLs remain on ${TARGET_DIR}."
+        exit 1
+    fi
+
+    # Mark transaction as successfully committed
     SUCCESS_COMMITTED=1
-    log_info "Host backup directory preparation COMMITTED successfully."
-    log_info "Directory: ${TARGET_DIR}"
-    log_info "Canonical Path: $(readlink -f "${TARGET_DIR}")"
-    log_info "Owner: $(stat -c '%u:%g' "${TARGET_DIR}") (${REQUIRED_UID}:${REQUIRED_GID})"
-    log_info "Permissions: $(stat -c '%a' "${TARGET_DIR}")"
-    log_info "Created By This Script: ${CREATED_BY_SCRIPT}"
-    log_info "Status: READY_FOR_PREFLIGHT_SNAPSHOTS"
+    log_info "Successfully created and verified ${TARGET_DIR} (owner ${final_owner}, mode ${final_perms}, zero ACLs)."
+    log_info "Execution completed successfully."
+    exit 0
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi

@@ -6,8 +6,8 @@
   "independent_reviewer": "ChatGPT",
   "execution_agent": "Antigravity (Google DeepMind)",
   "gate": "SP-8C-7A / SP-8C-7B",
-  "revision": "Remediation-R4",
-  "created_at_utc": "2026-09-06T12:00:00Z",
+  "revision": "Remediation-R5",
+  "created_at_utc": "2026-09-06T12:35:00Z",
   "operating_mode": "strictly_passive_read_only_standstill_remediation_review",
   "source_repository": "ArtradePro/Socialpulse-1",
   "source_branch": "scripts/backup-r10",
@@ -44,6 +44,8 @@
     "controlled_non_started_image_inspection": true,
     "image_absence_fail_closed_enforced": true,
     "inspection_container_lifecycle_isolated": true,
+    "inspection_container_creation_race_protected": true,
+    "docker_daemon_operational_failure_fail_closed": true,
     "atomic_multi_element_pipestatus_captured": true,
     "collision_safe_canonical_log_creation": true,
     "zero_ungoverned_chmod_mutations": true,
@@ -51,26 +53,27 @@
     "all_15_raw_database_artifacts_enclosed": true,
     "cryptographic_baseline_reconciliation_enclosed": true,
     "release_04_provenance_and_oci_evidence_enclosed": true,
-    "negative_test_evidence_enclosed": true
+    "negative_test_executable_harness_enclosed": true,
+    "negative_test_machine_readable_ledger_enclosed": true
   },
   "governance_components": [
     {
       "path": "run_sp8c7a_backup_prep.sh",
-      "bytes": 8546,
-      "lines": 214,
-      "sha256": "0582791b4a2ca3bc57ee058273045e5608c7c80dbe03ed7623202fa72afc7d6a"
+      "bytes": 8882,
+      "lines": 227,
+      "sha256": "a7948f5d0045452f939dab0447c459eed75e727c25d36a0560a512380d117be6"
     },
     {
       "path": "prepare_backup_directory.sh",
-      "bytes": 10617,
-      "lines": 287,
-      "sha256": "d6d6dd5ddba81b53b6d32850fefecd8cd28ffdafdc40c8a861e5e04a47a0ff35"
+      "bytes": 10352,
+      "lines": 294,
+      "sha256": "a419551d52273d27effe15d2ad7b0ae74c074fd833a354bcd0348b358601065c"
     },
     {
       "path": "verify_remediation.sh",
-      "bytes": 19934,
-      "lines": 492,
-      "sha256": "db2a79108078e666b2f1563ae93e83c406f66ddeb1be13550f737bc468342916"
+      "bytes": 26255,
+      "lines": 671,
+      "sha256": "0e97be42f5d93a9b266710194d526d1bc55bc220a044a812c6b4a4ceb58f12ff"
     },
     {
       "path": "approved_release_manifest.json",
@@ -103,16 +106,28 @@
       "sha256": "6d036a04045d1c74f9ff0a3bf0d2ca60d2ad137b6761e6e045f42abf6fab5658"
     },
     {
-      "path": "sp8c7a_remediation_runbook.md",
-      "bytes": 6909,
-      "lines": 92,
-      "sha256": "5993a3e535125907498c49add1ae0762b2275c8157b3da9c3d6ffb2f3461ed20"
+      "path": "run_negative_tests.py",
+      "bytes": 16403,
+      "lines": 355,
+      "sha256": "a9004fc80f3cccb5a768cbf0f6bc1fd04ede34d58f423ef1419e8827ddc00faf"
+    },
+    {
+      "path": "test_evidence_negative_cases.json",
+      "bytes": 2925,
+      "lines": 95,
+      "sha256": "3fea2d43280d41cfa91536d96cd45831842a3f4116c587ea274bea2b1df36ea9"
     },
     {
       "path": "test_evidence_negative_cases.md",
-      "bytes": 11576,
-      "lines": 236,
-      "sha256": "e5cb570855e72ed57c9e222355379964137bfe02bdf53ddbfad3fc0f9836e814"
+      "bytes": 12123,
+      "lines": 303,
+      "sha256": "381e3fee99aa50425ca6a7be2584aa11ab7e723c7acc7964021e2d43e57d216f"
+    },
+    {
+      "path": "sp8c7a_remediation_runbook.md",
+      "bytes": 6137,
+      "lines": 82,
+      "sha256": "40ec7fa994bdd9370be5862659e75f312672d0de89358148a7b2303a67bea8c1"
     }
   ],
   "enclosed_source_artifacts": [
