@@ -31,8 +31,7 @@ services:
 
   server:
     build: ./socialPulse-app/backend
-    ports:
-      - "5000:5000"
+    ports: []
     env_file:
       - path: ./socialPulse-app/backend/.env
         required: false
@@ -47,14 +46,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./socialPulse-app/backend:/app
-      - /app/node_modules
+    volumes: []
 
   client:
     build: ./socialPulse-app/frontend
-    ports:
-      - "3000:3000"
+    ports: []
     env_file:
       - path: ./socialPulse-app/frontend/.env
         required: false
@@ -62,9 +58,7 @@ services:
       VITE_API_URL: http://localhost:5000/api
     depends_on:
       - server
-    volumes:
-      - ./socialPulse-app/frontend:/app
-      - /app/node_modules
+    volumes: []
 
 volumes:
   postgres_data:
