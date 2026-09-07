@@ -53,8 +53,12 @@ app.use(helmet({
                 "'self'", 
                 "https://api.usesocialpulse.com", 
                 "https://usesocialpulse.com",
+                "https://staging.usesocialpulse.com",
+                "http://staging.usesocialpulse.com",
                 "wss://api.usesocialpulse.com",
                 "wss://usesocialpulse.com",
+                "wss://staging.usesocialpulse.com",
+                "ws://staging.usesocialpulse.com",
                 "http://localhost:5000",
                 "ws://localhost:5000"
             ],
