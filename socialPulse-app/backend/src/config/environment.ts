@@ -103,6 +103,10 @@ export class EnvironmentConfig {
         const prodOrigins = [
             'https://usesocialpulse.com',
             'https://www.usesocialpulse.com',
+            'https://staging.usesocialpulse.com',
+            'http://staging.usesocialpulse.com',
+            'https://staging.socialpulse.higiene.co.za',
+            'http://staging.socialpulse.higiene.co.za',
             'https://silver-opossum-812035.hostingersite.com',
             process.env.FRONTEND_URL,
             process.env.CLIENT_URL,
