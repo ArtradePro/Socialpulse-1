@@ -330,7 +330,7 @@ export const facebookConnect = (req: Request, res: Response): void => {
     const params = new URLSearchParams({
         client_id:     process.env.FACEBOOK_APP_ID!,
         redirect_uri:  redirect,
-        scope:         'pages_show_list,pages_manage_posts,pages_read_engagement',
+        scope:         'pages_show_list,pages_manage_posts,pages_read_engagement,business_management',
         state,
         response_type: 'code',
     });
@@ -380,21 +380,47 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
         const fbUser = meRes.data;
 
         const pagesRes = await axios.get('https://graph.facebook.com/v19.0/me/accounts', {
-            params: { access_token: longToken, fields: 'id,name,fan_count,picture' },
+            params: { access_token: longToken, fields: 'id,name,fan_count,picture,access_token' },
         });
 
+        let pages: any[] = pagesRes.data.data || [];
+
+        // If /me/accounts is empty, check business-owned pages via me/businesses
+        if (pages.length === 0) {
+            try {
+                const busRes = await axios.get('https://graph.facebook.com/v19.0/me/businesses', {
+                    params: { access_token: longToken, fields: 'id,name,owned_pages{id,name,picture,access_token},client_pages{id,name,picture,access_token}' },
+                });
+                for (const bus of (busRes.data?.data || [])) {
+                    if (bus.owned_pages?.data) pages.push(...bus.owned_pages.data);
+                    if (bus.client_pages?.data) pages.push(...bus.client_pages.data);
+                }
+            } catch (busErr) {
+                console.warn('[OAuth] me/businesses lookup warning:', busErr);
+            }
+        }
+
+        console.log('[OAuth] Facebook pages found:', pages.map(p => ({ id: p.id, name: p.name })));
+
         // Use the first managed page; store the page token (not user token) for publishing
-        const page = pagesRes.data.data?.[0];
+        const page = pages[0];
         if (!page) {
             res.redirect(`${FRONTEND_URL}/settings?error=facebook_no_page`);
             return;
         }
 
-        // Fetch page token (permanent)
-        const pageTokenRes = await axios.get(`https://graph.facebook.com/v19.0/${page.id}`, {
-            params: { fields: 'access_token', access_token: longToken },
-        });
-        const pageToken = pageTokenRes.data.access_token ?? longToken;
+        // Fetch page token (permanent) if not already included in accounts/businesses response
+        let pageToken = page.access_token;
+        if (!pageToken) {
+            try {
+                const pageTokenRes = await axios.get(`https://graph.facebook.com/v19.0/${page.id}`, {
+                    params: { fields: 'access_token', access_token: longToken },
+                });
+                pageToken = pageTokenRes.data.access_token ?? longToken;
+            } catch {
+                pageToken = longToken;
+            }
+        }
 
         await upsertAccount(
             stateData.userId, 'facebook', page.id, page.name,
