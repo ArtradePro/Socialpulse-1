@@ -157,10 +157,16 @@ export const instagramConnect = (req: Request, res: Response): void => {
     const state  = mkState(userId);
     const redirect = `${BACKEND_URL}/api/oauth/instagram/callback`;
 
+    const appId = process.env.FACEBOOK_APP_ID || process.env.INSTAGRAM_APP_ID;
+    if (!appId) {
+        res.redirect(`${FRONTEND_URL}/settings?error=instagram_app_id_missing`);
+        return;
+    }
+
     const params = new URLSearchParams({
-        client_id:     process.env.INSTAGRAM_APP_ID!,
+        client_id:     appId,
         redirect_uri:  redirect,
-        scope:         'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights,pages_show_list',
+        scope:         'instagram_basic,instagram_content_publish,instagram_manage_insights,pages_show_list,pages_read_engagement,business_management',
         response_type: 'code',
         state,
     });
@@ -177,14 +183,17 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
         return;
     }
 
+    const appId = process.env.FACEBOOK_APP_ID || process.env.INSTAGRAM_APP_ID;
+    const appSecret = process.env.FACEBOOK_APP_SECRET || process.env.INSTAGRAM_APP_SECRET;
+
     try {
         const redirect = `${BACKEND_URL}/api/oauth/instagram/callback`;
 
         // Exchange code for short-lived token
-        const tokenRes = await axios.post('https://graph.facebook.com/v19.0/oauth/access_token', null, {
+        const tokenRes = await axios.get('https://graph.facebook.com/v19.0/oauth/access_token', {
             params: {
-                client_id:     process.env.INSTAGRAM_APP_ID,
-                client_secret: process.env.INSTAGRAM_APP_SECRET,
+                client_id:     appId,
+                client_secret: appSecret,
                 redirect_uri:  redirect,
                 code,
             },
@@ -195,8 +204,8 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
         const longTokenRes = await axios.get('https://graph.facebook.com/v19.0/oauth/access_token', {
             params: {
                 grant_type:        'fb_exchange_token',
-                client_id:         process.env.INSTAGRAM_APP_ID,
-                client_secret:     process.env.INSTAGRAM_APP_SECRET,
+                client_id:         appId,
+                client_secret:     appSecret,
                 fb_exchange_token: shortToken,
             },
         });
@@ -206,35 +215,75 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
 
         // Get Facebook Pages linked to this account
         const pagesRes = await axios.get('https://graph.facebook.com/v19.0/me/accounts', {
-            params: { access_token: longToken, fields: 'id,name,instagram_business_account' },
+            params: { access_token: longToken, fields: 'id,name,access_token,instagram_business_account{id,username,profile_picture_url,followers_count}' },
         });
 
-        const page = pagesRes.data.data?.find((p: any) => p.instagram_business_account);
-        if (!page?.instagram_business_account?.id) {
+        let pages: any[] = pagesRes.data.data || [];
+
+        // If /me/accounts is empty or no page has instagram_business_account, check business-owned pages
+        if (!pages.some(p => p.instagram_business_account)) {
+            try {
+                const busRes = await axios.get('https://graph.facebook.com/v19.0/me/businesses', {
+                    params: {
+                        access_token: longToken,
+                        fields: 'id,name,owned_pages{id,name,access_token,instagram_business_account{id,username,profile_picture_url,followers_count}},client_pages{id,name,access_token,instagram_business_account{id,username,profile_picture_url,followers_count}}'
+                    },
+                });
+                for (const bus of (busRes.data?.data || [])) {
+                    if (bus.owned_pages?.data) pages.push(...bus.owned_pages.data);
+                    if (bus.client_pages?.data) pages.push(...bus.client_pages.data);
+                }
+            } catch (busErr) {
+                console.warn('[OAuth] me/businesses lookup warning for Instagram:', busErr);
+            }
+        }
+
+        console.log('[OAuth] Instagram candidate pages found:', pages.map(p => ({
+            id: p.id,
+            name: p.name,
+            hasIg: !!p.instagram_business_account
+        })));
+
+        const pageWithIg = pages.find((p: any) => p.instagram_business_account?.id);
+        if (!pageWithIg || !pageWithIg.instagram_business_account) {
+            console.error('[OAuth] No linked Instagram business account found across pages');
             res.redirect(`${FRONTEND_URL}/settings?error=instagram_no_business_account`);
             return;
         }
 
-        const igUserId = page.instagram_business_account.id;
+        const igAccount = pageWithIg.instagram_business_account;
+        const igUserId = igAccount.id;
+        const tokenToStore = pageWithIg.access_token || longToken;
 
-        // Fetch IG profile info
-        const igRes = await axios.get(`https://graph.facebook.com/v19.0/${igUserId}`, {
-            params: {
-                fields:       'id,username,profile_picture_url,followers_count',
-                access_token: longToken,
-            },
-        });
-        const ig = igRes.data;
+        let username = igAccount.username;
+        let profilePic = igAccount.profile_picture_url;
+        let followers = igAccount.followers_count;
+
+        if (!username) {
+            try {
+                const igRes = await axios.get(`https://graph.facebook.com/v19.0/${igUserId}`, {
+                    params: {
+                        fields:       'id,username,profile_picture_url,followers_count',
+                        access_token: tokenToStore,
+                    },
+                });
+                username = igRes.data.username;
+                profilePic = igRes.data.profile_picture_url ?? profilePic;
+                followers = igRes.data.followers_count ?? followers;
+            } catch (igFetchErr) {
+                console.warn('[OAuth] Could not fetch extra IG profile details:', igFetchErr);
+            }
+        }
 
         await upsertAccount(
-            stateData.userId, 'instagram', igUserId, ig.username,
-            longToken, null, expiresAt,
-            ig.profile_picture_url ?? null, ig.followers_count ?? 0
+            stateData.userId, 'instagram', igUserId, username || 'Instagram Business',
+            tokenToStore, null, expiresAt,
+            profilePic ?? null, followers ?? 0
         );
 
         res.redirect(`${FRONTEND_URL}/settings?connected=instagram`);
-    } catch (err) {
-        console.error('[OAuth] Instagram callback error:', err);
+    } catch (err: any) {
+        console.error('[OAuth] Instagram callback error:', err?.response?.data || err.message);
         res.redirect(`${FRONTEND_URL}/settings?error=instagram_auth_failed`);
     }
 };
