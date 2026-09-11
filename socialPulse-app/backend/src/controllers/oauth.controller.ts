@@ -166,7 +166,7 @@ export const instagramConnect = (req: Request, res: Response): void => {
     const params = new URLSearchParams({
         client_id:     appId,
         redirect_uri:  redirect,
-        scope:         'instagram_basic,instagram_content_publishing,pages_show_list,pages_read_engagement,business_management',
+        scope:         'instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,business_management',
         response_type: 'code',
         state,
     });
