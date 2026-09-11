@@ -14,10 +14,13 @@ export const createPost = async (req: Request, res: Response) => {
             hashtags,
             aiGenerated,
             campaignId,
+            publishNow: shouldPublishNow,
         } = req.body;
 
         const userId = req.user!.userId;
-        const status = scheduledAt ? 'scheduled' : 'draft';
+        const isImmediate = shouldPublishNow === true || req.body.status === 'published';
+        const status = isImmediate ? 'scheduled' : (scheduledAt ? 'scheduled' : 'draft');
+        const targetScheduledAt = isImmediate ? new Date() : (scheduledAt ? new Date(scheduledAt) : null);
 
         if (!content || !String(content).trim()) {
             res.status(400).json({ message: 'Content is required' });
@@ -54,12 +57,14 @@ export const createPost = async (req: Request, res: Response) => {
              (user_id, workspace_id, content, platforms, scheduled_at, hashtags, status, ai_generated, campaign_id, media_urls)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
              RETURNING *`,
-            [userId, req.workspaceId || null, content, platforms, scheduledAt, hashtags, status, aiGenerated, campaignId, JSON.stringify(mediaUrls)]
+            [userId, req.workspaceId || null, content, platforms, targetScheduledAt, hashtags, status, aiGenerated, campaignId, JSON.stringify(mediaUrls)]
         );
 
         const post = result.rows[0];
 
-        if (scheduledAt) {
+        if (isImmediate) {
+            await schedulePost(post.id, new Date());
+        } else if (scheduledAt) {
             await schedulePost(post.id, new Date(scheduledAt));
         }
 
