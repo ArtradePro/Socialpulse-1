@@ -160,7 +160,7 @@ export const instagramConnect = (req: Request, res: Response): void => {
     const params = new URLSearchParams({
         client_id:     process.env.INSTAGRAM_APP_ID!,
         redirect_uri:  redirect,
-        scope:         'instagram_basic,instagram_content_publish,pages_show_list,instagram_manage_insights',
+        scope:         'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights,pages_show_list',
         response_type: 'code',
         state,
     });

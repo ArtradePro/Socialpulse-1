@@ -217,13 +217,23 @@ export const ContentStudio: React.FC = () => {
         if (action === 'schedule' && !scheduledAt) { toast.error('Please set a schedule time'); return; }
         action === 'draft' ? setIsSaving(true) : setIsPublishing(true);
         try {
-            await api.post('/posts', {
+            const res = await api.post('/posts', {
                 content: `${content}\n\n`.trim(),
                 platforms: selectedPlatforms, hashtags: hashtags, mediaUrls: mediaUrls,
                 scheduledAt: action === 'schedule' ? scheduledAt : null,
+                publishNow: action === 'publish',
                 aiGenerated: activeTab === 'ai',
                 campaignId: campaignId || null,
             });
+
+            if (action === 'publish' && res.data?.id) {
+                try {
+                    await api.post(`/posts/${res.data.id}/publish`);
+                } catch (publishErr) {
+                    console.error('[ContentStudio] Immediate publish trigger error:', publishErr);
+                }
+            }
+
             toast.success(action === 'publish' ? 'Post published!' : action === 'schedule' ? 'Post scheduled!' : 'Draft saved!');
             setContent(''); setHashtags([]); setMediaFiles([]); setMediaUrls([]); setScheduledAt('');
         } catch (error: any) {
