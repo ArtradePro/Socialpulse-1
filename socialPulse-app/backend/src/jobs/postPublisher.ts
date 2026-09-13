@@ -1,9 +1,11 @@
-﻿import Bull from 'bull';
+import Bull from 'bull';
 import { db } from '../config/database';
 import { TwitterService } from '../services/twitterService';
 import { InstagramService } from '../services/instagramService';
 import { LinkedInService } from '../services/linkedinService';
 import { FacebookService } from '../services/facebookService';
+import { PinterestService } from '../services/pinterestService';
+import { YouTubeService } from '../services/youtubeService';
 import { EmailService } from '../services/email.service';
 import { NotificationService } from '../services/notification.service';
 import { triggerUserSync } from './analyticsSync';
@@ -75,6 +77,20 @@ export const initScheduler = () => {
                             break;
                         case 'facebook':
                             platformPostId = await FacebookService.publishPost(
+                                account.rows[0],
+                                postData.content,
+                                postData.media_urls
+                            );
+                            break;
+                        case 'pinterest':
+                            platformPostId = await PinterestService.publishPost(
+                                account.rows[0],
+                                postData.content,
+                                postData.media_urls
+                            );
+                            break;
+                        case 'youtube':
+                            platformPostId = await YouTubeService.publishPost(
                                 account.rows[0],
                                 postData.content,
                                 postData.media_urls

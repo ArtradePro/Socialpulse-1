@@ -13,6 +13,8 @@ import {
     linkedinConnect,  linkedinCallback,
     facebookConnect,  facebookCallback,
     tiktokConnect,    tiktokCallback,
+    pinterestConnect, pinterestCallback,
+    youtubeConnect,   youtubeCallback,
 } from '../controllers/oauth.controller';
 
 const router = Router();
@@ -46,5 +48,13 @@ router.get('/facebook/callback', facebookCallback);
 // TikTok
 router.get('/tiktok/connect',    authenticateQuery, tiktokConnect);
 router.get('/tiktok/callback',   tiktokCallback);
+
+// Pinterest
+router.get('/pinterest/connect',  authenticateQuery, pinterestConnect);
+router.get('/pinterest/callback', pinterestCallback);
+
+// YouTube
+router.get('/youtube/connect',    authenticateQuery, youtubeConnect);
+router.get('/youtube/callback',   youtubeCallback);
 
 export default router;
