@@ -1,9 +1,11 @@
-﻿import Bull from 'bull';
+import Bull from 'bull';
 import { db } from '../config/database';
 import { TwitterService } from '../services/twitterService';
 import { InstagramService } from '../services/instagramService';
 import { LinkedInService } from '../services/linkedinService';
 import { FacebookService } from '../services/facebookService';
+import { PinterestService } from '../services/pinterestService';
+import { YouTubeService } from '../services/youtubeService';
 import { EmailService } from '../services/email.service';
 import { NotificationService } from '../services/notification.service';
 import { triggerUserSync } from './analyticsSync';
@@ -75,6 +77,20 @@ export const initScheduler = () => {
                             break;
                         case 'facebook':
                             platformPostId = await FacebookService.publishPost(
+                                account.rows[0],
+                                postData.content,
+                                postData.media_urls
+                            );
+                            break;
+                        case 'pinterest':
+                            platformPostId = await PinterestService.publishPost(
+                                account.rows[0],
+                                postData.content,
+                                postData.media_urls
+                            );
+                            break;
+                        case 'youtube':
+                            platformPostId = await YouTubeService.publishPost(
                                 account.rows[0],
                                 postData.content,
                                 postData.media_urls
@@ -165,7 +181,7 @@ export const initScheduler = () => {
         }
     });
 
-    setInterval(async () => {
+    const pollInterval = setInterval(async () => {
         try {
             const duePosts = await db.query(
                 `SELECT id FROM posts
@@ -184,6 +200,7 @@ export const initScheduler = () => {
             console.error('[Scheduler] Polling error:', err);
         }
     }, 60000);
+    if (typeof (pollInterval as any)?.unref === 'function') (pollInterval as any).unref();
 
     console.log('Post scheduler initialized');
 };

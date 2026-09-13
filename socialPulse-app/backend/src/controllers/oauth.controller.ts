@@ -18,7 +18,8 @@ function mkState(userId: string, codeVerifier?: string): string {
     const state = crypto.randomBytes(16).toString('hex');
     oauthStates.set(state, { userId, codeVerifier });
     // Auto-expire after 10 minutes
-    setTimeout(() => oauthStates.delete(state), 10 * 60 * 1000);
+    const timer = setTimeout(() => oauthStates.delete(state), 10 * 60 * 1000);
+    if (typeof (timer as any)?.unref === 'function') (timer as any).unref();
     return state;
 }
 
@@ -573,3 +574,195 @@ export const tiktokCallback = async (req: Request, res: Response): Promise<void>
         res.redirect(`${FRONTEND_URL}/settings?error=tiktok_auth_failed`);
     }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PINTEREST (OAuth 2.0)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const pinterestConnect = (req: Request, res: Response): void => {
+    const userId = (req as any).user.userId;
+    const state  = mkState(userId);
+    const redirect = process.env.PINTEREST_REDIRECT_URI || `${BACKEND_URL}/api/oauth/pinterest/callback`;
+
+    const appId = process.env.PINTEREST_APP_ID;
+    if (!appId) {
+        res.redirect(`${FRONTEND_URL}/settings?error=pinterest_app_id_missing`);
+        return;
+    }
+
+    const params = new URLSearchParams({
+        client_id:     appId,
+        redirect_uri:  redirect,
+        response_type: 'code',
+        scope:         'boards:read,pins:read,pins:write,user_accounts:read',
+        state,
+    });
+
+    res.redirect(`https://www.pinterest.com/oauth/?${params}`);
+};
+
+export const pinterestCallback = async (req: Request, res: Response): Promise<void> => {
+    const { code, state } = req.query as { code?: string; state?: string };
+    const stateData = state ? consumeState(state) : null;
+
+    if (!code || !stateData) {
+        res.redirect(`${FRONTEND_URL}/settings?error=pinterest_auth_failed`);
+        return;
+    }
+
+    try {
+        const redirect = process.env.PINTEREST_REDIRECT_URI || `${BACKEND_URL}/api/oauth/pinterest/callback`;
+        const appId = process.env.PINTEREST_APP_ID!;
+        const appSecret = process.env.PINTEREST_APP_SECRET!;
+
+        const authHeader = Buffer.from(`${appId}:${appSecret}`).toString('base64');
+
+        const tokenRes = await axios.post(
+            'https://api.pinterest.com/v5/oauth/token',
+            new URLSearchParams({
+                grant_type:   'authorization_code',
+                code,
+                redirect_uri: redirect,
+            }),
+            {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    Authorization: `Basic ${authHeader}`,
+                },
+            }
+        );
+
+        const { access_token, refresh_token, expires_in } = tokenRes.data;
+        const expiresAt = expires_in ? new Date(Date.now() + expires_in * 1000) : null;
+
+        // Fetch Pinterest user account profile
+        const userRes = await axios.get('https://api.pinterest.com/v5/user_account', {
+            headers: { Authorization: `Bearer ${access_token}` },
+        });
+        const pu = userRes.data;
+        const username = pu.username || pu.business_name || 'Pinterest Business';
+
+        await upsertAccount(
+            stateData.userId,
+            'pinterest',
+            pu.username || pu.id || username,
+            username,
+            access_token,
+            refresh_token ?? null,
+            expiresAt,
+            pu.profile_image ?? null,
+            pu.follower_count ?? 0
+        );
+
+        res.redirect(`${FRONTEND_URL}/settings?connected=pinterest`);
+    } catch (err: any) {
+        console.error('[OAuth] Pinterest callback error:', err?.response?.data || err.message);
+        res.redirect(`${FRONTEND_URL}/settings?error=pinterest_auth_failed`);
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// YOUTUBE (Google OAuth 2.0 with YouTube Data API v3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const youtubeConnect = (req: Request, res: Response): void => {
+    const userId = (req as any).user.userId;
+    const state  = mkState(userId);
+    const redirect = process.env.YOUTUBE_REDIRECT_URI || `${BACKEND_URL}/api/oauth/youtube/callback`;
+
+    const clientId = process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+        res.redirect(`${FRONTEND_URL}/settings?error=youtube_client_id_missing`);
+        return;
+    }
+
+    const params = new URLSearchParams({
+        client_id:     clientId,
+        redirect_uri:  redirect,
+        response_type: 'code',
+        scope:         'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/userinfo.profile',
+        access_type:   'offline',
+        prompt:        'consent',
+        state,
+    });
+
+    res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+};
+
+export const youtubeCallback = async (req: Request, res: Response): Promise<void> => {
+    const { code, state } = req.query as { code?: string; state?: string };
+    const stateData = state ? consumeState(state) : null;
+
+    if (!code || !stateData) {
+        res.redirect(`${FRONTEND_URL}/settings?error=youtube_auth_failed`);
+        return;
+    }
+
+    try {
+        const redirect = process.env.YOUTUBE_REDIRECT_URI || `${BACKEND_URL}/api/oauth/youtube/callback`;
+        const clientId = process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID!;
+        const clientSecret = process.env.YOUTUBE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET!;
+
+        const tokenRes = await axios.post(
+            'https://oauth2.googleapis.com/token',
+            new URLSearchParams({
+                code,
+                client_id:     clientId,
+                client_secret: clientSecret,
+                redirect_uri:  redirect,
+                grant_type:    'authorization_code',
+            }),
+            {
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            }
+        );
+
+        const { access_token, refresh_token, expires_in } = tokenRes.data;
+        const expiresAt = expires_in ? new Date(Date.now() + expires_in * 1000) : null;
+
+        // Fetch YouTube Channel details
+        let channelId = 'youtube_user';
+        let channelTitle = 'YouTube Channel';
+        let channelAvatar: string | null = null;
+        let subscriberCount = 0;
+
+        try {
+            const channelRes = await axios.get('https://www.googleapis.com/youtube/v3/channels', {
+                headers: { Authorization: `Bearer ${access_token}` },
+                params: {
+                    part: 'snippet,statistics',
+                    mine: 'true',
+                },
+            });
+
+            const channel = channelRes.data?.items?.[0];
+            if (channel) {
+                channelId = channel.id;
+                channelTitle = channel.snippet?.customUrl || channel.snippet?.title || 'YouTube Channel';
+                channelAvatar = channel.snippet?.thumbnails?.default?.url || null;
+                subscriberCount = parseInt(channel.statistics?.subscriberCount || '0');
+            }
+        } catch (chanErr) {
+            console.warn('[YouTube] Could not fetch detailed channel info:', chanErr);
+        }
+
+        await upsertAccount(
+            stateData.userId,
+            'youtube',
+            channelId,
+            channelTitle,
+            access_token,
+            refresh_token ?? null,
+            expiresAt,
+            channelAvatar,
+            subscriberCount
+        );
+
+        res.redirect(`${FRONTEND_URL}/settings?connected=youtube`);
+    } catch (err: any) {
+        console.error('[OAuth] YouTube callback error:', err?.response?.data || err.message);
+        res.redirect(`${FRONTEND_URL}/settings?error=youtube_auth_failed`);
+    }
+};
+
+
