@@ -181,7 +181,7 @@ export const initScheduler = () => {
         }
     });
 
-    setInterval(async () => {
+    const pollInterval = setInterval(async () => {
         try {
             const duePosts = await db.query(
                 `SELECT id FROM posts
@@ -200,6 +200,7 @@ export const initScheduler = () => {
             console.error('[Scheduler] Polling error:', err);
         }
     }, 60000);
+    if (typeof (pollInterval as any)?.unref === 'function') (pollInterval as any).unref();
 
     console.log('Post scheduler initialized');
 };

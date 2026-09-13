@@ -18,7 +18,8 @@ function mkState(userId: string, codeVerifier?: string): string {
     const state = crypto.randomBytes(16).toString('hex');
     oauthStates.set(state, { userId, codeVerifier });
     // Auto-expire after 10 minutes
-    setTimeout(() => oauthStates.delete(state), 10 * 60 * 1000);
+    const timer = setTimeout(() => oauthStates.delete(state), 10 * 60 * 1000);
+    if (typeof (timer as any)?.unref === 'function') (timer as any).unref();
     return state;
 }
 
