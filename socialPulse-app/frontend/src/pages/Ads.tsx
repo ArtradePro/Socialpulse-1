@@ -4,7 +4,8 @@ import {
     Loader2, ChevronRight, Wand2, Sparkles, Eye, ShoppingBag, 
     DollarSign, Percent, ExternalLink, Play, Film, User, Volume2, 
     Layers, Settings, ChevronLeft, ArrowRight, Heart, MessageCircle, Share,
-    Info, Check, Copy, Download, RefreshCw, ShieldCheck, Star, Award, Zap, ArrowUpRight
+    Info, Check, Copy, Download, RefreshCw, ShieldCheck, Star, Award, Zap, ArrowUpRight,
+    Pause, VolumeX, Smartphone, Music, Disc3
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import toast from 'react-hot-toast';
@@ -18,6 +19,7 @@ import {
     DirectResponseAdConcept 
 } from '../services/adService';
 import api from '../services/api';
+import { storefrontService } from '../services/storefrontService';
 
 interface Product {
     id: string;
@@ -46,6 +48,8 @@ export const Ads: React.FC = () => {
     const [selectedCopyPlatform, setSelectedCopyPlatform] = useState('tiktok');
     const [copiedField, setCopiedField] = useState<string | null>(null);
     const [autoGenBanners, setAutoGenBanners] = useState(true);
+    const [generatingStorefront, setGeneratingStorefront] = useState(false);
+    const [generatedStorefrontSlug, setGeneratedStorefrontSlug] = useState<string | null>(null);
 
     // Wizard Modals
     const [showWizard, setShowWizard] = useState(false);
@@ -70,13 +74,18 @@ export const Ads: React.FC = () => {
     const [saving, setSaving] = useState(false);
     const [generatingCopy, setGeneratingCopy] = useState(false);
 
-    // Video Generator States
-    const [videoTitle, setVideoTitle] = useState('');
-    const [videoScript, setVideoScript] = useState('');
-    const [avatarStyle, setAvatarStyle] = useState('ugc');
-    const [voiceStyle, setVoiceStyle] = useState('trendy');
+    // Video Generator States (Zeely 9:16 UGC Studio)
+    const [videoTitle, setVideoTitle] = useState('Fungus No More™ Dual Action — Viral Gym Hook');
+    const [videoScript, setVideoScript] = useState('If you shower in a gym or public locker room, standard body wash is not protecting your skin. I started using Fungus No More™ Dual Action and it completely eliminated stubborn irritation. Love The Skin You\'re In.');
+    const [avatarStyle, setAvatarStyle] = useState<'ugc_female' | 'ugc_male' | 'skincare_expert' | 'founder'>('ugc_female');
+    const [voiceStyle, setVoiceStyle] = useState<'en-ZA' | 'en-US' | 'en-GB'>('en-ZA');
+    const [subtitleStyle, setSubtitleStyle] = useState<'pop_yellow' | 'neon_cyan' | 'clean_white'>('pop_yellow');
+    const [backgroundBeat, setBackgroundBeat] = useState<'trendy_lofi' | 'viral_bounce' | 'lab_clean'>('viral_bounce');
+    const [emphasisWord, setEmphasisWord] = useState('STOP');
     const [renderingVideo, setRenderingVideo] = useState(false);
     const [renderStep, setRenderStep] = useState(0);
+    const [simPlaying, setSimPlaying] = useState(true);
+    const [simMuted, setSimMuted] = useState(true);
 
     // Static Ad Creator states
     const [bannerProductId, setBannerProductId] = useState('');
@@ -236,6 +245,40 @@ export const Ads: React.FC = () => {
         }
         setWizardStep(3); // skip straight to preview & adjust
         setShowWizard(true);
+    };
+
+    const handleCreateStorefrontFromCampaign = async () => {
+        if (!campaignResult) return;
+        setGeneratingStorefront(true);
+        try {
+            const prod = campaignResult.product;
+            const concept = campaignResult.adConcepts[0];
+            const newPage = await storefrontService.createPage({
+                title: prod.title || 'Fungus No More™ Dual Action Defense',
+                headline: concept?.headline || 'Eliminate Stubborn Fungus in 10 Days',
+                description: prod.description || 'Clinical botanical defense against stubborn skin and nail fungal infections. Fast absorbing, soothing relief. Formulated by Higiene (Pty) Ltd.',
+                price: typeof prod.price === 'number' ? prod.price : (parseFloat(String(prod.price)) || 349),
+                currency: prod.currency || 'R',
+                image_url: batchBanners[0]?.url || prod.imageUrl || '',
+                cta_text: 'Order Now — Instant Dispatch',
+                features: [
+                    'Laboratory Tested Dual-Action Antifungal Bio-actives',
+                    'Deeply Penetrates Nail Beds and Skin Barrier',
+                    'Rapid Relief from Itching, Redness & Peeling',
+                    'Free Express Courier Delivery Across South Africa',
+                    '100% Satisfaction Guarantee — Love The Skin You\'re In'
+                ],
+                theme: 'modern',
+                use_live_payments: false
+            });
+            setGeneratedStorefrontSlug(newPage.slug);
+            toast.success(`Mobile Storefront created: /s/${newPage.slug}`);
+        } catch (err: any) {
+            console.error('Storefront generation error:', err);
+            toast.error(err.response?.data?.message || 'Failed to create mobile storefront');
+        } finally {
+            setGeneratingStorefront(false);
+        }
     };
 
     const handleSendScriptToTalkingVideo = (scriptTitle: string, scenes: UGCScriptScene[]) => {
@@ -713,6 +756,15 @@ export const Ads: React.FC = () => {
                                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
                                     <button
                                         type="button"
+                                        onClick={handleCreateStorefrontFromCampaign}
+                                        disabled={generatingStorefront}
+                                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        <ShoppingBag className={`w-3.5 h-3.5 ${generatingStorefront ? 'animate-spin' : ''}`} />
+                                        <span>{generatingStorefront ? 'Publishing Funnel...' : '1-Click Mobile Storefront'}</span>
+                                    </button>
+                                    <button
+                                        type="button"
                                         onClick={handleGenerateBatchOnly}
                                         disabled={generatingBatch}
                                         className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50"
@@ -730,6 +782,50 @@ export const Ads: React.FC = () => {
                                     </button>
                                 </div>
                             </div>
+
+                            {/* Mobile Storefront Live Banner */}
+                            {generatedStorefrontSlug && (
+                                <div className="bg-linear-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-300 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="flex items-center gap-3.5">
+                                        <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/30 shrink-0">
+                                            <ShoppingBag className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-black uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                                                    Storefront Live
+                                                </span>
+                                                <span className="text-xs text-gray-500 font-medium">Zeely-Style High-Converting Micro-Funnel</span>
+                                            </div>
+                                            <h4 className="text-sm font-extrabold text-gray-900 mt-1">
+                                                Your direct checkout landing page is live and ready for ad traffic!
+                                            </h4>
+                                            <p className="text-xs text-gray-600 font-mono mt-0.5">
+                                                {window.location.origin}/s/{generatedStorefrontSlug}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => copyToClipboard(`${window.location.origin}/s/${generatedStorefrontSlug}`, 'storefront-url')}
+                                            className="px-3.5 py-2 bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold rounded-xl border border-gray-200 flex items-center gap-1.5 shadow-xs transition-all"
+                                        >
+                                            {copiedField === 'storefront-url' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                            <span>{copiedField === 'storefront-url' ? 'Copied' : 'Copy Link'}</span>
+                                        </button>
+                                        <a
+                                            href={`/s/${generatedStorefrontSlug}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center gap-1.5"
+                                        >
+                                            <span>Preview Storefront</span>
+                                            <ArrowUpRight className="w-3.5 h-3.5" />
+                                        </a>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Batch Creative Banners Gallery (6 High-ROAS Styles) */}
                             <div className="space-y-4">
@@ -1158,146 +1254,414 @@ export const Ads: React.FC = () => {
                     </div>
                 )
             ) : activeTab === 'video' ? (
-                /* AI Avatar Video Generator Panel */
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                    
-                    {/* Left: Script Maker & Options */}
-                    <div className="lg:col-span-5 bg-white p-5 rounded-3xl border border-gray-200 shadow-xs space-y-4">
-                        <div className="flex items-center gap-2">
-                            <Film className="w-5 h-5 text-indigo-500" />
-                            <h2 className="text-sm font-bold text-gray-900 animate-pulse">Render AI Avatar Video</h2>
+                /* Zeely 9:16 Interactive UGC Video Studio with Smartphone Simulator */
+                <div className="space-y-6">
+                    {/* Header */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-gray-200 shadow-xs">
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="p-2 bg-violet-50 text-violet-600 rounded-xl">
+                                    <Smartphone className="w-5 h-5" />
+                                </span>
+                                <h2 className="text-lg font-black text-gray-900">
+                                    Zeely 9:16 Interactive UGC Video Studio
+                                </h2>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                                Real-time mobile phone simulator with dynamic kinetic captions, South African AI voiceovers, and TikTok/Reels direct export.
+                            </p>
                         </div>
-                        
-                        <form onSubmit={handleGenerateVideo} className="space-y-4">
-                            <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Video Title *</label>
-                                <input
-                                    required
-                                    type="text"
-                                    value={videoTitle}
-                                    onChange={e => setVideoTitle(e.target.value)}
-                                    placeholder="e.g. UGC TikTok Ad Copy"
-                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Spoken Script *</label>
-                                <textarea
-                                    required
-                                    value={videoScript}
-                                    onChange={e => setVideoScript(e.target.value)}
-                                    rows={4}
-                                    placeholder="Write what the avatar should say..."
-                                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                                />
-                            </div>
-
-                            {/* Presets styling */}
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Avatar Persona</label>
-                                    <select
-                                        value={avatarStyle}
-                                        onChange={e => setAvatarStyle(e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                    >
-                                        <option value="ugc">Sarah (UGC Creator)</option>
-                                        <option value="founder">David (Tech Founder)</option>
-                                        <option value="professional">Mark (Formal Executive)</option>
-                                        <option value="cheerful">Emily (Energetic Friend)</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Voice Tone</label>
-                                    <select
-                                        value={voiceStyle}
-                                        onChange={e => setVoiceStyle(e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                    >
-                                        <option value="trendy">Trendy UGC</option>
-                                        <option value="professional">Corporate Male</option>
-                                        <option value="warm">Warm Female</option>
-                                        <option value="friendly">Friendly Conversational</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <button
-                                type="submit"
-                                disabled={renderingVideo}
-                                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
-                            >
-                                {renderingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-amber-300" />}
-                                {renderingVideo ? 'Generating Video...' : 'Render AI Video'}
-                            </button>
-                        </form>
-
-                        {/* Rendering Loader Animation Steps */}
-                        {renderingVideo && (
-                            <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4 space-y-3 mt-4">
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Video Processing Queue</p>
-                                <div className="space-y-2 text-xs font-bold text-gray-600">
-                                    <div className="flex items-center gap-2">
-                                        <div className={`w-1.5 h-1.5 rounded-full ${renderStep >= 1 ? 'bg-indigo-600' : 'bg-gray-300'}`} />
-                                        <span className={renderStep === 1 ? 'text-indigo-600 animate-pulse' : ''}>Analyzing script keywords...</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className={`w-1.5 h-1.5 rounded-full ${renderStep >= 2 ? 'bg-indigo-600' : 'bg-gray-300'}`} />
-                                        <span className={renderStep === 2 ? 'text-indigo-600 animate-pulse' : ''}>Synthesizing natural voiceover...</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className={`w-1.5 h-1.5 rounded-full ${renderStep >= 3 ? 'bg-indigo-600' : 'bg-gray-300'}`} />
-                                        <span className={renderStep === 3 ? 'text-indigo-600 animate-pulse' : ''}>Syncing avatar lip movements...</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className={`w-1.5 h-1.5 rounded-full ${renderStep >= 4 ? 'bg-indigo-600' : 'bg-gray-300'}`} />
-                                        <span className={renderStep === 4 ? 'text-indigo-600 animate-pulse' : ''}>Mixing background audio beats...</span>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full border border-emerald-100 flex items-center gap-1.5">
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> ClaimsGuard™ Compliant
+                            </span>
+                        </div>
                     </div>
 
-                    {/* Right: Rendered Video Gallery */}
-                    <div className="lg:col-span-7 space-y-4">
-                        <div className="flex items-center gap-2">
-                            <Film className="w-5 h-5 text-gray-400" />
-                            <h2 className="text-sm font-bold text-gray-900">Your Video Assets Library</h2>
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                        {/* Left: Customizer & Director Controls (7 cols) */}
+                        <div className="lg:col-span-7 bg-white p-6 rounded-3xl border border-gray-200 shadow-xs space-y-5">
+                            {/* Script Prefills from URL-to-Campaign */}
+                            {campaignResult?.videoScripts && campaignResult.videoScripts.length > 0 && (
+                                <div className="space-y-2 pb-2 border-b border-gray-150">
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400">
+                                        Import Generated UGC Script (From URL-to-Campaign)
+                                    </label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {campaignResult.videoScripts.map((s, idx) => (
+                                            <button
+                                                key={idx}
+                                                type="button"
+                                                onClick={() => {
+                                                    setVideoTitle(s.title);
+                                                    setVideoScript(s.scenes.map(sc => sc.spokenAudio).join(' '));
+                                                    if (s.scenes[0]?.emphasisWord) {
+                                                        setEmphasisWord(s.scenes[0].emphasisWord);
+                                                    }
+                                                    toast.success(`Loaded "${s.title}"!`);
+                                                }}
+                                                className="px-3 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-bold rounded-xl border border-violet-100 transition-colors flex items-center gap-1"
+                                            >
+                                                <Sparkles className="w-3 h-3 text-amber-500" />
+                                                <span>Script {idx + 1}: {s.title}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <form onSubmit={handleGenerateVideo} className="space-y-4">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1.5">
+                                        Video Campaign Title *
+                                    </label>
+                                    <input
+                                        required
+                                        type="text"
+                                        value={videoTitle}
+                                        onChange={e => setVideoTitle(e.target.value)}
+                                        placeholder="e.g. Fungus No More Dual Action — Gym Hook Ad"
+                                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-violet-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400">
+                                            Spoken Script *
+                                        </label>
+                                        <span className="text-[10px] text-gray-400">
+                                            {videoScript.split(/\s+/).filter(Boolean).length} words (~{Math.round(videoScript.split(/\s+/).filter(Boolean).length / 2.5)}s)
+                                        </span>
+                                    </div>
+                                    <textarea
+                                        required
+                                        value={videoScript}
+                                        onChange={e => setVideoScript(e.target.value)}
+                                        rows={4}
+                                        placeholder="Type or paste what the avatar should say..."
+                                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                                    />
+                                </div>
+
+                                {/* Avatar Persona Selector (Visual 4-Grid) */}
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400 mb-2">
+                                        Avatar Persona
+                                    </label>
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                        {[
+                                            { id: 'ugc_female', name: 'Emma', role: 'Lifestyle & Routine', badge: 'High Hook Rate' },
+                                            { id: 'ugc_male', name: 'Liam', role: 'Gym & Athletics', badge: 'Fitness Hook' },
+                                            { id: 'skincare_expert', name: 'Dr. Marcus', role: 'Clinical Formulator', badge: 'Dermatologist' },
+                                            { id: 'founder', name: 'Sarah', role: 'Higienlabs Tech Lead', badge: 'Brand Story' },
+                                        ].map(av => (
+                                            <button
+                                                key={av.id}
+                                                type="button"
+                                                onClick={() => setAvatarStyle(av.id as any)}
+                                                className={`p-3 rounded-2xl border text-left transition-all ${
+                                                    avatarStyle === av.id
+                                                        ? 'border-violet-600 bg-violet-50/60 shadow-xs ring-2 ring-violet-500/20'
+                                                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                                                }`}
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-xs font-bold text-gray-900">{av.name}</span>
+                                                    <User className={`w-3.5 h-3.5 ${avatarStyle === av.id ? 'text-violet-600' : 'text-gray-400'}`} />
+                                                </div>
+                                                <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-1">{av.role}</p>
+                                                <span className="inline-block mt-2 text-[8px] font-black uppercase tracking-wider bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                                                    {av.badge}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Voice Tone, Kinetic Subtitle Preset & Background Beat */}
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1.5">
+                                            Voice & Accent
+                                        </label>
+                                        <select
+                                            value={voiceStyle}
+                                            onChange={e => setVoiceStyle(e.target.value as any)}
+                                            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
+                                        >
+                                            <option value="en-ZA">🇿🇦 South African English</option>
+                                            <option value="en-US">🇺🇸 US Viral Energetic</option>
+                                            <option value="en-GB">🇬🇧 British Clinical</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1.5">
+                                            Kinetic Caption Preset
+                                        </label>
+                                        <select
+                                            value={subtitleStyle}
+                                            onChange={e => setSubtitleStyle(e.target.value as any)}
+                                            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
+                                        >
+                                            <option value="pop_yellow">🔥 Viral TikTok Gold Pop</option>
+                                            <option value="neon_cyan">⚡ Cyber Cyan Contrast</option>
+                                            <option value="clean_white">✨ Minimal White Bold</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1.5">
+                                            Background Beat
+                                        </label>
+                                        <select
+                                            value={backgroundBeat}
+                                            onChange={e => setBackgroundBeat(e.target.value as any)}
+                                            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
+                                        >
+                                            <option value="viral_bounce">🎵 TikTok Trap Bounce</option>
+                                            <option value="trendy_lofi">☕ Chill Lo-Fi Shower</option>
+                                            <option value="lab_clean">🔬 Bio-Acoustic Clean</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1.5">
+                                            Subtitles Emphasis Word (Pop Color)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={emphasisWord}
+                                            onChange={e => setEmphasisWord(e.target.value)}
+                                            placeholder="e.g. STOP, RESULTS, DOCTOR"
+                                            className="w-full px-4 py-2 border border-gray-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-violet-500 uppercase"
+                                        />
+                                    </div>
+                                    <div className="flex items-end">
+                                        <button
+                                            type="submit"
+                                            disabled={renderingVideo}
+                                            className="w-full py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 active:scale-[0.98] transition-all shadow-md shadow-violet-600/20 disabled:opacity-50 cursor-pointer"
+                                        >
+                                            {renderingVideo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-amber-300" />}
+                                            {renderingVideo ? 'Rendering 9:16 MP4...' : 'Render 9:16 Video Asset'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+
+                            {/* Rendering Progress */}
+                            {renderingVideo && (
+                                <div className="bg-violet-50/50 border border-violet-100 rounded-2xl p-4 space-y-3">
+                                    <p className="text-[10px] font-black uppercase tracking-wider text-violet-700">
+                                        Zeely Video Compositor Pipeline
+                                    </p>
+                                    <div className="space-y-2 text-xs font-bold text-gray-600">
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-2 h-2 rounded-full ${renderStep >= 1 ? 'bg-violet-600' : 'bg-gray-300'}`} />
+                                            <span className={renderStep === 1 ? 'text-violet-600 animate-pulse' : ''}>1. Analyzing hook retention & timing...</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-2 h-2 rounded-full ${renderStep >= 2 ? 'bg-violet-600' : 'bg-gray-300'}`} />
+                                            <span className={renderStep === 2 ? 'text-violet-600 animate-pulse' : ''}>2. Synthesizing South African English voiceover...</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-2 h-2 rounded-full ${renderStep >= 3 ? 'bg-violet-600' : 'bg-gray-300'}`} />
+                                            <span className={renderStep === 3 ? 'text-violet-600 animate-pulse' : ''}>3. Synchronizing avatar lip movements & kinematics...</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-2 h-2 rounded-full ${renderStep >= 4 ? 'bg-violet-600' : 'bg-gray-300'}`} />
+                                            <span className={renderStep === 4 ? 'text-violet-600 animate-pulse' : ''}>4. Burning kinetic subtitles & mixing background audio...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Right: 9:16 Smartphone Simulator Frame (5 cols) */}
+                        <div className="lg:col-span-5 flex flex-col items-center space-y-4">
+                            {/* iPhone Frame */}
+                            <div className="relative w-full max-w-[280px] aspect-[9/16] bg-black rounded-[42px] border-[7px] border-gray-900 shadow-2xl overflow-hidden ring-1 ring-white/10 select-none">
+                                {/* Top Notch / Dynamic Island */}
+                                <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-24 h-4 bg-gray-950 rounded-full z-30 flex items-center justify-center">
+                                    <div className="w-2.5 h-2.5 rounded-full bg-gray-900 ml-auto mr-2" />
+                                </div>
+
+                                {/* Top Badges */}
+                                <div className="absolute top-8 left-3 right-3 z-20 flex items-center justify-between text-[9px] font-bold text-white drop-shadow">
+                                    <span className="bg-black/40 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/10 flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> Live 9:16
+                                    </span>
+                                    <span className="bg-emerald-600/80 backdrop-blur-md px-2 py-0.5 rounded-full text-white flex items-center gap-1">
+                                        <ShieldCheck className="w-2.5 h-2.5" /> ClaimsGuard™
+                                    </span>
+                                </div>
+
+                                {/* Avatar Video Stream */}
+                                {(() => {
+                                    const templateMap: Record<string, string> = {
+                                        ugc_female: 'https://assets.mixkit.co/videos/preview/mixkit-smiling-woman-talking-to-camera-at-home-42436-large.mp4',
+                                        ugc_male: 'https://assets.mixkit.co/videos/preview/mixkit-young-man-giving-a-lecture-at-a-screen-40767-large.mp4',
+                                        skincare_expert: 'https://assets.mixkit.co/videos/preview/mixkit-man-in-suit-explaining-something-at-camera-40081-large.mp4',
+                                        founder: 'https://assets.mixkit.co/videos/preview/mixkit-happy-girl-talking-on-video-call-42861-large.mp4'
+                                    };
+                                    const videoSrc = templateMap[avatarStyle] || templateMap.ugc_female;
+
+                                    return (
+                                        <video
+                                            key={videoSrc}
+                                            src={videoSrc}
+                                            autoPlay
+                                            loop
+                                            muted={simMuted}
+                                            playsInline
+                                            className="w-full h-full object-cover"
+                                        />
+                                    );
+                                })()}
+
+                                {/* Dynamic Kinetic Subtitle Overlay (Floating Center) */}
+                                <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 z-20 pointer-events-none text-center">
+                                    <div className="inline-block bg-black/60 backdrop-blur-xs px-3.5 py-2 rounded-2xl border border-white/10 shadow-lg">
+                                        <p className="text-xs font-black tracking-wide leading-tight text-white uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                                            {videoScript.slice(0, 75)}...
+                                        </p>
+                                        {emphasisWord && (
+                                            <span className={`inline-block mt-1 text-sm font-black tracking-widest px-2 py-0.5 rounded-md uppercase animate-bounce ${
+                                                subtitleStyle === 'pop_yellow'
+                                                    ? 'bg-amber-400 text-gray-950 shadow-md shadow-amber-400/50'
+                                                    : subtitleStyle === 'neon_cyan'
+                                                    ? 'bg-cyan-400 text-gray-950 shadow-md shadow-cyan-400/50'
+                                                    : 'bg-white text-gray-950'
+                                            }`}>
+                                                {emphasisWord}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Simulated TikTok / Instagram Reels Right Rail */}
+                                <div className="absolute right-2.5 bottom-16 z-20 flex flex-col items-center gap-3 text-white text-shadow">
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/20">
+                                            <Heart className="w-4 h-4 fill-red-500 text-red-500" />
+                                        </div>
+                                        <span className="text-[9px] font-bold mt-0.5">28.4K</span>
+                                    </div>
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/20">
+                                            <MessageCircle className="w-4 h-4 text-white" />
+                                        </div>
+                                        <span className="text-[9px] font-bold mt-0.5">412</span>
+                                    </div>
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/20">
+                                            <Share className="w-4 h-4 text-white" />
+                                        </div>
+                                        <span className="text-[9px] font-bold mt-0.5">1.5K</span>
+                                    </div>
+                                    <div className="w-8 h-8 rounded-full bg-black/60 border border-white/30 flex items-center justify-center animate-spin">
+                                        <Disc3 className="w-4 h-4 text-amber-300" />
+                                    </div>
+                                </div>
+
+                                {/* Simulated Bottom Creator Tag & Audio Track */}
+                                <div className="absolute inset-x-3 bottom-3 z-20 text-white space-y-1 drop-shadow">
+                                    <p className="text-[11px] font-black tracking-tight text-white flex items-center gap-1">
+                                        <span>@higiene.official</span>
+                                        <Check className="w-3 h-3 text-cyan-400 stroke-[3]" />
+                                    </p>
+                                    <p className="text-[10px] text-white/90 line-clamp-1 font-medium">
+                                        {videoTitle} #LoveTheSkinYoureIn #Takealot
+                                    </p>
+                                    <p className="text-[9px] text-amber-300 flex items-center gap-1 font-semibold">
+                                        <Music className="w-2.5 h-2.5" />
+                                        <span>Original Audio — Higiene Labs ({voiceStyle})</span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Simulator Player Controls */}
+                            <div className="flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setSimMuted(!simMuted)}
+                                    className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                                    title={simMuted ? 'Unmute Sound' : 'Mute Sound'}
+                                >
+                                    {simMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-violet-600" />}
+                                    <span>{simMuted ? 'Muted' : 'Sound On'}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        resetWizard();
+                                        const templateMap: Record<string, string> = {
+                                            ugc_female: 'https://assets.mixkit.co/videos/preview/mixkit-smiling-woman-talking-to-camera-at-home-42436-large.mp4',
+                                            ugc_male: 'https://assets.mixkit.co/videos/preview/mixkit-young-man-giving-a-lecture-at-a-screen-40767-large.mp4',
+                                            skincare_expert: 'https://assets.mixkit.co/videos/preview/mixkit-man-in-suit-explaining-something-at-camera-40081-large.mp4',
+                                            founder: 'https://assets.mixkit.co/videos/preview/mixkit-happy-girl-talking-on-video-call-42861-large.mp4'
+                                        };
+                                        setMediaUrl(templateMap[avatarStyle] || templateMap.ugc_female);
+                                        setName(videoTitle);
+                                        setHeadline('Fungus No More™ Dual Action');
+                                        setAdCopy(videoScript);
+                                        setTargetUrl(campaignResult?.product.url || 'https://www.takealot.com/fungus-no-more/PLID92742962');
+                                        setWizardStep(3);
+                                        setShowWizard(true);
+                                    }}
+                                    className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                                >
+                                    <Megaphone className="w-3.5 h-3.5" />
+                                    <span>Launch As Video Campaign</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Library of Generated Videos */}
+                    <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xs space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Film className="w-5 h-5 text-gray-500" />
+                                <h3 className="text-base font-bold text-gray-900">Your Rendered Video Library ({videos.length})</h3>
+                            </div>
                         </div>
 
                         {videos.length === 0 ? (
-                            <div className="text-center py-20 bg-white rounded-3xl border border-gray-200">
-                                <Film className="w-12 h-12 mx-auto text-gray-300 mb-2" />
-                                <p className="text-gray-500 font-medium">No videos generated yet</p>
-                                <p className="text-gray-400 text-xs mt-1">Use the panel on the left to write scripts and render custom ad videos</p>
+                            <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl">
+                                <Film className="w-10 h-10 mx-auto text-gray-300 mb-2" />
+                                <p className="text-xs text-gray-400">No custom videos rendered yet. Use the simulator above to create your first 9:16 asset.</p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {videos.map(vid => (
                                     <div
                                         key={vid.id}
                                         onClick={() => setPlayingVideo(vid)}
-                                        className="bg-white border border-gray-200 rounded-3xl overflow-hidden hover:border-indigo-300 shadow-xs hover:shadow-md cursor-pointer transition-all flex flex-col justify-between"
+                                        className="bg-gray-50 border border-gray-200 rounded-2xl overflow-hidden hover:border-violet-300 shadow-xs hover:shadow-md cursor-pointer transition-all flex flex-col justify-between"
                                     >
                                         <div className="p-4 space-y-2">
                                             <div className="flex items-center justify-between">
-                                                <h3 className="text-sm font-bold text-gray-900 truncate max-w-[150px]">{vid.title}</h3>
-                                                <span className="text-[9px] font-bold uppercase tracking-wider bg-indigo-50 border border-indigo-100 text-indigo-600 px-2 py-0.5 rounded-md">
+                                                <h4 className="text-xs font-bold text-gray-900 truncate max-w-[160px]">{vid.title}</h4>
+                                                <span className="text-[9px] font-black uppercase tracking-wider bg-violet-50 text-violet-700 px-2 py-0.5 rounded">
                                                     {vid.avatar_style}
                                                 </span>
                                             </div>
-                                            <p className="text-xs text-gray-500 line-clamp-3 leading-relaxed">"{vid.script}"</p>
+                                            <p className="text-[11px] text-gray-500 line-clamp-2 leading-relaxed italic">
+                                                "{vid.script}"
+                                            </p>
                                         </div>
-                                        
-                                        <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                                        <div className="px-4 py-2.5 bg-white border-t border-gray-150 flex items-center justify-between text-xs">
                                             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                                                <Volume2 className="w-3.5 h-3.5" />
-                                                {vid.voice_style}
+                                                <Volume2 className="w-3 h-3" /> {vid.voice_style}
                                             </span>
-                                            <button className="flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800">
-                                                <Play className="w-3 h-3 fill-indigo-600" /> Play Ad
-                                            </button>
+                                            <span className="text-xs font-black text-violet-600 flex items-center gap-1">
+                                                <Play className="w-3 h-3 fill-violet-600" /> Play MP4
+                                            </span>
                                         </div>
                                     </div>
                                 ))}
