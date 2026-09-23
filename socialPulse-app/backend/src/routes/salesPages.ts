@@ -9,7 +9,10 @@ import {
     deleteSalesPage,
     getSalesPageBySlug,
     createCheckoutOrder,
-    listSalesOrders
+    listSalesOrders,
+    handleWhatsAppOrder,
+    handleCartPing,
+    listAbandonedCarts
 } from '../controllers/salesPages.controller';
 
 const router = Router();
@@ -17,14 +20,17 @@ const router = Router();
 // Public storefront checkout funnels (no authentication or workspace checks)
 router.get('/public/:slug', getSalesPageBySlug);
 router.post('/public/checkout', createCheckoutOrder);
+router.post('/public/whatsapp-order', handleWhatsAppOrder);
+router.post('/public/cart-ping', handleCartPing);
 
 // Private workspace-level builder routes
 router.use(authenticate);
 router.use(resolveWorkspace);
 
-router.get('/',       listSalesPages);
-router.post('/',      createSalesPage);
-router.get('/orders', listSalesOrders);
+router.get('/',               listSalesPages);
+router.post('/',              createSalesPage);
+router.get('/orders',         listSalesOrders);
+router.get('/abandoned-carts', listAbandonedCarts);
 router.get('/:id',    getSalesPage);
 router.patch('/:id',  updateSalesPage);
 router.delete('/:id', deleteSalesPage);

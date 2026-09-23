@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { db } from '../config/database';
 import { StorageService } from '../services/storage.service';
 import { generateStaticBanner } from '../services/banner.service';
+import { adAutoPilotService } from '../services/adAutoPilot.service';
 
 // List ad campaigns
 export const listAdCampaigns = async (req: Request, res: Response): Promise<void> => {
@@ -441,5 +442,45 @@ export const generateAdBannerBatch = async (req: Request, res: Response): Promis
     } catch (err: any) {
         console.error('[AdCampaigns] generateAdBannerBatch error:', err);
         res.status(500).json({ message: 'Failed to generate ad banner batch' });
+    }
+};
+
+// Get AI Auto-Pilot status and intervention history
+export const getAutoPilotStatus = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const config = adAutoPilotService.getConfig();
+        const interventions = adAutoPilotService.getInterventions(25);
+        res.status(200).json({ config, interventions });
+    } catch (err: any) {
+        console.error('[AdCampaigns] getAutoPilotStatus error:', err);
+        res.status(500).json({ message: 'Failed to load Auto-Pilot status' });
+    }
+};
+
+// Update AI Auto-Pilot configuration
+export const updateAutoPilotConfig = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { enabled, maxTargetCpa, minCtrThreshold, autoScaleWinners } = req.body;
+        const updated = adAutoPilotService.updateConfig({
+            ...(enabled !== undefined ? { enabled: Boolean(enabled) } : {}),
+            ...(maxTargetCpa !== undefined ? { maxTargetCpa: parseFloat(maxTargetCpa) } : {}),
+            ...(minCtrThreshold !== undefined ? { minCtrThreshold: parseFloat(minCtrThreshold) } : {}),
+            ...(autoScaleWinners !== undefined ? { autoScaleWinners: Boolean(autoScaleWinners) } : {})
+        });
+        res.status(200).json({ message: 'Auto-Pilot configuration updated', config: updated });
+    } catch (err: any) {
+        console.error('[AdCampaigns] updateAutoPilotConfig error:', err);
+        res.status(500).json({ message: 'Failed to update Auto-Pilot configuration' });
+    }
+};
+
+// Manually trigger an immediate Auto-Pilot evaluation cycle
+export const triggerAutoPilotEvaluation = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const result = await adAutoPilotService.evaluateActiveCampaigns(req.workspaceId);
+        res.status(200).json(result);
+    } catch (err: any) {
+        console.error('[AdCampaigns] triggerAutoPilotEvaluation error:', err);
+        res.status(500).json({ message: 'Failed to execute Auto-Pilot evaluation' });
     }
 };

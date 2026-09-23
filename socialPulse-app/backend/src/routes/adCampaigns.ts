@@ -13,7 +13,10 @@ import {
     generateUGCScript,
     renderUGCVideo,
     urlToCampaign,
-    generateAdBannerBatch
+    generateAdBannerBatch,
+    getAutoPilotStatus,
+    updateAutoPilotConfig,
+    triggerAutoPilotEvaluation
 } from '../controllers/adCampaigns.controller';
 
 const router = Router();
@@ -23,6 +26,9 @@ router.use(resolveWorkspace);
 
 router.get('/',      listAdCampaigns);
 router.post('/',     createAdCampaign);
+router.get('/autopilot/status', getAutoPilotStatus);
+router.post('/autopilot/config', updateAutoPilotConfig);
+router.post('/autopilot/run', triggerAutoPilotEvaluation);
 router.post('/video', generateAvatarVideo);
 router.get('/video',  listGeneratedVideos);
 router.post('/ugc-script', generateUGCScript);

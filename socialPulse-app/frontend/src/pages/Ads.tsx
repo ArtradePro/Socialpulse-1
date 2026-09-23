@@ -5,7 +5,7 @@ import {
     DollarSign, Percent, ExternalLink, Play, Film, User, Volume2, 
     Layers, Settings, ChevronLeft, ArrowRight, Heart, MessageCircle, Share,
     Info, Check, Copy, Download, RefreshCw, ShieldCheck, Star, Award, Zap, ArrowUpRight,
-    Pause, VolumeX, Smartphone, Music, Disc3
+    Pause, VolumeX, Smartphone, Music, Disc3, Shield, Sliders, AlertTriangle
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import toast from 'react-hot-toast';
@@ -16,10 +16,12 @@ import {
     GeneratedCampaignResult, 
     BatchBannerResponse, 
     UGCScriptScene, 
-    DirectResponseAdConcept 
+    DirectResponseAdConcept,
+    AutoPilotInterventionItem 
 } from '../services/adService';
 import api from '../services/api';
 import { storefrontService } from '../services/storefrontService';
+import { BeforeAfterSlider } from '../components/storefront/BeforeAfterSlider';
 
 interface Product {
     id: string;
@@ -50,6 +52,13 @@ export const Ads: React.FC = () => {
     const [autoGenBanners, setAutoGenBanners] = useState(true);
     const [generatingStorefront, setGeneratingStorefront] = useState(false);
     const [generatedStorefrontSlug, setGeneratedStorefrontSlug] = useState<string | null>(null);
+
+    // AI Auto-Pilot & Stop-Loss Shield States
+    const [autoPilotEnabled, setAutoPilotEnabled] = useState(true);
+    const [targetCpa, setTargetCpa] = useState(85); // Default R85
+    const [autoPilotInterventions, setAutoPilotInterventions] = useState<AutoPilotInterventionItem[]>([]);
+    const [showInterventionLogs, setShowInterventionLogs] = useState(false);
+    const [runningAutoPilot, setRunningAutoPilot] = useState(false);
 
     // Wizard Modals
     const [showWizard, setShowWizard] = useState(false);
@@ -292,18 +301,58 @@ export const Ads: React.FC = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [campsRes, videosRes, productsRes] = await Promise.all([
+            const [campsRes, videosRes, productsRes, autoPilotRes] = await Promise.all([
                 adService.getCampaigns(),
                 adService.getVideos(),
-                api.get('/ecommerce/products').catch(() => ({ data: { products: [] } }))
+                api.get('/ecommerce/products').catch(() => ({ data: { products: [] } })),
+                adService.getAutoPilotStatus().catch(() => null)
             ]);
             setCampaigns(campsRes);
             setVideos(videosRes);
             setProducts(productsRes.data?.products || []);
+            if (autoPilotRes) {
+                setAutoPilotEnabled(autoPilotRes.config.enabled);
+                setTargetCpa(autoPilotRes.config.maxTargetCpa);
+                setAutoPilotInterventions(autoPilotRes.interventions);
+            }
         } catch (err) {
             toast.error('Failed to load paid advertising data');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleToggleAutoPilot = async () => {
+        const nextState = !autoPilotEnabled;
+        setAutoPilotEnabled(nextState);
+        try {
+            await adService.updateAutoPilotConfig({ enabled: nextState });
+            toast.success(`AI Auto-Pilot & Stop-Loss Shield ${nextState ? 'Activated' : 'Paused'}`);
+        } catch {
+            toast.error('Failed to update Auto-Pilot state');
+        }
+    };
+
+    const handleUpdateTargetCpa = async (val: number) => {
+        setTargetCpa(val);
+        try {
+            await adService.updateAutoPilotConfig({ maxTargetCpa: val });
+        } catch {
+            // silent update
+        }
+    };
+
+    const handleRunAutoPilotNow = async () => {
+        setRunningAutoPilot(true);
+        try {
+            const res = await adService.runAutoPilotNow();
+            setAutoPilotInterventions(res.interventions);
+            toast.success(`Auto-Pilot cycle completed: ${res.pausedCount} stopped, ${res.scaledCount} scaled`);
+            await fetchData();
+        } catch {
+            toast.error('Failed to run Auto-Pilot evaluation');
+        } finally {
+            setRunningAutoPilot(false);
         }
     };
 
@@ -550,6 +599,129 @@ export const Ads: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            {/* AI Auto-Pilot & Stop-Loss Shield Panel */}
+            <div className="bg-linear-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 rounded-3xl border border-indigo-900/60 shadow-lg space-y-4">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div className="flex items-start sm:items-center gap-3.5">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${
+                            autoPilotEnabled 
+                                ? 'bg-linear-to-br from-emerald-500 to-teal-600 text-white shadow-emerald-500/20' 
+                                : 'bg-gray-800 text-gray-400'
+                        }`}>
+                            <Shield className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="text-base font-black tracking-tight text-white flex items-center gap-1.5">
+                                    AI Auto-Pilot & Stop-Loss Shield
+                                </h3>
+                                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                    autoPilotEnabled 
+                                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
+                                        : 'bg-gray-800 text-gray-400 border-gray-700'
+                                }`}>
+                                    {autoPilotEnabled ? '24/7 Shield Active' : 'Shield Standby'}
+                                </span>
+                                <span className="text-[10px] font-bold text-indigo-300 bg-indigo-950/80 px-2 py-0.5 rounded-md border border-indigo-800/60">
+                                    Zeely Autonomous ROAS Optimizer
+                                </span>
+                            </div>
+                            <p className="text-xs text-gray-300 mt-1 max-w-2xl leading-relaxed">
+                                Automatically kills high-CPA ad variations to eliminate budget burn, and scales winning Takealot & UGC creatives by +15% daily budget.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                        {/* Target CPA ceiling setting */}
+                        <div className="bg-white/10 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/10 flex items-center gap-3 text-xs">
+                            <span className="text-gray-300 font-bold">Max CPA Ceiling:</span>
+                            <div className="flex items-center gap-1">
+                                <span className="text-amber-400 font-black text-sm">R{targetCpa}</span>
+                                <input
+                                    type="range"
+                                    min="30"
+                                    max="200"
+                                    step="5"
+                                    value={targetCpa}
+                                    onChange={e => handleUpdateTargetCpa(parseInt(e.target.value))}
+                                    className="w-20 accent-emerald-500 cursor-pointer ml-1"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Scan Now */}
+                        <button
+                            type="button"
+                            onClick={handleRunAutoPilotNow}
+                            disabled={runningAutoPilot}
+                            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                        >
+                            <RefreshCw className={`w-3.5 h-3.5 ${runningAutoPilot ? 'animate-spin' : ''}`} />
+                            <span>{runningAutoPilot ? 'Evaluating...' : 'Scan Now'}</span>
+                        </button>
+
+                        {/* Toggle Active */}
+                        <button
+                            type="button"
+                            onClick={handleToggleAutoPilot}
+                            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-md ${
+                                autoPilotEnabled
+                                    ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20'
+                                    : 'bg-gray-700 hover:bg-gray-600 text-gray-200'
+                            }`}
+                        >
+                            <Zap className="w-3.5 h-3.5" />
+                            <span>{autoPilotEnabled ? 'Auto-Pilot: ON' : 'Auto-Pilot: OFF'}</span>
+                        </button>
+
+                        {/* Audit log toggle */}
+                        <button
+                            type="button"
+                            onClick={() => setShowInterventionLogs(!showInterventionLogs)}
+                            className="px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl text-xs font-semibold border border-white/10 transition-all flex items-center gap-1 cursor-pointer"
+                        >
+                            <span>Logs ({autoPilotInterventions.length})</span>
+                            <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showInterventionLogs ? 'rotate-90' : ''}`} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Audit Trail Drawer */}
+                {showInterventionLogs && (
+                    <div className="mt-4 pt-4 border-t border-white/10 space-y-2.5 animate-in fade-in duration-200">
+                        <div className="flex items-center justify-between text-xs font-bold text-gray-400">
+                            <span>Recent Auto-Pilot Actions & Shield Interventions:</span>
+                            <span className="text-[10px] text-gray-500">Live 1-Minute Cycle Execution</span>
+                        </div>
+                        {autoPilotInterventions.length === 0 ? (
+                            <p className="text-xs text-gray-400 italic py-2">No interventions recorded yet. Active campaigns are healthy and operating below target CPA ceiling.</p>
+                        ) : (
+                            <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                                {autoPilotInterventions.map((log, idx) => (
+                                    <div key={log.id || idx} className="bg-white/5 p-3 rounded-xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                                                log.action === 'PAUSED' 
+                                                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' 
+                                                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                            }`}>
+                                                {log.action}
+                                            </span>
+                                            <span className="font-bold text-gray-200">{log.campaignName}</span>
+                                        </div>
+                                        <p className="text-gray-300 text-[11px] flex-1 sm:px-3">{log.reason}</p>
+                                        <span className="text-[10px] text-gray-500 font-mono shrink-0">
+                                            {new Date(log.timestamp).toLocaleTimeString()}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
 
             {/* Navigation Tabs */}
             <div className="flex border-b border-gray-200 overflow-x-auto">
@@ -918,6 +1090,33 @@ export const Ads: React.FC = () => {
                                         <p className="text-xs text-gray-400 mt-1">Click "Regenerate Banners" above to composite the 6 direct-response styles.</p>
                                     </div>
                                 )}
+                            </div>
+
+                            {/* Interactive Before & After Clinical Proof Ad Creative Studio */}
+                            <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xs space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <Sparkles className="w-5 h-5 text-emerald-600" />
+                                            <h3 className="text-lg font-black text-gray-900">
+                                                Interactive "Before & After" Clinical Proof Engine
+                                            </h3>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                            The #1 converting visual element in direct-response healthcare. Integrated into your mobile storefront and ready to drive 3x higher ROAS.
+                                        </p>
+                                    </div>
+                                    <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full self-start sm:self-auto">
+                                        High-ROAS Direct Response
+                                    </span>
+                                </div>
+
+                                <div className="max-w-2xl mx-auto py-2">
+                                    <BeforeAfterSlider
+                                        category={campaignResult.product.title?.toLowerCase().includes('hair') ? 'hair' : campaignResult.product.title?.toLowerCase().includes('skin') ? 'skin' : 'fnm'}
+                                        theme="modern"
+                                    />
+                                </div>
                             </div>
 
                             {/* Dual Grid: 3 UGC Video Scripts & Multi-Platform Ad Copy */}
