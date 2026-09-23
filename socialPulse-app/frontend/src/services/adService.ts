@@ -83,5 +83,84 @@ export const adService = {
     }) => {
         const { data } = await api.post<{ adCopy: string; headline: string }>('/ai/generate-ad-creative', creativeParams);
         return data;
+    },
+
+    urlToCampaign: async (url: string) => {
+        const { data } = await api.post<GeneratedCampaignResult>('/ads/url-to-campaign', { url });
+        return data;
+    },
+
+    generateBannerBatch: async (batchData: {
+        imageUrl?: string;
+        productTitle: string;
+        headline: string;
+        subheadline?: string;
+        priceText?: string;
+        isFNM?: boolean;
+    }) => {
+        const { data } = await api.post<BatchBannerResponse>('/ads/banner-batch', batchData);
+        return data;
     }
 };
+
+export interface UGCScriptScene {
+    sceneNumber: number;
+    type: 'HOOK' | 'PROBLEM_SOLUTION' | 'CTA';
+    durationSeconds: number;
+    visualDirection: string;
+    spokenAudio: string;
+    captionText: string;
+    emphasisWord?: string;
+}
+
+export interface DirectResponseAdConcept {
+    style: 'takealot_review' | 'us_vs_them' | 'urgency_deal' | 'clinical_proof' | 'luxury_marble' | 'social_proof_tweet';
+    headline: string;
+    subheadline?: string;
+    badgeText?: string;
+    priceText?: string;
+    ctaText: string;
+    quoteText?: string;
+}
+
+export interface GeneratedCampaignResult {
+    product: {
+        url: string;
+        title: string;
+        description: string;
+        price?: string;
+        currency?: string;
+        imageUrl?: string;
+        brand?: string;
+        isFNM?: boolean;
+    };
+    videoScripts: {
+        title: string;
+        hook: string;
+        scenes: UGCScriptScene[];
+        totalDurationSeconds: number;
+    }[];
+    adConcepts: DirectResponseAdConcept[];
+    socialCopy: {
+        platform: string;
+        headline: string;
+        body: string;
+        callToAction: string;
+    }[];
+    targetAudience: string[];
+}
+
+export interface BatchBannerResponse {
+    count: number;
+    banners: {
+        id: string;
+        style: string;
+        styleTitle: string;
+        original_name: string;
+        url: string;
+        thumbnail_url: string;
+        width: number;
+        height: number;
+    }[];
+}
+

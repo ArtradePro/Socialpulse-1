@@ -11,7 +11,9 @@ import {
     listGeneratedVideos,
     generateAdBanner,
     generateUGCScript,
-    renderUGCVideo
+    renderUGCVideo,
+    urlToCampaign,
+    generateAdBannerBatch
 } from '../controllers/adCampaigns.controller';
 
 const router = Router();
@@ -26,6 +28,8 @@ router.get('/video',  listGeneratedVideos);
 router.post('/ugc-script', generateUGCScript);
 router.post('/ugc-video', renderUGCVideo);
 router.post('/banner', generateAdBanner);
+router.post('/banner-batch', generateAdBannerBatch);
+router.post('/url-to-campaign', urlToCampaign);
 router.get('/:id',   getAdCampaign);
 router.patch('/:id', updateAdCampaign);
 router.delete('/:id', deleteAdCampaign);
