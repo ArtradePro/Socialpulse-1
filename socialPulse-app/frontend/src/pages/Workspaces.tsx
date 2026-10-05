@@ -4,10 +4,11 @@ import {
     Plus, Settings, Users, Globe, 
     MoreVertical, Trash2, Shield, 
     Check, X, Loader2, Building2,
-    Crown, User, Eye, UserPlus, Palette
+    Crown, User, Eye, UserPlus, Palette, Upload
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import MediaService from '../services/media.service';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { setWorkspaces, addWorkspace, removeWorkspace, switchWorkspace, Workspace } from '../store/workspaceSlice';
 
@@ -187,6 +188,54 @@ export const Workspaces: React.FC = () => {
         } catch { toast.error('Failed to cancel invite'); }
     };
 
+    const [uploadingLogo, setUploadingLogo] = useState(false);
+
+    const handleLogoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploadingLogo(true);
+        try {
+            try {
+                const uploaded = await MediaService.upload([file], 'logos');
+                if (uploaded?.[0]?.url) {
+                    setBrandLogoUrl(uploaded[0].url);
+                    toast.success('Logo uploaded! Click "Save branding" to apply.');
+                    return;
+                }
+            } catch {
+                // Fallback to optimized inline Data URL so logo upload always works
+            }
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const maxDim = 256;
+                        const scale = Math.min(1, maxDim / Math.max(img.width || 1, img.height || 1));
+                        const canvas = document.createElement('canvas');
+                        canvas.width = Math.max(1, Math.round(img.width * scale));
+                        canvas.height = Math.max(1, Math.round(img.height * scale));
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) { resolve(reader.result as string); return; }
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        resolve(canvas.toDataURL('image/png'));
+                    };
+                    img.onerror = () => resolve(reader.result as string);
+                    img.src = reader.result as string;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+            setBrandLogoUrl(dataUrl);
+            toast.success('Logo loaded! Click "Save branding" to apply.');
+        } catch {
+            toast.error('Failed to read logo file');
+        } finally {
+            setUploadingLogo(false);
+            e.target.value = '';
+        }
+    };
+
     const handleSaveBranding = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selected) return;
@@ -203,6 +252,7 @@ export const Workspaces: React.FC = () => {
             }, { headers: { 'X-Workspace-Id': selected.id } });
             toast.success('Branding saved');
             loadDetail(selected);
+            loadList();
         } catch (err: any) {
             toast.error(err?.response?.data?.message ?? 'Failed to save branding');
         } finally { setSavingBrand(false); }
@@ -275,9 +325,17 @@ export const Workspaces: React.FC = () => {
                                     ? 'border-indigo-300 bg-indigo-50'
                                     : 'border-gray-200 bg-white hover:border-gray-300'
                             }`}>
-                            <div className="w-10 h-10 rounded-xl bg-linear-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-base shrink-0">
-                                {ws.name[0].toUpperCase()}
-                            </div>
+                            {((ws as any).brand_logo_url || ws.logo_url) ? (
+                                <img
+                                    src={(ws as any).brand_logo_url || ws.logo_url}
+                                    alt={ws.name}
+                                    className="w-10 h-10 rounded-xl object-contain bg-white border border-gray-200 p-0.5 shrink-0"
+                                />
+                            ) : (
+                                <div className="w-10 h-10 rounded-xl bg-linear-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-base shrink-0">
+                                    {ws.name[0].toUpperCase()}
+                                </div>
+                            )}
                             <div className="flex-1 min-w-0">
                                 <p className="font-semibold text-gray-900 truncate">{ws.name}</p>
                                 <p className="text-xs text-gray-500">{ws.member_count ?? ws.memberCount ?? '?'} members • {ws.role}</p>
@@ -318,9 +376,17 @@ export const Workspaces: React.FC = () => {
 
                             <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-linear-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold">
-                                        {selected.name[0].toUpperCase()}
-                                    </div>
+                                    {(brandLogoUrl || (selected as any).brand_logo_url || selected.logo_url) ? (
+                                        <img
+                                            src={brandLogoUrl || (selected as any).brand_logo_url || selected.logo_url}
+                                            alt={selected.name}
+                                            className="w-10 h-10 rounded-xl object-contain bg-white border border-gray-200 p-0.5 shrink-0"
+                                        />
+                                    ) : (
+                                        <div className="w-10 h-10 rounded-xl bg-linear-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold">
+                                            {selected.name[0].toUpperCase()}
+                                        </div>
+                                    )}
                                     <div>
                                         <h2 className="text-xl font-bold text-gray-900">{selected.name}</h2>
                                         <p className="text-sm text-gray-500">Workspace Settings & Members</p>
@@ -370,12 +436,39 @@ export const Workspaces: React.FC = () => {
                                         </div>
 
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Logo URL</label>
-                                            <input type="url" value={brandLogoUrl}
-                                                onChange={e => setBrandLogoUrl(e.target.value)}
-                                                placeholder="https://cdn.example.com/logo.png"
-                                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                                            {brandLogoUrl && <img src={brandLogoUrl} alt="Preview" className="mt-2 h-10 w-10 object-cover aspect-square rounded" />}
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Workspace Logo</label>
+                                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                                                <label className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-sm font-semibold cursor-pointer transition-colors shrink-0">
+                                                    {uploadingLogo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                                    {uploadingLogo ? 'Uploading…' : 'Upload Logo File'}
+                                                    <input
+                                                        type="file"
+                                                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                                                        onChange={handleLogoFileUpload}
+                                                        disabled={uploadingLogo}
+                                                        className="hidden"
+                                                    />
+                                                </label>
+                                                <input type="text" value={brandLogoUrl}
+                                                    onChange={e => setBrandLogoUrl(e.target.value)}
+                                                    placeholder="Or paste Logo URL (https://cdn.example.com/logo.png)"
+                                                    className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                            </div>
+                                            {brandLogoUrl && (
+                                                <div className="mt-3 flex items-center gap-3 p-2.5 bg-gray-50 rounded-xl border border-gray-200 w-fit">
+                                                    <img src={brandLogoUrl} alt="Logo Preview" className="h-12 w-12 object-contain bg-white rounded-lg border border-gray-200 p-1" />
+                                                    <div className="text-xs text-gray-600">
+                                                        <p className="font-semibold text-gray-800">Active Logo Preview</p>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setBrandLogoUrl('')}
+                                                            className="text-red-500 hover:underline mt-0.5 font-medium"
+                                                        >
+                                                            Remove logo
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div>

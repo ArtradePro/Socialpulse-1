@@ -334,6 +334,7 @@ export const updateBranding = async (req: Request, res: Response): Promise<void>
     addUpdate('brand_name',     brandName);
     addUpdate('brand_color',    brandColor);
     addUpdate('brand_logo_url', brandLogoUrl);
+    addUpdate('logo_url',       brandLogoUrl);
     addUpdate('custom_domain',  customDomain);
     addUpdate('ai_guidelines',  aiGuidelines);
     addUpdate('purchase_url',   purchaseUrl);
