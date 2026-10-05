@@ -325,9 +325,9 @@ export const Workspaces: React.FC = () => {
                                     ? 'border-indigo-300 bg-indigo-50'
                                     : 'border-gray-200 bg-white hover:border-gray-300'
                             }`}>
-                            {((ws as any).brand_logo_url || ws.logo_url) ? (
+                            {((ws as any).brand_logo_url || (ws as any).logo_url) ? (
                                 <img
-                                    src={(ws as any).brand_logo_url || ws.logo_url}
+                                    src={(ws as any).brand_logo_url || (ws as any).logo_url}
                                     alt={ws.name}
                                     className="w-10 h-10 rounded-xl object-contain bg-white border border-gray-200 p-0.5 shrink-0"
                                 />
@@ -376,9 +376,9 @@ export const Workspaces: React.FC = () => {
 
                             <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    {(brandLogoUrl || (selected as any).brand_logo_url || selected.logo_url) ? (
+                                    {(brandLogoUrl || (selected as any).brand_logo_url || (selected as any).logo_url) ? (
                                         <img
-                                            src={brandLogoUrl || (selected as any).brand_logo_url || selected.logo_url}
+                                            src={brandLogoUrl || (selected as any).brand_logo_url || (selected as any).logo_url}
                                             alt={selected.name}
                                             className="w-10 h-10 rounded-xl object-contain bg-white border border-gray-200 p-0.5 shrink-0"
                                         />
