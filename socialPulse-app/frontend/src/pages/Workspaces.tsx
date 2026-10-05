@@ -117,10 +117,8 @@ export const Workspaces: React.FC = () => {
         if (!selected) return;
         setBrandName((selected as any).brand_name   ?? '');
         
-        // Sanitize color: take only the first hex code if multiple are present
         const rawColor = (selected as any).brand_color ?? '#6366f1';
-        const firstColor = rawColor.split(',')[0].trim();
-        setBrandColor(firstColor.startsWith('#') ? firstColor : '#6366f1');
+        setBrandColor(rawColor);
 
         setBrandLogoUrl((selected as any).brand_logo_url ?? '');
         setCustomDomain((selected as any).custom_domain  ?? '');
@@ -359,13 +357,14 @@ export const Workspaces: React.FC = () => {
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Brand color</label>
                                             <div className="flex items-center gap-3">
                                                 <label className="relative w-10 h-10 rounded-xl border border-gray-200 cursor-pointer overflow-hidden shrink-0">
-                                                    <span className="block w-full h-full" style={{ background: brandColor }} />
-                                                    <input type="color" value={brandColor}
+                                                    <span className="block w-full h-full" style={{ background: brandColor.match(/#[0-9a-fA-F]{6}/)?.[0] ?? '#6366f1' }} />
+                                                    <input type="color" value={brandColor.match(/#[0-9a-fA-F]{6}/)?.[0] ?? '#6366f1'}
                                                         onChange={e => setBrandColor(e.target.value)}
                                                         className="absolute opacity-0 inset-0" />
                                                 </label>
                                                 <input type="text" value={brandColor}
                                                     onChange={e => setBrandColor(e.target.value)}
+                                                    placeholder="#6366f1 or comma-separated hex palette (#0d9488, #10b981)"
                                                     className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                                             </div>
                                         </div>

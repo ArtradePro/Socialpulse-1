@@ -433,7 +433,7 @@ CREATE INDEX IF NOT EXISTS idx_media_workspace    ON media_files(workspace_id)  
 CREATE INDEX IF NOT EXISTS idx_campaigns_workspace ON campaigns(workspace_id)      WHERE workspace_id IS NOT NULL;
 
 -- ─── White-label Branding ─────────────────────────────────────────────────────
-ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_color    VARCHAR(20)  DEFAULT '#6366f1';
-ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_name     VARCHAR(255);
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_color    TEXT         DEFAULT '#6366f1';
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_name     TEXT;
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS brand_logo_url TEXT;
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS custom_domain  VARCHAR(255) UNIQUE;
