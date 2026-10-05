@@ -110,9 +110,18 @@ export const Workspaces: React.FC = () => {
         finally { setLoadingDetail(false); }
     }, []);
 
+    const handleSelectWorkspace = useCallback((ws: Workspace) => {
+        dispatch(switchWorkspace(ws.id));
+        loadDetail(ws);
+    }, [dispatch, loadDetail]);
+
     useEffect(() => {
-        if (workspaces.length > 0 && !selected) loadDetail(workspaces[0]);
-    }, [workspaces, selected, loadDetail]);
+        if (workspaces.length > 0 && !selected) {
+            const initialWs = workspaces.find(w => w.id === activeId) ?? workspaces[0];
+            dispatch(switchWorkspace(initialWs.id));
+            loadDetail(initialWs);
+        }
+    }, [workspaces, selected, activeId, dispatch, loadDetail]);
 
     useEffect(() => {
         if (!selected) return;
@@ -136,7 +145,9 @@ export const Workspaces: React.FC = () => {
         setCreating(true);
         try {
             const { data } = await api.post('/workspaces', { name: newName, description: newDescription || undefined });
-            dispatch(addWorkspace(data)); // Fixed: dispatching the action
+            dispatch(addWorkspace(data));
+            dispatch(switchWorkspace(data.id));
+            loadDetail(data);
             setNewName('');
             setNewDescription('');
             setShowCreate(false);
@@ -192,19 +203,9 @@ export const Workspaces: React.FC = () => {
 
     const handleLogoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (!file) return;
+        if (!file || !selected) return;
         setUploadingLogo(true);
         try {
-            try {
-                const uploaded = await MediaService.upload([file], 'logos');
-                if (uploaded?.[0]?.url) {
-                    setBrandLogoUrl(uploaded[0].url);
-                    toast.success('Logo uploaded! Click "Save branding" to apply.');
-                    return;
-                }
-            } catch {
-                // Fallback to optimized inline Data URL so logo upload always works
-            }
             const dataUrl = await new Promise<string>((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = () => {
@@ -227,9 +228,14 @@ export const Workspaces: React.FC = () => {
                 reader.readAsDataURL(file);
             });
             setBrandLogoUrl(dataUrl);
-            toast.success('Logo loaded! Click "Save branding" to apply.');
+            await api.patch(`/workspaces/${selected.id}/branding`, {
+                brandLogoUrl: dataUrl,
+            }, { headers: { 'X-Workspace-Id': selected.id } });
+            toast.success('Logo uploaded and saved!');
+            loadDetail(selected);
+            loadList();
         } catch {
-            toast.error('Failed to read logo file');
+            toast.error('Failed to upload logo file');
         } finally {
             setUploadingLogo(false);
             e.target.value = '';
@@ -318,16 +324,19 @@ export const Workspaces: React.FC = () => {
                                 Create your first workspace
                             </button>
                         </div>
-                    ) : workspaces.map(ws => (
-                        <button key={ws.id} onClick={() => loadDetail(ws)}
+                    ) : workspaces.map(ws => {
+                        const logoSrc = (ws as any).brand_logo_url || (ws as any).logo_url;
+                        const isValidLogo = typeof logoSrc === 'string' && (logoSrc.startsWith('data:image/') || /\.(png|jpe?g|webp|svg|gif|ico)(\?.*)?$/i.test(logoSrc) || logoSrc.includes('cloudinary.com'));
+                        return (
+                        <button key={ws.id} onClick={() => handleSelectWorkspace(ws)}
                             className={`w-full flex items-center gap-3 p-4 rounded-2xl border transition-colors text-left ${
                                 selected?.id === ws.id
                                     ? 'border-indigo-300 bg-indigo-50'
                                     : 'border-gray-200 bg-white hover:border-gray-300'
                             }`}>
-                            {((ws as any).brand_logo_url || (ws as any).logo_url) ? (
+                            {isValidLogo ? (
                                 <img
-                                    src={(ws as any).brand_logo_url || (ws as any).logo_url}
+                                    src={logoSrc}
                                     alt={ws.name}
                                     className="w-10 h-10 rounded-xl object-contain bg-white border border-gray-200 p-0.5 shrink-0"
                                 />
@@ -341,12 +350,13 @@ export const Workspaces: React.FC = () => {
                                 <p className="text-xs text-gray-500">{ws.member_count ?? ws.memberCount ?? '?'} members • {ws.role}</p>
                             </div>
                             {ws.id === (activeId ?? workspaces[0]?.id) && (
-                                <span className="ml-auto text-[10px] font-semibold bg-brand-light text-brand px-2 py-0.5 rounded-full shrink-0">
+                                <span className="ml-auto text-[10px] font-semibold bg-indigo-100 text-indigo-700 px-2.5 py-0.5 rounded-full shrink-0">
                                     Active
                                 </span>
                             )}
                         </button>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 {/* Right: workspace detail */}
@@ -376,17 +386,21 @@ export const Workspaces: React.FC = () => {
 
                             <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    {(brandLogoUrl || (selected as any).brand_logo_url || (selected as any).logo_url) ? (
-                                        <img
-                                            src={brandLogoUrl || (selected as any).brand_logo_url || (selected as any).logo_url}
-                                            alt={selected.name}
-                                            className="w-10 h-10 rounded-xl object-contain bg-white border border-gray-200 p-0.5 shrink-0"
-                                        />
-                                    ) : (
-                                        <div className="w-10 h-10 rounded-xl bg-linear-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold">
-                                            {selected.name[0].toUpperCase()}
-                                        </div>
-                                    )}
+                                    {(() => {
+                                        const headerLogo = brandLogoUrl || (selected as any).brand_logo_url || (selected as any).logo_url;
+                                        const validHeaderLogo = typeof headerLogo === 'string' && (headerLogo.startsWith('data:image/') || /\.(png|jpe?g|webp|svg|gif|ico)(\?.*)?$/i.test(headerLogo) || headerLogo.includes('cloudinary.com'));
+                                        return validHeaderLogo ? (
+                                            <img
+                                                src={headerLogo}
+                                                alt={selected.name}
+                                                className="w-10 h-10 rounded-xl object-contain bg-white border border-gray-200 p-0.5 shrink-0"
+                                            />
+                                        ) : (
+                                            <div className="w-10 h-10 rounded-xl bg-linear-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold">
+                                                {selected.name[0].toUpperCase()}
+                                            </div>
+                                        );
+                                    })()}
                                     <div>
                                         <h2 className="text-xl font-bold text-gray-900">{selected.name}</h2>
                                         <p className="text-sm text-gray-500">Workspace Settings & Members</p>

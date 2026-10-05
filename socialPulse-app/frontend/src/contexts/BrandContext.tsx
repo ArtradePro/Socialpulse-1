@@ -38,7 +38,8 @@ export const BrandProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }).then(({ data }) => {
             if (cancelled) return;
             const rawColor: string = data.brand_color ?? '#6366f1';
-            const primaryHex = rawColor.match(/#[0-9a-fA-F]{6}/)?.[0] ?? '#6366f1';
+            const hexMatches: string[] = rawColor.match(/#[0-9a-fA-F]{6}/g) ?? [];
+            const primaryHex = hexMatches.find(h => h.toLowerCase() !== '#ffffff' && h.toLowerCase() !== '#f8fafc') ?? hexMatches[0] ?? '#6366f1';
             const b: Brand = {
                 brandName:    data.brand_name    ?? null,
                 brandColor:   primaryHex,

@@ -20,7 +20,7 @@ async function uniqueSlug(base: string): Promise<string> {
 }
 
 function assertMembership(req: Request, res: Response): string | null {
-    const workspaceId = (req as any).workspaceId as string | undefined;
+    const workspaceId = (req.params?.id as string | undefined) || (req as any).workspaceId as string | undefined;
     if (!workspaceId) { res.status(400).json({ message: 'No active workspace — send X-Workspace-Id header' }); return null; }
     return workspaceId;
 }
