@@ -79,6 +79,65 @@ async function upsertAccount(
     );
 }
 
+function normName(s?: string | null): string {
+    return (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+async function selectBestPageForWorkspace(
+    pages: any[],
+    userId: string,
+    workspaceId?: string,
+    platform: 'facebook' | 'instagram' = 'facebook'
+): Promise<any | null> {
+    if (!pages.length) return null;
+    if (pages.length === 1) return pages[0];
+
+    // 1. Match by workspace name / brand_name if workspaceId is known
+    if (workspaceId) {
+        try {
+            const { rows } = await db.query(
+                `SELECT name, brand_name FROM workspaces WHERE id = $1`,
+                [workspaceId]
+            );
+            const ws = rows[0];
+            if (ws) {
+                const wsNorm = normName(ws.name);
+                const brandNorm = normName(ws.brand_name);
+                const byName = pages.find((p: any) => {
+                    const pNorm = normName(p.name);
+                    const igNorm = normName(p.instagram_business_account?.username);
+                    if (!pNorm && !igNorm) return false;
+                    return (
+                        (wsNorm.length >= 3 && (pNorm.includes(wsNorm) || wsNorm.includes(pNorm) || (igNorm && (igNorm.includes(wsNorm) || wsNorm.includes(igNorm))))) ||
+                        (brandNorm.length >= 3 && (pNorm.includes(brandNorm) || brandNorm.includes(pNorm)))
+                    );
+                });
+                if (byName) return byName;
+            }
+        } catch (err) {
+            console.warn('[OAuth] Workspace lookup error during page matching:', err);
+        }
+    }
+
+    // 2. Otherwise prefer a page not yet connected to another workspace for this user
+    try {
+        const { rows: existing } = await db.query(
+            `SELECT platform_user_id FROM social_accounts WHERE user_id = $1 AND platform = $2 AND is_active = true`,
+            [userId, platform]
+        );
+        const usedIds = new Set(existing.map((r: any) => String(r.platform_user_id)));
+        const unused = pages.find((p: any) => {
+            const candidateId = platform === 'instagram' ? p.instagram_business_account?.id : p.id;
+            return candidateId && !usedIds.has(String(candidateId));
+        });
+        if (unused) return unused;
+    } catch {
+        // ignore fallback error
+    }
+
+    return pages[0];
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TWITTER (OAuth 2.0 with PKCE — v2 API)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -261,7 +320,8 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
             hasIg: !!p.instagram_business_account
         })));
 
-        const pageWithIg = pages.find((p: any) => p.instagram_business_account?.id);
+        const igCandidatePages = pages.filter((p: any) => p.instagram_business_account?.id);
+        const pageWithIg = await selectBestPageForWorkspace(igCandidatePages, stateData.userId, stateData.workspaceId, 'instagram');
         if (!pageWithIg || !pageWithIg.instagram_business_account) {
             console.error('[OAuth] No linked Instagram business account found across pages');
             res.redirect(`${FRONTEND_URL}/settings?error=instagram_no_business_account`);
@@ -470,8 +530,8 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
 
         console.log('[OAuth] Facebook pages found:', pages.map(p => ({ id: p.id, name: p.name })));
 
-        // Use the first managed page; store the page token (not user token) for publishing
-        const page = pages[0];
+        // Match the Facebook Page to the active workspace name (or pick an unassigned page)
+        const page = await selectBestPageForWorkspace(pages, stateData.userId, stateData.workspaceId, 'facebook');
         if (!page) {
             res.redirect(`${FRONTEND_URL}/settings?error=facebook_no_page`);
             return;
