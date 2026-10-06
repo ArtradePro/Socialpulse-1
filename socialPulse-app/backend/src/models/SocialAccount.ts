@@ -20,16 +20,18 @@ export const SocialAccountModel = {
   findByUser: (userId: string, workspaceId?: string) =>
     query(
       `SELECT id, user_id, workspace_id, platform, platform_user_id, username,
+              username AS platform_username,
               profile_image, followers_count, is_active, created_at
        FROM social_accounts 
-       WHERE user_id = $1 AND (workspace_id = $2 OR $2 IS NULL) 
+       WHERE user_id = $1 AND is_active = true
+         AND ($2::uuid IS NULL OR workspace_id = $2::uuid)
        ORDER BY platform`,
       [userId, workspaceId || null]
     ).then(r => r.rows as Omit<SocialAccount, 'access_token' | 'refresh_token'>[]),
 
   findByUserAndPlatform: (userId: string, platform: string, workspaceId?: string) =>
     query(
-      'SELECT * FROM social_accounts WHERE user_id = $1 AND platform = $2 AND (workspace_id = $3 OR $3 IS NULL) AND is_active = true',
+      'SELECT * FROM social_accounts WHERE user_id = $1 AND platform = $2 AND ($3::uuid IS NULL OR workspace_id = $3::uuid) AND is_active = true',
       [userId, platform, workspaceId || null]
     ).then(r => r.rows[0] as SocialAccount | undefined),
 
@@ -39,8 +41,7 @@ export const SocialAccountModel = {
         (user_id, workspace_id, platform, platform_user_id, username, access_token, refresh_token,
          token_expires_at, profile_image, followers_count)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       ON CONFLICT (user_id, platform) DO UPDATE SET
-        workspace_id     = EXCLUDED.workspace_id,
+       ON CONFLICT (user_id, workspace_id, platform) DO UPDATE SET
         username         = EXCLUDED.username,
         access_token     = EXCLUDED.access_token,
         refresh_token    = EXCLUDED.refresh_token,
@@ -56,9 +57,9 @@ export const SocialAccountModel = {
       ]
     ).then(r => r.rows[0] as SocialAccount),
 
-  disconnect: (userId: string, platform: string) =>
+  disconnect: (userId: string, platform: string, workspaceId?: string) =>
     query(
-      'UPDATE social_accounts SET is_active = false WHERE user_id = $1 AND platform = $2',
-      [userId, platform]
+      'UPDATE social_accounts SET is_active = false WHERE user_id = $1 AND platform = $2 AND ($3::uuid IS NULL OR workspace_id = $3::uuid)',
+      [userId, platform, workspaceId || null]
     ),
 };

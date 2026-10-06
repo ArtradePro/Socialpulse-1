@@ -7,7 +7,7 @@ import {
 import { PlatformIcon } from '../components/common/BrandIcons';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { useAppDispatch } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { logout } from '../store/authSlice';
 
 // ─── Platform config ──────────────────────────────────────────────────────────
@@ -28,9 +28,10 @@ function getToken(): string | null {
     return localStorage.getItem('accessToken');
 }
 
-function oauthUrl(platform: string): string {
+function oauthUrl(platform: string, workspaceId?: string | null): string {
     const token = getToken();
-    return `/api/oauth/${platform}/connect${token ? `?token=${token}` : ''}`;
+    const wsParam = workspaceId ? `&workspaceId=${encodeURIComponent(workspaceId)}` : '';
+    return `/api/oauth/${platform}/connect${token ? `?token=${token}${wsParam}` : ''}`;
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -56,6 +57,8 @@ export const Settings = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const dispatch = useAppDispatch();
+    const { activeId, workspaces } = useAppSelector(s => s.workspace);
+    const activeWorkspace = workspaces.find(w => w.id === activeId) ?? workspaces[0];
 
     // ── Profile ───────────────────────────────────────────────────────────────
     const [fullName, setFullName]     = useState(user?.fullName ?? '');
@@ -114,6 +117,7 @@ export const Settings = () => {
     const [accountMsg,    setAccountMsg]    = useState<AlertProps | null>(null);
 
     useEffect(() => {
+        setAccountsLoading(true);
         socialService.getAccounts()
             .then(setAccounts)
             .catch(() => setAccountMsg({ type: 'error', message: 'Could not load connected accounts.' }))
@@ -125,15 +129,13 @@ export const Settings = () => {
         const error     = params.get('error');
         if (connected) {
             setAccountMsg({ type: 'success', message: `${connected} connected successfully!` });
-            // Reload account list
             socialService.getAccounts().then(setAccounts).catch(() => {});
-            // Clean URL
             window.history.replaceState({}, '', '/settings');
         } else if (error) {
             setAccountMsg({ type: 'error', message: `OAuth failed: ${error.replace(/_/g, ' ')}` });
             window.history.replaceState({}, '', '/settings');
         }
-    }, []);
+    }, [activeId]);
 
     const disconnect = async (platform: string) => {
         setDisconnecting(platform);
@@ -394,8 +396,15 @@ export const Settings = () => {
 
             {/* ── Connected Accounts ──────────────────────────────────────── */}
             <section className="rounded-xl border border-gray-200 bg-white p-6 space-y-5">
-                <div className="flex items-center gap-2 text-gray-900 font-semibold">
-                    <Link className="h-5 w-5 text-indigo-500" /> Connected Accounts
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-gray-900 font-semibold">
+                        <Link className="h-5 w-5 text-indigo-500" /> Connected Accounts
+                    </div>
+                    {activeWorkspace && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 border border-indigo-200">
+                            Workspace: {activeWorkspace.name}
+                        </span>
+                    )}
                 </div>
 
                 {accountMsg && <Alert {...accountMsg} />}
@@ -410,6 +419,10 @@ export const Settings = () => {
                     <ul className="divide-y divide-gray-100">
                         {PLATFORMS.map(p => {
                             const acct = connectedMap[p.key];
+                            const rawHandle = acct ? ((acct as any).username || acct.platform_username || '') : '';
+                            const formattedHandle = rawHandle
+                                ? (rawHandle.startsWith('@') || rawHandle.includes(' ') ? rawHandle : `@${rawHandle}`)
+                                : 'Connected';
                             return (
                                 <li key={p.key} className="flex items-center justify-between py-3 gap-3">
                                     <div className="flex items-center gap-3 min-w-0">
@@ -417,8 +430,8 @@ export const Settings = () => {
                                         <div className="min-w-0">
                                             <p className="text-sm font-medium text-gray-800">{p.label}</p>
                                             {acct
-                                                ? <p className="text-xs text-gray-500 truncate">
-                                                      @{acct.platform_username}
+                                                ? <p className="text-xs text-emerald-600 font-medium truncate">
+                                                      {formattedHandle}
                                                       {acct.display_name ? ` · ${acct.display_name}` : ''}
                                                   </p>
                                                 : <p className="text-xs text-gray-400">Not connected</p>
@@ -438,7 +451,7 @@ export const Settings = () => {
                                         </button>
                                     ) : (
                                         <a
-                                            href={oauthUrl(p.key)}
+                                            href={oauthUrl(p.key, activeId)}
                                             className="flex items-center gap-1.5 rounded-lg border border-indigo-200
                                                        px-3 py-1.5 text-xs font-medium text-indigo-600
                                                        hover:bg-indigo-50 transition-colors shrink-0">

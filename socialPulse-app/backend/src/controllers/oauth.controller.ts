@@ -11,19 +11,23 @@ const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:5173';
 const BACKEND_URL  = process.env.BACKEND_URL  ?? 'http://localhost:3000';
 
 // ─── In-memory state store (use Redis in production) ─────────────────────────
-// key: state → { userId, codeVerifier? }
-const oauthStates = new Map<string, { userId: string; codeVerifier?: string }>();
+// key: state → { userId, codeVerifier?, workspaceId? }
+const oauthStates = new Map<string, { userId: string; codeVerifier?: string; workspaceId?: string }>();
 
-function mkState(userId: string, codeVerifier?: string): string {
+function getReqWorkspaceId(req: Request): string | undefined {
+    return (req.query?.workspaceId as string | undefined) || (req.headers['x-workspace-id'] as string | undefined) || (req as any).workspaceId;
+}
+
+function mkState(userId: string, codeVerifier?: string, workspaceId?: string): string {
     const state = crypto.randomBytes(16).toString('hex');
-    oauthStates.set(state, { userId, codeVerifier });
+    oauthStates.set(state, { userId, codeVerifier, workspaceId });
     // Auto-expire after 10 minutes
     const timer = setTimeout(() => oauthStates.delete(state), 10 * 60 * 1000);
     if (typeof (timer as any)?.unref === 'function') (timer as any).unref();
     return state;
 }
 
-function consumeState(state: string): { userId: string; codeVerifier?: string } | null {
+function consumeState(state: string): { userId: string; codeVerifier?: string; workspaceId?: string } | null {
     const data = oauthStates.get(state);
     oauthStates.delete(state);
     return data ?? null;
@@ -41,15 +45,25 @@ async function upsertAccount(
     tokenExpiresAt: Date | null,
     profileImage:   string | null,
     followersCount: number,
-    extra?:         Record<string, unknown>   // platform-specific extras (ig_user_id, etc.)
+    extra?:         Record<string, unknown>,  // platform-specific extras (ig_user_id, etc.)
+    workspaceId?:   string
 ): Promise<void> {
+    let targetWorkspaceId = workspaceId || null;
+    if (!targetWorkspaceId) {
+        const { rows } = await db.query(
+            `SELECT workspace_id FROM workspace_members WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1`,
+            [userId]
+        );
+        targetWorkspaceId = rows[0]?.workspace_id || null;
+    }
+
     await db.query(
         `INSERT INTO social_accounts
-             (user_id, platform, platform_user_id, username,
+             (user_id, workspace_id, platform, platform_user_id, username,
               access_token, refresh_token, token_expires_at,
               profile_image, followers_count, is_active)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true)
-         ON CONFLICT (user_id, platform)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true)
+         ON CONFLICT (user_id, workspace_id, platform)
          DO UPDATE SET
              platform_user_id = EXCLUDED.platform_user_id,
              username         = EXCLUDED.username,
@@ -59,7 +73,7 @@ async function upsertAccount(
              profile_image    = EXCLUDED.profile_image,
              followers_count  = EXCLUDED.followers_count,
              is_active        = true`,
-        [userId, platform, platformUserId, username,
+        [userId, targetWorkspaceId, platform, platformUserId, username,
          accessToken, refreshToken, tokenExpiresAt,
          profileImage, followersCount]
     );
@@ -80,7 +94,7 @@ export const twitterConnect = (req: Request, res: Response): void => {
     const userId        = (req as any).user.userId;
     const codeVerifier  = twitterCodeVerifier();
     const codeChallenge = twitterCodeChallenge(codeVerifier);
-    const state         = mkState(userId, codeVerifier);
+    const state         = mkState(userId, codeVerifier, getReqWorkspaceId(req));
     const redirect      = `${BACKEND_URL}/api/oauth/twitter/callback`;
 
     const params = new URLSearchParams({
@@ -139,7 +153,9 @@ export const twitterCallback = async (req: Request, res: Response): Promise<void
             stateData.userId, 'twitter', tu.id, tu.username,
             access_token, refresh_token ?? null, expiresAt,
             tu.profile_image_url ?? null,
-            tu.public_metrics?.followers_count ?? 0
+            tu.public_metrics?.followers_count ?? 0,
+            undefined,
+            stateData.workspaceId
         );
 
         res.redirect(`${FRONTEND_URL}/settings?connected=twitter`);
@@ -155,7 +171,7 @@ export const twitterCallback = async (req: Request, res: Response): Promise<void
 
 export const instagramConnect = (req: Request, res: Response): void => {
     const userId = (req as any).user.userId;
-    const state  = mkState(userId);
+    const state  = mkState(userId, undefined, getReqWorkspaceId(req));
     const redirect = `${BACKEND_URL}/api/oauth/instagram/callback`;
 
     const appId = process.env.FACEBOOK_APP_ID || process.env.INSTAGRAM_APP_ID;
@@ -279,7 +295,8 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
         await upsertAccount(
             stateData.userId, 'instagram', igUserId, username || 'Instagram Business',
             tokenToStore, null, expiresAt,
-            profilePic ?? null, followers ?? 0
+            profilePic ?? null, followers ?? 0,
+            undefined, stateData.workspaceId
         );
 
         res.redirect(`${FRONTEND_URL}/settings?connected=instagram`);
@@ -295,7 +312,7 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
 
 export const linkedinConnect = (req: Request, res: Response): void => {
     const userId = (req as any).user.userId;
-    const state  = mkState(userId);
+    const state  = mkState(userId, undefined, getReqWorkspaceId(req));
     const redirect = `${BACKEND_URL}/api/oauth/linkedin/callback`;
 
     const params = new URLSearchParams({
@@ -358,7 +375,8 @@ export const linkedinCallback = async (req: Request, res: Response): Promise<voi
         await upsertAccount(
             stateData.userId, 'linkedin', platformUserId, username,
             access_token, refresh_token ?? null, expiresAt,
-            avatar, followers
+            avatar, followers,
+            undefined, stateData.workspaceId
         );
 
         res.redirect(`${FRONTEND_URL}/settings?connected=linkedin`);
@@ -374,7 +392,7 @@ export const linkedinCallback = async (req: Request, res: Response): Promise<voi
 
 export const facebookConnect = (req: Request, res: Response): void => {
     const userId = (req as any).user.userId;
-    const state  = mkState(userId);
+    const state  = mkState(userId, undefined, getReqWorkspaceId(req));
     const redirect = `${BACKEND_URL}/api/oauth/facebook/callback`;
 
     const params = new URLSearchParams({
@@ -475,7 +493,8 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
         await upsertAccount(
             stateData.userId, 'facebook', page.id, page.name,
             pageToken, null, expiresAt,
-            page.picture?.data?.url ?? null, page.fan_count ?? 0
+            page.picture?.data?.url ?? null, page.fan_count ?? 0,
+            undefined, stateData.workspaceId
         );
 
         res.redirect(`${FRONTEND_URL}/settings?connected=facebook`);
@@ -493,7 +512,7 @@ export const tiktokConnect = (req: Request, res: Response): void => {
     const userId        = (req as any).user.userId;
     const codeVerifier  = twitterCodeVerifier(); // PKCE verifier
     const codeChallenge = twitterCodeChallenge(codeVerifier);
-    const state         = mkState(userId, codeVerifier);
+    const state         = mkState(userId, codeVerifier, getReqWorkspaceId(req));
     const redirect      = process.env.TIKTOK_REDIRECT_URI || 'https://api.usesocialpulse.com/api/oauth/tiktok/callback';
 
     const clientKey = process.env.TIKTOK_CLIENT_KEY || process.env.TIKTOK_CLIENT_ID || '';
@@ -565,7 +584,9 @@ export const tiktokCallback = async (req: Request, res: Response): Promise<void>
             refreshToken,
             expiresAt,
             profileImage,
-            0
+            0,
+            undefined,
+            stateData.workspaceId
         );
 
         res.redirect(`${FRONTEND_URL}/settings?connected=tiktok`);
@@ -581,7 +602,7 @@ export const tiktokCallback = async (req: Request, res: Response): Promise<void>
 
 export const pinterestConnect = (req: Request, res: Response): void => {
     const userId = (req as any).user.userId;
-    const state  = mkState(userId);
+    const state  = mkState(userId, undefined, getReqWorkspaceId(req));
     const redirect = process.env.PINTEREST_REDIRECT_URI || `${BACKEND_URL}/api/oauth/pinterest/callback`;
 
     const appId = process.env.PINTEREST_APP_ID;
@@ -651,7 +672,9 @@ export const pinterestCallback = async (req: Request, res: Response): Promise<vo
             refresh_token ?? null,
             expiresAt,
             pu.profile_image ?? null,
-            pu.follower_count ?? 0
+            pu.follower_count ?? 0,
+            undefined,
+            stateData.workspaceId
         );
 
         res.redirect(`${FRONTEND_URL}/settings?connected=pinterest`);
@@ -667,7 +690,7 @@ export const pinterestCallback = async (req: Request, res: Response): Promise<vo
 
 export const youtubeConnect = (req: Request, res: Response): void => {
     const userId = (req as any).user.userId;
-    const state  = mkState(userId);
+    const state  = mkState(userId, undefined, getReqWorkspaceId(req));
     const redirect = process.env.YOUTUBE_REDIRECT_URI || `${BACKEND_URL}/api/oauth/youtube/callback`;
 
     const clientId = process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
@@ -755,7 +778,9 @@ export const youtubeCallback = async (req: Request, res: Response): Promise<void
             refresh_token ?? null,
             expiresAt,
             channelAvatar,
-            subscriberCount
+            subscriberCount,
+            undefined,
+            stateData.workspaceId
         );
 
         res.redirect(`${FRONTEND_URL}/settings?connected=youtube`);
