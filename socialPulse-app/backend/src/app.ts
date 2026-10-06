@@ -83,13 +83,18 @@ app.use(cors({
         // Allow requests with no origin (like mobile apps or curl)
         if (!origin) return callback(null, true);
         
+        // Allow TikTok Developer Portal & verification crawlers
+        if (origin.includes('tiktok.com')) {
+            return callback(null, true);
+        }
+
         const currentAllowed = EnvironmentConfig.getAllowedOrigins();
         if (currentAllowed.some(o => origin === o || origin.startsWith(o))) {
             return callback(null, true);
         }
         
         console.warn(`CORS blocked for origin: ${origin}`);
-        callback(new Error(`CORS: origin ${origin} not allowed`));
+        callback(null, false);
     },
     credentials: true,
 }));
@@ -170,8 +175,8 @@ app.get(['/tiktokSPeuDMslyQzrG2do18LFBXIooga5xWGk.txt', '/tiktokSPeuDMsIyQzrG2do
     res.type('text/plain').send('tiktok-developers-site-verification=SPeuDMsIyQzrG2do18LFBXIooga5xWGk');
 });
 
-app.get('/tiktok:token.txt', (_req, res) => {
-    res.type('text/plain').send('tiktok-developers-site-verification=SPeuDMsIyQzrG2do18LFBXIooga5xWGk');
+app.get('/tiktok:token.txt', (req, res) => {
+    res.type('text/plain').send(`tiktok-developers-site-verification=${req.params.token}`);
 });
 
 // Public legal pages for TikTok / Meta / Google Ads verification & crawlers

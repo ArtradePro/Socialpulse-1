@@ -1,0 +1,232 @@
+{
+  "generated_at_utc": "2026-09-23T15:22:39.594365Z",
+  "parent_company": "Higiene (Pty) Ltd",
+  "division": "Higienlabs Technology Division",
+  "total_products": 3,
+  "campaigns": [
+    {
+      "product_id": "prod_fnm_duo",
+      "product_name": "Fungus No More\u2122 Dual-Action Defense",
+      "slogan": "Love The Skin You're In.",
+      "retail_links": {
+        "takealot": "https://www.takealot.com/fungus-no-more-duo",
+        "amazon": "https://www.amazon.com/dp/FUNGUSNOMORE",
+        "shopify": "https://shop.fungusnomore.co.za/products/fnm-duo",
+        "direct_fnm": "https://fungusnomore.co.za",
+        "direct_higiene": "https://higiene.co.za/brands/fungus-no-more"
+      },
+      "platform_assets": {
+        "tiktok": {
+          "format": "9:16 Vertical Video (UGC Creator)",
+          "hook": "Stop scrolling if you're dealing with stubborn irritation after the gym.",
+          "script": "[SCENE 1: Locker room / bathroom close-up]\nCreator: 'If you work out or wear sneakers all day, ordinary body wash does nothing against sweat bacteria.'\n[SCENE 2: Holding Fungus No More\u2122 Dual-Action Defense]\nCreator: 'This is Fungus No More\u2122 Dual-Action Defense. Step 1 is the Shower Gel that washes it clean. Step 2 is the Active Spray that protects you for 24 hours.'\n[SCENE 3: Happy creator / product box]\nCreator: 'Love The Skin You're In. Grab the duo bundle on Takealot with next-day delivery \u2014 link in bio!'",
+          "caption": "Never let gym sweat or stubborn irritation hold you back \ud83d\udcaa Grab Fungus No More\u2122 Dual-Action Defense on Takealot now! #GymHygiene #SkinCare #TakealotFinds #HigieneLabs",
+          "destination_url": "https://www.takealot.com/fungus-no-more-duo"
+        },
+        "instagram": {
+          "format": "1:1 Carousel (5 Slides) + 9:16 Reel",
+          "carousel_slides": [
+            {
+              "slide": 1,
+              "title": "Why Normal Soap Fails Against Sweat Fungus",
+              "text": "Standard soaps only clean surface oil, leaving moisture-loving bacteria behind."
+            },
+            {
+              "slide": 2,
+              "title": "The Dual-Action Solution",
+              "text": "Fungus No More\u2122 Dual-Action Defense was engineered by Higienlabs to wash and shield in two steps."
+            },
+            {
+              "slide": 3,
+              "title": "Step 1: Shower Gel",
+              "text": "Deeply washes away accumulated bacteria and neutralizes odor."
+            },
+            {
+              "slide": 4,
+              "title": "Step 2: Active Spray",
+              "text": "Fast-drying leave-on barrier that keeps feet and skin fresh all day."
+            },
+            {
+              "slide": 5,
+              "title": "Available Now Across South Africa",
+              "text": "Order on Takealot or get bundle savings at https://fungusnomore.co.za."
+            }
+          ],
+          "caption": "Your daily defense against stubborn sweat and irritation. Formulated by Higienlabs. Love The Skin You're In. Link in bio to order with next-day delivery. \ud83d\uded2\u2728",
+          "destination_url": "https://fungusnomore.co.za"
+        },
+        "facebook": {
+          "format": "1:1 Direct-Response Image Ad + 9:16 Story",
+          "headline": "Tired of Stubborn Itch & Foot Odor? | Fungus No More\u2122 Dual-Action Defense",
+          "primary_text": "Active lifestyle? 10+ hours in work shoes? Ordinary soap washes the surface, but doesn't protect against sweat bacteria.\n\nMeet Fungus No More\u2122 Dual-Action Defense by Higienlabs:\n\u2705 Dual-Action Shower Gel + Spray Duo\n\u2705 Eliminates odor and soothes irritation from Day 1\n\u2705 Fast next-day delivery across South Africa on Takealot\n\nLove The Skin You're In.\n\ud83d\udc49 Tap 'Shop Now' to claim your bundle on Takealot!",
+          "call_to_action": "SHOP_NOW",
+          "destination_url": "https://www.takealot.com/fungus-no-more-duo"
+        },
+        "youtube": {
+          "format": "16:9 Non-Skippable 10-Second Bumper",
+          "duration_secs": 10,
+          "voiceover": "Stubborn sweat itch that won't quit? Fungus No More\u2122 Dual-Action Defense washes away odor and locks in 24-hour defense. Love The Skin You're In. Tap Shop Now on Takealot!",
+          "asset_references": {
+            "hero_image": "docs/marketing/assets/fnm_youtube_hero_ad.jpg",
+            "end_card": "docs/marketing/assets/fnm_youtube_end_card.jpg"
+          },
+          "destination_url": "https://www.takealot.com/fungus-no-more-duo"
+        },
+        "linkedin": {
+          "format": "Article / Image Thought Leadership",
+          "headline": "Formulation Integrity in Modern Cosmeceuticals: How Higienlabs is Solving Everyday Skin Health",
+          "body": "At Higiene (Pty) Ltd, our Higienlabs Technology Division was founded on a singular premise: consumer hygiene should be backed by rigorous formulation science.\n\nFrom our flagship Fungus No More\u2122 Dual-Action Defense line to our upcoming developments in Hair Growth and Dermo-Barrier Restoration, we focus on active bioavailability, rapid relief, and multi-channel accessibility across Takealot, Amazon, and direct platforms.\n\nProud to see our manufacturing and lab initiatives scale across South Africa.\n\n#Biotech #Cosmeceuticals #Higienlabs #Manufacturing #SouthAfrica #SkinCare",
+          "destination_url": "https://higiene.co.za"
+        }
+      }
+    },
+    {
+      "product_id": "prod_higienlabs_hair_growth",
+      "product_name": "Higienlabs Follicle Defense & Hair Growth Formulation",
+      "slogan": "",
+      "retail_links": {
+        "takealot": "https://www.takealot.com/higienlabs-hair-growth",
+        "direct_higiene": "https://higiene.co.za/higienlabs/hair-growth",
+        "shopify": "https://shop.higiene.co.za/hair-growth"
+      },
+      "platform_assets": {
+        "tiktok": {
+          "format": "9:16 Vertical Video (UGC Creator)",
+          "hook": "Stop scrolling if you're dealing with stubborn irritation after the gym.",
+          "script": "[SCENE 1: Locker room / bathroom close-up]\nCreator: 'If you work out or wear sneakers all day, ordinary body wash does nothing against sweat bacteria.'\n[SCENE 2: Holding Higienlabs Follicle Defense & Hair Growth Formulation]\nCreator: 'This is Higienlabs Follicle Defense & Hair Growth Formulation. Step 1 is the Shower Gel that washes it clean. Step 2 is the Active Spray that protects you for 24 hours.'\n[SCENE 3: Happy creator / product box]\nCreator: 'Science-backed care. Grab the duo bundle on Takealot with next-day delivery \u2014 link in bio!'",
+          "caption": "Never let gym sweat or stubborn irritation hold you back \ud83d\udcaa Grab Higienlabs Follicle Defense & Hair Growth Formulation on Takealot now! #GymHygiene #SkinCare #TakealotFinds #HigieneLabs",
+          "destination_url": "https://www.takealot.com/higienlabs-hair-growth"
+        },
+        "instagram": {
+          "format": "1:1 Carousel (5 Slides) + 9:16 Reel",
+          "carousel_slides": [
+            {
+              "slide": 1,
+              "title": "Why Normal Soap Fails Against Sweat Fungus",
+              "text": "Standard soaps only clean surface oil, leaving moisture-loving bacteria behind."
+            },
+            {
+              "slide": 2,
+              "title": "The Dual-Action Solution",
+              "text": "Higienlabs Follicle Defense & Hair Growth Formulation was engineered by Higienlabs to wash and shield in two steps."
+            },
+            {
+              "slide": 3,
+              "title": "Step 1: Shower Gel",
+              "text": "Deeply washes away accumulated bacteria and neutralizes odor."
+            },
+            {
+              "slide": 4,
+              "title": "Step 2: Active Spray",
+              "text": "Fast-drying leave-on barrier that keeps feet and skin fresh all day."
+            },
+            {
+              "slide": 5,
+              "title": "Available Now Across South Africa",
+              "text": "Order on Takealot or get bundle savings at https://higiene.co.za/higienlabs/hair-growth."
+            }
+          ],
+          "caption": "Your daily defense against stubborn sweat and irritation. Formulated by Higienlabs.  Link in bio to order with next-day delivery. \ud83d\uded2\u2728",
+          "destination_url": "https://higiene.co.za/higienlabs/hair-growth"
+        },
+        "facebook": {
+          "format": "1:1 Direct-Response Image Ad + 9:16 Story",
+          "headline": "Tired of Stubborn Itch & Foot Odor? | Higienlabs Follicle Defense & Hair Growth Formulation",
+          "primary_text": "Active lifestyle? 10+ hours in work shoes? Ordinary soap washes the surface, but doesn't protect against sweat bacteria.\n\nMeet Higienlabs Follicle Defense & Hair Growth Formulation by Higienlabs:\n\u2705 Dual-Action Shower Gel + Spray Duo\n\u2705 Eliminates odor and soothes irritation from Day 1\n\u2705 Fast next-day delivery across South Africa on Takealot\n\n\n\ud83d\udc49 Tap 'Shop Now' to claim your bundle on Takealot!",
+          "call_to_action": "SHOP_NOW",
+          "destination_url": "https://www.takealot.com/higienlabs-hair-growth"
+        },
+        "youtube": {
+          "format": "16:9 Non-Skippable 10-Second Bumper",
+          "duration_secs": 10,
+          "voiceover": "Stubborn sweat itch that won't quit? Higienlabs Follicle Defense & Hair Growth Formulation washes away odor and locks in 24-hour defense.  Tap Shop Now on Takealot!",
+          "asset_references": {
+            "hero_image": "docs/marketing/assets/fnm_youtube_hero_ad.jpg",
+            "end_card": "docs/marketing/assets/fnm_youtube_end_card.jpg"
+          },
+          "destination_url": "https://www.takealot.com/higienlabs-hair-growth"
+        },
+        "linkedin": {
+          "format": "Article / Image Thought Leadership",
+          "headline": "Formulation Integrity in Modern Cosmeceuticals: How Higienlabs is Solving Everyday Skin Health",
+          "body": "At Higiene (Pty) Ltd, our Higienlabs Technology Division was founded on a singular premise: consumer hygiene should be backed by rigorous formulation science.\n\nFrom our flagship Higienlabs Follicle Defense & Hair Growth Formulation line to our upcoming developments in Hair Growth and Dermo-Barrier Restoration, we focus on active bioavailability, rapid relief, and multi-channel accessibility across Takealot, Amazon, and direct platforms.\n\nProud to see our manufacturing and lab initiatives scale across South Africa.\n\n#Biotech #Cosmeceuticals #Higienlabs #Manufacturing #SouthAfrica #SkinCare",
+          "destination_url": "https://higiene.co.za"
+        }
+      }
+    },
+    {
+      "product_id": "prod_higienlabs_skincare",
+      "product_name": "Higienlabs Dermo-Barrier Restoration Complex",
+      "slogan": "",
+      "retail_links": {
+        "takealot": "https://www.takealot.com/higienlabs-skincare",
+        "direct_higiene": "https://higiene.co.za/higienlabs/skincare",
+        "shopify": "https://shop.higiene.co.za/skincare"
+      },
+      "platform_assets": {
+        "tiktok": {
+          "format": "9:16 Vertical Video (UGC Creator)",
+          "hook": "Stop scrolling if you're dealing with stubborn irritation after the gym.",
+          "script": "[SCENE 1: Locker room / bathroom close-up]\nCreator: 'If you work out or wear sneakers all day, ordinary body wash does nothing against sweat bacteria.'\n[SCENE 2: Holding Higienlabs Dermo-Barrier Restoration Complex]\nCreator: 'This is Higienlabs Dermo-Barrier Restoration Complex. Step 1 is the Shower Gel that washes it clean. Step 2 is the Active Spray that protects you for 24 hours.'\n[SCENE 3: Happy creator / product box]\nCreator: 'Science-backed care. Grab the duo bundle on Takealot with next-day delivery \u2014 link in bio!'",
+          "caption": "Never let gym sweat or stubborn irritation hold you back \ud83d\udcaa Grab Higienlabs Dermo-Barrier Restoration Complex on Takealot now! #GymHygiene #SkinCare #TakealotFinds #HigieneLabs",
+          "destination_url": "https://www.takealot.com/higienlabs-skincare"
+        },
+        "instagram": {
+          "format": "1:1 Carousel (5 Slides) + 9:16 Reel",
+          "carousel_slides": [
+            {
+              "slide": 1,
+              "title": "Why Normal Soap Fails Against Sweat Fungus",
+              "text": "Standard soaps only clean surface oil, leaving moisture-loving bacteria behind."
+            },
+            {
+              "slide": 2,
+              "title": "The Dual-Action Solution",
+              "text": "Higienlabs Dermo-Barrier Restoration Complex was engineered by Higienlabs to wash and shield in two steps."
+            },
+            {
+              "slide": 3,
+              "title": "Step 1: Shower Gel",
+              "text": "Deeply washes away accumulated bacteria and neutralizes odor."
+            },
+            {
+              "slide": 4,
+              "title": "Step 2: Active Spray",
+              "text": "Fast-drying leave-on barrier that keeps feet and skin fresh all day."
+            },
+            {
+              "slide": 5,
+              "title": "Available Now Across South Africa",
+              "text": "Order on Takealot or get bundle savings at https://higiene.co.za/higienlabs/skincare."
+            }
+          ],
+          "caption": "Your daily defense against stubborn sweat and irritation. Formulated by Higienlabs.  Link in bio to order with next-day delivery. \ud83d\uded2\u2728",
+          "destination_url": "https://higiene.co.za/higienlabs/skincare"
+        },
+        "facebook": {
+          "format": "1:1 Direct-Response Image Ad + 9:16 Story",
+          "headline": "Tired of Stubborn Itch & Foot Odor? | Higienlabs Dermo-Barrier Restoration Complex",
+          "primary_text": "Active lifestyle? 10+ hours in work shoes? Ordinary soap washes the surface, but doesn't protect against sweat bacteria.\n\nMeet Higienlabs Dermo-Barrier Restoration Complex by Higienlabs:\n\u2705 Dual-Action Shower Gel + Spray Duo\n\u2705 Eliminates odor and soothes irritation from Day 1\n\u2705 Fast next-day delivery across South Africa on Takealot\n\n\n\ud83d\udc49 Tap 'Shop Now' to claim your bundle on Takealot!",
+          "call_to_action": "SHOP_NOW",
+          "destination_url": "https://www.takealot.com/higienlabs-skincare"
+        },
+        "youtube": {
+          "format": "16:9 Non-Skippable 10-Second Bumper",
+          "duration_secs": 10,
+          "voiceover": "Stubborn sweat itch that won't quit? Higienlabs Dermo-Barrier Restoration Complex washes away odor and locks in 24-hour defense.  Tap Shop Now on Takealot!",
+          "asset_references": {
+            "hero_image": "docs/marketing/assets/fnm_youtube_hero_ad.jpg",
+            "end_card": "docs/marketing/assets/fnm_youtube_end_card.jpg"
+          },
+          "destination_url": "https://www.takealot.com/higienlabs-skincare"
+        },
+        "linkedin": {
+          "format": "Article / Image Thought Leadership",
+          "headline": "Formulation Integrity in Modern Cosmeceuticals: How Higienlabs is Solving Everyday Skin Health",
+          "body": "At Higiene (Pty) Ltd, our Higienlabs Technology Division was founded on a singular premise: consumer hygiene should be backed by rigorous formulation science.\n\nFrom our flagship Higienlabs Dermo-Barrier Restoration Complex line to our upcoming developments in Hair Growth and Dermo-Barrier Restoration, we focus on active bioavailability, rapid relief, and multi-channel accessibility across Takealot, Amazon, and direct platforms.\n\nProud to see our manufacturing and lab initiatives scale across South Africa.\n\n#Biotech #Cosmeceuticals #Higienlabs #Manufacturing #SouthAfrica #SkinCare",
+          "destination_url": "https://higiene.co.za"
+        }
+      }
+    }
+  ]
+}

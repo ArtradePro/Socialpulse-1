@@ -11,18 +11,23 @@ const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:5173';
 const BACKEND_URL  = process.env.BACKEND_URL  ?? 'http://localhost:3000';
 
 // ─── In-memory state store (use Redis in production) ─────────────────────────
-// key: state → { userId, codeVerifier? }
-const oauthStates = new Map<string, { userId: string; codeVerifier?: string }>();
+// key: state → { userId, codeVerifier?, workspaceId? }
+const oauthStates = new Map<string, { userId: string; codeVerifier?: string; workspaceId?: string }>();
 
-function mkState(userId: string, codeVerifier?: string): string {
+function getReqWorkspaceId(req: Request): string | undefined {
+    return (req.query?.workspaceId as string | undefined) || (req.headers['x-workspace-id'] as string | undefined) || (req as any).workspaceId;
+}
+
+function mkState(userId: string, codeVerifier?: string, workspaceId?: string): string {
     const state = crypto.randomBytes(16).toString('hex');
-    oauthStates.set(state, { userId, codeVerifier });
+    oauthStates.set(state, { userId, codeVerifier, workspaceId });
     // Auto-expire after 10 minutes
-    setTimeout(() => oauthStates.delete(state), 10 * 60 * 1000);
+    const timer = setTimeout(() => oauthStates.delete(state), 10 * 60 * 1000);
+    if (typeof (timer as any)?.unref === 'function') (timer as any).unref();
     return state;
 }
 
-function consumeState(state: string): { userId: string; codeVerifier?: string } | null {
+function consumeState(state: string): { userId: string; codeVerifier?: string; workspaceId?: string } | null {
     const data = oauthStates.get(state);
     oauthStates.delete(state);
     return data ?? null;
@@ -40,15 +45,25 @@ async function upsertAccount(
     tokenExpiresAt: Date | null,
     profileImage:   string | null,
     followersCount: number,
-    extra?:         Record<string, unknown>   // platform-specific extras (ig_user_id, etc.)
+    extra?:         Record<string, unknown>,  // platform-specific extras (ig_user_id, etc.)
+    workspaceId?:   string
 ): Promise<void> {
+    let targetWorkspaceId = workspaceId || null;
+    if (!targetWorkspaceId) {
+        const { rows } = await db.query(
+            `SELECT workspace_id FROM workspace_members WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1`,
+            [userId]
+        );
+        targetWorkspaceId = rows[0]?.workspace_id || null;
+    }
+
     await db.query(
         `INSERT INTO social_accounts
-             (user_id, platform, platform_user_id, username,
+             (user_id, workspace_id, platform, platform_user_id, username,
               access_token, refresh_token, token_expires_at,
               profile_image, followers_count, is_active)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true)
-         ON CONFLICT (user_id, platform)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true)
+         ON CONFLICT (user_id, workspace_id, platform)
          DO UPDATE SET
              platform_user_id = EXCLUDED.platform_user_id,
              username         = EXCLUDED.username,
@@ -58,10 +73,69 @@ async function upsertAccount(
              profile_image    = EXCLUDED.profile_image,
              followers_count  = EXCLUDED.followers_count,
              is_active        = true`,
-        [userId, platform, platformUserId, username,
+        [userId, targetWorkspaceId, platform, platformUserId, username,
          accessToken, refreshToken, tokenExpiresAt,
          profileImage, followersCount]
     );
+}
+
+function normName(s?: string | null): string {
+    return (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+async function selectBestPageForWorkspace(
+    pages: any[],
+    userId: string,
+    workspaceId?: string,
+    platform: 'facebook' | 'instagram' = 'facebook'
+): Promise<any | null> {
+    if (!pages.length) return null;
+    if (pages.length === 1) return pages[0];
+
+    // 1. Match by workspace name / brand_name if workspaceId is known
+    if (workspaceId) {
+        try {
+            const { rows } = await db.query(
+                `SELECT name, brand_name FROM workspaces WHERE id = $1`,
+                [workspaceId]
+            );
+            const ws = rows[0];
+            if (ws) {
+                const wsNorm = normName(ws.name);
+                const brandNorm = normName(ws.brand_name);
+                const byName = pages.find((p: any) => {
+                    const pNorm = normName(p.name);
+                    const igNorm = normName(p.instagram_business_account?.username);
+                    if (!pNorm && !igNorm) return false;
+                    return (
+                        (wsNorm.length >= 3 && (pNorm.includes(wsNorm) || wsNorm.includes(pNorm) || (igNorm && (igNorm.includes(wsNorm) || wsNorm.includes(igNorm))))) ||
+                        (brandNorm.length >= 3 && (pNorm.includes(brandNorm) || brandNorm.includes(pNorm)))
+                    );
+                });
+                if (byName) return byName;
+            }
+        } catch (err) {
+            console.warn('[OAuth] Workspace lookup error during page matching:', err);
+        }
+    }
+
+    // 2. Otherwise prefer a page not yet connected to another workspace for this user
+    try {
+        const { rows: existing } = await db.query(
+            `SELECT platform_user_id FROM social_accounts WHERE user_id = $1 AND platform = $2 AND is_active = true`,
+            [userId, platform]
+        );
+        const usedIds = new Set(existing.map((r: any) => String(r.platform_user_id)));
+        const unused = pages.find((p: any) => {
+            const candidateId = platform === 'instagram' ? p.instagram_business_account?.id : p.id;
+            return candidateId && !usedIds.has(String(candidateId));
+        });
+        if (unused) return unused;
+    } catch {
+        // ignore fallback error
+    }
+
+    return pages[0];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -79,7 +153,7 @@ export const twitterConnect = (req: Request, res: Response): void => {
     const userId        = (req as any).user.userId;
     const codeVerifier  = twitterCodeVerifier();
     const codeChallenge = twitterCodeChallenge(codeVerifier);
-    const state         = mkState(userId, codeVerifier);
+    const state         = mkState(userId, codeVerifier, getReqWorkspaceId(req));
     const redirect      = `${BACKEND_URL}/api/oauth/twitter/callback`;
 
     const params = new URLSearchParams({
@@ -138,7 +212,9 @@ export const twitterCallback = async (req: Request, res: Response): Promise<void
             stateData.userId, 'twitter', tu.id, tu.username,
             access_token, refresh_token ?? null, expiresAt,
             tu.profile_image_url ?? null,
-            tu.public_metrics?.followers_count ?? 0
+            tu.public_metrics?.followers_count ?? 0,
+            undefined,
+            stateData.workspaceId
         );
 
         res.redirect(`${FRONTEND_URL}/settings?connected=twitter`);
@@ -154,7 +230,7 @@ export const twitterCallback = async (req: Request, res: Response): Promise<void
 
 export const instagramConnect = (req: Request, res: Response): void => {
     const userId = (req as any).user.userId;
-    const state  = mkState(userId);
+    const state  = mkState(userId, undefined, getReqWorkspaceId(req));
     const redirect = `${BACKEND_URL}/api/oauth/instagram/callback`;
 
     const appId = process.env.FACEBOOK_APP_ID || process.env.INSTAGRAM_APP_ID;
@@ -244,7 +320,8 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
             hasIg: !!p.instagram_business_account
         })));
 
-        const pageWithIg = pages.find((p: any) => p.instagram_business_account?.id);
+        const igCandidatePages = pages.filter((p: any) => p.instagram_business_account?.id);
+        const pageWithIg = await selectBestPageForWorkspace(igCandidatePages, stateData.userId, stateData.workspaceId, 'instagram');
         if (!pageWithIg || !pageWithIg.instagram_business_account) {
             console.error('[OAuth] No linked Instagram business account found across pages');
             res.redirect(`${FRONTEND_URL}/settings?error=instagram_no_business_account`);
@@ -278,7 +355,8 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
         await upsertAccount(
             stateData.userId, 'instagram', igUserId, username || 'Instagram Business',
             tokenToStore, null, expiresAt,
-            profilePic ?? null, followers ?? 0
+            profilePic ?? null, followers ?? 0,
+            undefined, stateData.workspaceId
         );
 
         res.redirect(`${FRONTEND_URL}/settings?connected=instagram`);
@@ -294,7 +372,7 @@ export const instagramCallback = async (req: Request, res: Response): Promise<vo
 
 export const linkedinConnect = (req: Request, res: Response): void => {
     const userId = (req as any).user.userId;
-    const state  = mkState(userId);
+    const state  = mkState(userId, undefined, getReqWorkspaceId(req));
     const redirect = `${BACKEND_URL}/api/oauth/linkedin/callback`;
 
     const params = new URLSearchParams({
@@ -357,7 +435,8 @@ export const linkedinCallback = async (req: Request, res: Response): Promise<voi
         await upsertAccount(
             stateData.userId, 'linkedin', platformUserId, username,
             access_token, refresh_token ?? null, expiresAt,
-            avatar, followers
+            avatar, followers,
+            undefined, stateData.workspaceId
         );
 
         res.redirect(`${FRONTEND_URL}/settings?connected=linkedin`);
@@ -373,7 +452,7 @@ export const linkedinCallback = async (req: Request, res: Response): Promise<voi
 
 export const facebookConnect = (req: Request, res: Response): void => {
     const userId = (req as any).user.userId;
-    const state  = mkState(userId);
+    const state  = mkState(userId, undefined, getReqWorkspaceId(req));
     const redirect = `${BACKEND_URL}/api/oauth/facebook/callback`;
 
     const params = new URLSearchParams({
@@ -451,8 +530,8 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
 
         console.log('[OAuth] Facebook pages found:', pages.map(p => ({ id: p.id, name: p.name })));
 
-        // Use the first managed page; store the page token (not user token) for publishing
-        const page = pages[0];
+        // Match the Facebook Page to the active workspace name (or pick an unassigned page)
+        const page = await selectBestPageForWorkspace(pages, stateData.userId, stateData.workspaceId, 'facebook');
         if (!page) {
             res.redirect(`${FRONTEND_URL}/settings?error=facebook_no_page`);
             return;
@@ -474,7 +553,8 @@ export const facebookCallback = async (req: Request, res: Response): Promise<voi
         await upsertAccount(
             stateData.userId, 'facebook', page.id, page.name,
             pageToken, null, expiresAt,
-            page.picture?.data?.url ?? null, page.fan_count ?? 0
+            page.picture?.data?.url ?? null, page.fan_count ?? 0,
+            undefined, stateData.workspaceId
         );
 
         res.redirect(`${FRONTEND_URL}/settings?connected=facebook`);
@@ -492,7 +572,7 @@ export const tiktokConnect = (req: Request, res: Response): void => {
     const userId        = (req as any).user.userId;
     const codeVerifier  = twitterCodeVerifier(); // PKCE verifier
     const codeChallenge = twitterCodeChallenge(codeVerifier);
-    const state         = mkState(userId, codeVerifier);
+    const state         = mkState(userId, codeVerifier, getReqWorkspaceId(req));
     const redirect      = process.env.TIKTOK_REDIRECT_URI || 'https://api.usesocialpulse.com/api/oauth/tiktok/callback';
 
     const clientKey = process.env.TIKTOK_CLIENT_KEY || process.env.TIKTOK_CLIENT_ID || '';
@@ -564,7 +644,9 @@ export const tiktokCallback = async (req: Request, res: Response): Promise<void>
             refreshToken,
             expiresAt,
             profileImage,
-            0
+            0,
+            undefined,
+            stateData.workspaceId
         );
 
         res.redirect(`${FRONTEND_URL}/settings?connected=tiktok`);
@@ -573,3 +655,199 @@ export const tiktokCallback = async (req: Request, res: Response): Promise<void>
         res.redirect(`${FRONTEND_URL}/settings?error=tiktok_auth_failed`);
     }
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PINTEREST (OAuth 2.0)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const pinterestConnect = (req: Request, res: Response): void => {
+    const userId = (req as any).user.userId;
+    const state  = mkState(userId, undefined, getReqWorkspaceId(req));
+    const redirect = process.env.PINTEREST_REDIRECT_URI || `${BACKEND_URL}/api/oauth/pinterest/callback`;
+
+    const appId = process.env.PINTEREST_APP_ID;
+    if (!appId) {
+        res.redirect(`${FRONTEND_URL}/settings?error=pinterest_app_id_missing`);
+        return;
+    }
+
+    const params = new URLSearchParams({
+        client_id:     appId,
+        redirect_uri:  redirect,
+        response_type: 'code',
+        scope:         'boards:read,pins:read,pins:write,user_accounts:read',
+        state,
+    });
+
+    res.redirect(`https://www.pinterest.com/oauth/?${params}`);
+};
+
+export const pinterestCallback = async (req: Request, res: Response): Promise<void> => {
+    const { code, state } = req.query as { code?: string; state?: string };
+    const stateData = state ? consumeState(state) : null;
+
+    if (!code || !stateData) {
+        res.redirect(`${FRONTEND_URL}/settings?error=pinterest_auth_failed`);
+        return;
+    }
+
+    try {
+        const redirect = process.env.PINTEREST_REDIRECT_URI || `${BACKEND_URL}/api/oauth/pinterest/callback`;
+        const appId = process.env.PINTEREST_APP_ID!;
+        const appSecret = process.env.PINTEREST_APP_SECRET!;
+
+        const authHeader = Buffer.from(`${appId}:${appSecret}`).toString('base64');
+
+        const tokenRes = await axios.post(
+            'https://api.pinterest.com/v5/oauth/token',
+            new URLSearchParams({
+                grant_type:   'authorization_code',
+                code,
+                redirect_uri: redirect,
+            }),
+            {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    Authorization: `Basic ${authHeader}`,
+                },
+            }
+        );
+
+        const { access_token, refresh_token, expires_in } = tokenRes.data;
+        const expiresAt = expires_in ? new Date(Date.now() + expires_in * 1000) : null;
+
+        // Fetch Pinterest user account profile
+        const userRes = await axios.get('https://api.pinterest.com/v5/user_account', {
+            headers: { Authorization: `Bearer ${access_token}` },
+        });
+        const pu = userRes.data;
+        const username = pu.username || pu.business_name || 'Pinterest Business';
+
+        await upsertAccount(
+            stateData.userId,
+            'pinterest',
+            pu.username || pu.id || username,
+            username,
+            access_token,
+            refresh_token ?? null,
+            expiresAt,
+            pu.profile_image ?? null,
+            pu.follower_count ?? 0,
+            undefined,
+            stateData.workspaceId
+        );
+
+        res.redirect(`${FRONTEND_URL}/settings?connected=pinterest`);
+    } catch (err: any) {
+        console.error('[OAuth] Pinterest callback error:', err?.response?.data || err.message);
+        res.redirect(`${FRONTEND_URL}/settings?error=pinterest_auth_failed`);
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// YOUTUBE (Google OAuth 2.0 with YouTube Data API v3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const youtubeConnect = (req: Request, res: Response): void => {
+    const userId = (req as any).user.userId;
+    const state  = mkState(userId, undefined, getReqWorkspaceId(req));
+    const redirect = process.env.YOUTUBE_REDIRECT_URI || `${BACKEND_URL}/api/oauth/youtube/callback`;
+
+    const clientId = process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+        res.redirect(`${FRONTEND_URL}/settings?error=youtube_client_id_missing`);
+        return;
+    }
+
+    const params = new URLSearchParams({
+        client_id:     clientId,
+        redirect_uri:  redirect,
+        response_type: 'code',
+        scope:         'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/userinfo.profile',
+        access_type:   'offline',
+        prompt:        'consent',
+        state,
+    });
+
+    res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+};
+
+export const youtubeCallback = async (req: Request, res: Response): Promise<void> => {
+    const { code, state } = req.query as { code?: string; state?: string };
+    const stateData = state ? consumeState(state) : null;
+
+    if (!code || !stateData) {
+        res.redirect(`${FRONTEND_URL}/settings?error=youtube_auth_failed`);
+        return;
+    }
+
+    try {
+        const redirect = process.env.YOUTUBE_REDIRECT_URI || `${BACKEND_URL}/api/oauth/youtube/callback`;
+        const clientId = process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID!;
+        const clientSecret = process.env.YOUTUBE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET!;
+
+        const tokenRes = await axios.post(
+            'https://oauth2.googleapis.com/token',
+            new URLSearchParams({
+                code,
+                client_id:     clientId,
+                client_secret: clientSecret,
+                redirect_uri:  redirect,
+                grant_type:    'authorization_code',
+            }),
+            {
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            }
+        );
+
+        const { access_token, refresh_token, expires_in } = tokenRes.data;
+        const expiresAt = expires_in ? new Date(Date.now() + expires_in * 1000) : null;
+
+        // Fetch YouTube Channel details
+        let channelId = 'youtube_user';
+        let channelTitle = 'YouTube Channel';
+        let channelAvatar: string | null = null;
+        let subscriberCount = 0;
+
+        try {
+            const channelRes = await axios.get('https://www.googleapis.com/youtube/v3/channels', {
+                headers: { Authorization: `Bearer ${access_token}` },
+                params: {
+                    part: 'snippet,statistics',
+                    mine: 'true',
+                },
+            });
+
+            const channel = channelRes.data?.items?.[0];
+            if (channel) {
+                channelId = channel.id;
+                channelTitle = channel.snippet?.customUrl || channel.snippet?.title || 'YouTube Channel';
+                channelAvatar = channel.snippet?.thumbnails?.default?.url || null;
+                subscriberCount = parseInt(channel.statistics?.subscriberCount || '0');
+            }
+        } catch (chanErr) {
+            console.warn('[YouTube] Could not fetch detailed channel info:', chanErr);
+        }
+
+        await upsertAccount(
+            stateData.userId,
+            'youtube',
+            channelId,
+            channelTitle,
+            access_token,
+            refresh_token ?? null,
+            expiresAt,
+            channelAvatar,
+            subscriberCount,
+            undefined,
+            stateData.workspaceId
+        );
+
+        res.redirect(`${FRONTEND_URL}/settings?connected=youtube`);
+    } catch (err: any) {
+        console.error('[OAuth] YouTube callback error:', err?.response?.data || err.message);
+        res.redirect(`${FRONTEND_URL}/settings?error=youtube_auth_failed`);
+    }
+};
+
+

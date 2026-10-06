@@ -37,18 +37,21 @@ export const BrandProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             headers: { 'X-Workspace-Id': activeId },
         }).then(({ data }) => {
             if (cancelled) return;
+            const rawColor: string = data.brand_color ?? '#6366f1';
+            const hexMatches: string[] = rawColor.match(/#[0-9a-fA-F]{6}/g) ?? [];
+            const primaryHex = hexMatches.find(h => h.toLowerCase() !== '#ffffff' && h.toLowerCase() !== '#f8fafc') ?? hexMatches[0] ?? '#6366f1';
             const b: Brand = {
                 brandName:    data.brand_name    ?? null,
-                brandColor:   data.brand_color   ?? '#6366f1',
+                brandColor:   primaryHex,
                 brandLogoUrl: data.brand_logo_url ?? null,
                 customDomain: data.custom_domain  ?? null,
             };
             setBrand(b);
             // Apply CSS variables for white-label theming
-            document.documentElement.style.setProperty('--brand-color', b.brandColor);
+            document.documentElement.style.setProperty('--brand-color', primaryHex);
             document.documentElement.style.setProperty(
                 '--brand-color-light',
-                b.brandColor + '22'   // 13% opacity hex shorthand
+                primaryHex + '22'   // 13% opacity hex shorthand
             );
         }).catch(() => {
             if (!cancelled) setBrand(DEFAULT_BRAND);
