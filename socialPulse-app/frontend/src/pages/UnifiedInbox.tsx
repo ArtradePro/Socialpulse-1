@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Inbox, RefreshCw, Loader2, MessageSquare, AtSign, Mail, CheckCircle2, Sparkles, ExternalLink } from 'lucide-react';
+import { 
+    Inbox, RefreshCw, Loader2, MessageSquare, AtSign, Mail, 
+    Sparkles, ExternalLink, Star, AlertCircle, UserPlus, Check
+} from 'lucide-react';
 import { PlatformIcon } from '../components/common/BrandIcons';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -18,6 +21,10 @@ interface Message {
     is_read:       boolean;
     published_at:  string | null;
     created_at:    string;
+    sentiment?:    'positive' | 'neutral' | 'negative';
+    author_followers?: number;
+    is_vip?:       boolean;
+    is_urgent?:    boolean;
 }
 
 const PLATFORM_STYLE: Record<string, { bg: string; text: string }> = {
@@ -28,29 +35,32 @@ const PLATFORM_STYLE: Record<string, { bg: string; text: string }> = {
     tiktok:    { bg: 'bg-black/5',  text: 'text-black' },
 };
 
-const TYPE_ICON: Record<string, React.ReactNode> = {
-    mention: <AtSign className="w-3.5 h-3.5" />,
-    comment: <MessageSquare className="w-3.5 h-3.5" />,
-    dm:      <Mail className="w-3.5 h-3.5" />,
-};
-
 export const UnifiedInbox: React.FC = () => {
     const navigate = useNavigate();
     const [messages,    setMessages]    = useState<Message[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [vipCount,    setVipCount]    = useState(0);
+    const [urgentCount, setUrgentCount] = useState(0);
     const [loading,     setLoading]     = useState(true);
     const [syncing,     setSyncing]     = useState(false);
-    const [filter,      setFilter]      = useState<'all' | 'unread'>('all');
+    const [savedLeads,  setSavedLeads]  = useState<Record<string, boolean>>({});
+
+    const [filter,      setFilter]      = useState<'all' | 'unread' | 'vip' | 'urgent'>('all');
     const [platform,    setPlatform]    = useState<string>('all');
 
     const load = useCallback(async () => {
         try {
             const params = new URLSearchParams();
             if (filter === 'unread') params.set('unread', 'true');
+            if (filter === 'vip')    params.set('vipOnly', 'true');
+            if (filter === 'urgent') params.set('urgentOnly', 'true');
             if (platform !== 'all')  params.set('platform', platform);
+
             const { data } = await api.get(`/inbox?${params}`);
             setMessages(data.messages);
-            setUnreadCount(data.unreadCount);
+            setUnreadCount(data.unreadCount || 0);
+            setVipCount(data.vipCount || 0);
+            setUrgentCount(data.urgentCount || 0);
         } catch { toast.error('Failed to load inbox'); }
         finally { setLoading(false); }
     }, [filter, platform]);
@@ -83,17 +93,30 @@ export const UnifiedInbox: React.FC = () => {
         } catch { toast.error('Failed to mark all as read'); }
     };
 
+    const handleConvertToLead = async (msg: Message) => {
+        try {
+            await api.post(`/inbox/${msg.id}/convert-lead`);
+            setSavedLeads(prev => ({ ...prev, [msg.id]: true }));
+            toast.success(`Saved @${msg.author_handle || msg.author_name} to Leads CRM!`);
+        } catch (err: any) {
+            toast.error(err?.response?.data?.message || 'Failed to convert to lead');
+        }
+    };
+
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                         Unified Inbox
+                        <span className="text-xs bg-purple-100 text-purple-700 px-2.5 py-0.5 rounded-full font-semibold">
+                            AI VIP & Triage
+                        </span>
                         {unreadCount > 0 && (
-                            <span className="text-sm bg-indigo-600 text-white px-2 py-0.5 rounded-full font-medium">{unreadCount}</span>
+                            <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold">{unreadCount} unread</span>
                         )}
                     </h1>
-                    <p className="text-sm text-gray-500 mt-1">Mentions and comments from your connected accounts</p>
+                    <p className="text-sm text-gray-500 mt-1">Incoming mentions, comments, creator engagements, and sentiment triage</p>
                 </div>
                 <div className="flex items-center gap-2">
                     {unreadCount > 0 && (
@@ -103,28 +126,43 @@ export const UnifiedInbox: React.FC = () => {
                         </button>
                     )}
                     <button onClick={handleSync} disabled={syncing}
-                        className="flex items-center gap-2 px-4 py-2 bg-linear-to-r from-purple-600 to-blue-600 text-white rounded-xl font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
+                        className="flex items-center gap-2 px-4 py-2 bg-linear-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-medium hover:opacity-90 disabled:opacity-50 transition-opacity shadow-xs">
                         <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
                         {syncing ? 'Syncing…' : 'Sync now'}
                     </button>
                 </div>
             </div>
 
-            {/* Filters */}
+            {/* Smart Filters (Brandwatch-style Triage) */}
             <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex rounded-xl border border-gray-200 bg-white overflow-hidden">
-                    {(['all', 'unread'] as const).map(f => (
-                        <button key={f} onClick={() => setFilter(f)}
-                            className={`px-4 py-2 text-sm font-medium transition-colors ${filter === f ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-                            {f === 'all' ? 'All' : `Unread${unreadCount > 0 ? ` (${unreadCount})` : ''}`}
-                        </button>
-                    ))}
+                <div className="flex rounded-xl border border-gray-200 bg-white overflow-hidden shadow-2xs">
+                    <button 
+                        onClick={() => setFilter('all')}
+                        className={`px-3.5 py-2 text-xs font-bold transition-colors ${filter === 'all' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                        All
+                    </button>
+                    <button 
+                        onClick={() => setFilter('vip')}
+                        className={`px-3.5 py-2 text-xs font-bold transition-colors flex items-center gap-1.5 ${filter === 'vip' ? 'bg-amber-500 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                        <Star className="w-3.5 h-3.5" /> VIP Creators {vipCount > 0 ? `(${vipCount})` : ''}
+                    </button>
+                    <button 
+                        onClick={() => setFilter('urgent')}
+                        className={`px-3.5 py-2 text-xs font-bold transition-colors flex items-center gap-1.5 ${filter === 'urgent' ? 'bg-rose-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                        <AlertCircle className="w-3.5 h-3.5" /> Urgent Complaints {urgentCount > 0 ? `(${urgentCount})` : ''}
+                    </button>
+                    <button 
+                        onClick={() => setFilter('unread')}
+                        className={`px-3.5 py-2 text-xs font-bold transition-colors ${filter === 'unread' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                        Unread {unreadCount > 0 ? `(${unreadCount})` : ''}
+                    </button>
                 </div>
-                <div className="flex rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+
+                <div className="flex rounded-xl border border-gray-200 bg-white overflow-hidden shadow-2xs">
                     {['all', 'twitter', 'instagram', 'linkedin', 'facebook', 'tiktok'].map(p => (
                         <button key={p} onClick={() => setPlatform(p)}
-                            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-bold transition-all capitalize ${platform === p ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
-                            {p !== 'all' && <PlatformIcon platform={p} size={14} />}
+                            className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold transition-all capitalize ${platform === p ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+                            {p !== 'all' && <PlatformIcon platform={p} size={13} />}
                             {p === 'all' ? 'All Platforms' : p}
                         </button>
                     ))}
@@ -137,16 +175,22 @@ export const UnifiedInbox: React.FC = () => {
             ) : messages.length === 0 ? (
                 <div className="text-center py-20 bg-white rounded-2xl border border-gray-200">
                     <Inbox className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                    <p className="text-gray-500 font-medium">
-                        {filter === 'unread' ? 'No unread messages' : 'Your inbox is empty'}
+                    <p className="text-gray-600 font-semibold">
+                        {filter === 'vip' ? 'No VIP creator mentions in this view' :
+                         filter === 'urgent' ? 'No urgent complaints detected' :
+                         filter === 'unread' ? 'No unread messages' : 'Your inbox is clear'}
                     </p>
-                    <p className="text-gray-400 text-sm mt-1">Click Sync now to fetch the latest mentions</p>
+                    <p className="text-gray-400 text-xs mt-1">Click Sync now to fetch real-time mentions</p>
                 </div>
             ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                     {messages.map(msg => (
                         <div key={msg.id}
-                            className={`bg-white rounded-xl border p-4 transition-colors ${msg.is_read ? 'border-gray-200' : 'border-indigo-200 bg-indigo-50/30'}`}>
+                            className={`bg-white rounded-xl border p-4 transition-all shadow-2xs ${
+                                msg.is_urgent ? 'border-rose-300 bg-rose-50/20' :
+                                msg.is_vip ? 'border-amber-300 bg-amber-50/20' :
+                                msg.is_read ? 'border-gray-200' : 'border-indigo-200 bg-indigo-50/20'
+                            }`}>
                             <div className="flex items-start gap-3">
                                 <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-sm font-bold text-gray-500 shrink-0 overflow-hidden border border-gray-100">
                                     {msg.author_avatar ? (
@@ -157,54 +201,83 @@ export const UnifiedInbox: React.FC = () => {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="text-sm font-semibold text-gray-900">
+                                        <span className="text-sm font-bold text-gray-900">
                                             {msg.author_name ?? msg.author_handle ?? 'Unknown'}
                                         </span>
                                         {msg.author_handle && (
                                             <span className="text-xs text-gray-400">@{msg.author_handle}</span>
                                         )}
+
                                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1.5 uppercase ${PLATFORM_STYLE[msg.platform]?.bg ?? 'bg-gray-100'} ${PLATFORM_STYLE[msg.platform]?.text ?? 'text-gray-600'}`}>
                                             <PlatformIcon platform={msg.platform} size={12} />
                                             {msg.platform} · {msg.type}
                                         </span>
+
+                                        {/* VIP Creator Badge */}
+                                        {msg.is_vip && (
+                                            <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-300">
+                                                <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> VIP Influencer
+                                            </span>
+                                        )}
+
+                                        {/* Urgent / Negative Complaint Badge */}
+                                        {msg.is_urgent && (
+                                            <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-rose-300">
+                                                <AlertCircle className="w-3 h-3 text-rose-600" /> Urgent Attention
+                                            </span>
+                                        )}
+
                                         {!msg.is_read && (
-                                            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                                            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse ml-1" />
                                         )}
                                         <span className="ml-auto text-xs text-gray-400">
                                             {msg.published_at ? new Date(msg.published_at).toLocaleDateString() : ''}
                                         </span>
                                     </div>
+
                                     <p className="text-sm text-gray-700 mt-2 leading-relaxed">{msg.content}</p>
                                     
-                                    <div className="flex items-center gap-3 mt-4">
+                                    <div className="flex items-center gap-2.5 mt-3.5 flex-wrap">
                                         {msg.url && (
                                             <a href={msg.url} target="_blank" rel="noopener noreferrer"
-                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200">
-                                                <ExternalLink className="w-3.5 h-3.5" /> View original
+                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200">
+                                                <ExternalLink className="w-3 h-3" /> View original
                                             </a>
                                         )}
+
+                                        {/* 1-Click Convert to Lead */}
+                                        <button
+                                            onClick={() => handleConvertToLead(msg)}
+                                            disabled={savedLeads[msg.id]}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors border ${
+                                                savedLeads[msg.id] 
+                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
+                                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                                            }`}>
+                                            {savedLeads[msg.id] ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <UserPlus className="w-3.5 h-3.5 text-indigo-600" />}
+                                            {savedLeads[msg.id] ? 'Saved to Leads' : 'Add to Leads'}
+                                        </button>
                                         
                                         <button 
                                             onClick={async () => {
-                                                const id = toast.loading('Generating magic reply...');
+                                                const id = toast.loading('Generating smart reply...');
                                                 try {
                                                     const { data } = await api.post('/ai/reply', {
                                                         messageContent: msg.content,
                                                         platform: msg.platform
                                                     });
-                                                    // Navigate to studio with the draft
                                                     navigate('/studio', { 
                                                         state: { 
                                                             initialContent: data.content,
                                                             initialPlatform: msg.platform
                                                         } 
                                                     });
-                                                    toast.success('Reply draft ready!', { id });
+                                                    toast.success('Reply draft ready in Studio!', { id });
                                                 } catch {
                                                     toast.error('Failed to generate reply', { id });
                                                 }
                                             }}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-linear-to-r from-indigo-600 to-purple-600 text-white text-xs font-bold rounded-lg hover:opacity-90 transition-opacity shadow-sm"
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-linear-to-r from-indigo-600 to-purple-600 text-white text-xs font-bold rounded-lg hover:opacity-90 transition-opacity shadow-xs"
                                         >
                                             <Sparkles className="w-3.5 h-3.5" /> Magic Reply
                                         </button>
