@@ -44,6 +44,24 @@ export const resolveWorkspace = async (
             if (defaultWs.length > 0) {
                 req.workspaceId   = defaultWs[0].workspace_id;
                 req.workspaceRole = defaultWs[0].role;
+            } else {
+                // Auto-provision a default workspace on first workspace-scoped request
+                const wsSlug = `ws-${req.user.userId.slice(0, 8)}-${Date.now().toString(36)}`;
+                const created = await db.query(
+                    `INSERT INTO workspaces (name, slug, owner_id)
+                     VALUES ('My Workspace', $1, $2) RETURNING id`,
+                    [wsSlug, req.user.userId]
+                );
+                if (created.rows[0]?.id) {
+                    const newWsId = created.rows[0].id as string;
+                    await db.query(
+                        `INSERT INTO workspace_members (workspace_id, user_id, role)
+                         VALUES ($1, $2, 'owner') ON CONFLICT DO NOTHING`,
+                        [newWsId, req.user.userId]
+                    );
+                    req.workspaceId   = newWsId;
+                    req.workspaceRole = 'owner';
+                }
             }
             next();
             return;
