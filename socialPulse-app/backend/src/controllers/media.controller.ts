@@ -76,8 +76,16 @@ export const listMedia = async (req: Request, res: Response): Promise<void> => {
             sort  = 'newest',
         } = req.query as Record<string, string>;
 
-        const conditions: string[] = ['user_id = $1', 'is_deleted = false', (req as any).workspaceId ? 'workspace_id = $2' : 'workspace_id IS NULL'];
-        const params: any[]        = [userId, (req as any).workspaceId || null];
+        const workspaceId = (req as any).workspaceId || null;
+        const conditions: string[] = ['user_id = $1', 'is_deleted = false'];
+        const params: any[]        = [userId];
+
+        if (workspaceId) {
+            params.push(workspaceId);
+            conditions.push(`workspace_id = $${params.length}`);
+        } else {
+            conditions.push('workspace_id IS NULL');
+        }
 
         if (folder) {
             params.push(folder);
