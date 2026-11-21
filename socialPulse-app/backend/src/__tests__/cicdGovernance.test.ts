@@ -645,6 +645,27 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(composeMigrateContent).not.toContain('SOCIALPULSE_FRONTEND_IMAGE');
         });
 
+        it('Staging infrastructure, application and migration services share the same network', () => {
+            const yaml = require('js-yaml');
+            const OverrideSeq = new yaml.Type('!override', { kind: 'sequence', construct: (data: any) => data });
+            const OverrideMap = new yaml.Type('!override', { kind: 'mapping', construct: (data: any) => data });
+            const OverrideScalar = new yaml.Type('!override', { kind: 'scalar', construct: (data: any) => data });
+            const COMPOSE_SCHEMA = new yaml.Schema({ include: [yaml.DEFAULT_SCHEMA], explicit: [OverrideSeq, OverrideMap, OverrideScalar] });
+            const staging = yaml.load(composeStagingContent, { schema: COMPOSE_SCHEMA });
+            const infra = yaml.load(composeInfraContent);
+            const migration = yaml.load(composeMigrateContent);
+
+            expect(infra.networks.staging_net).toEqual(staging.networks.staging_net);
+            expect(infra.networks.staging_net.name).toBe('socialpulse-staging_net');
+            for (const service of ['postgres', 'redis']) {
+                expect(infra.services[service].networks).toEqual(['staging_net']);
+                expect(staging.services[service].networks).toEqual(['staging_net']);
+            }
+            expect(migration.services.migrate.networks).toEqual(['staging_net']);
+            expect(staging.services.server.networks).toEqual(['staging_net']);
+            expect(staging.services.migrate.networks).toEqual(['staging_net']);
+        });
+
         it('Control 56: Staging application ports are bound to loopback only (127.0.0.1) and databases are not exposed using !override semantics', () => {
             expect(composeStagingContent).toContain('"127.0.0.1:3001:3000"');
             expect(composeStagingContent).toContain('"127.0.0.1:8081:3000"');
@@ -721,6 +742,7 @@ describe('CI/CD Governance, Workflow Schema, Release-Manifest Binding & Fail-Clo
             expect(bootstrapInfraContent).toContain('docker inspect socialpulse-staging-postgres-1');
             expect(bootstrapInfraContent).toContain('docker volume inspect socialpulse-staging_postgres_data');
             expect(bootstrapInfraContent).toContain('docker network inspect socialpulse-staging_default');
+            expect(bootstrapInfraContent).toContain('docker network inspect socialpulse-staging_net');
         });
 
         it('Control 62: Non-sourcing environment parser verifies assignments, rejects duplicate active assignments, enforces NODE_ENV=production and leaks zero secrets', () => {
