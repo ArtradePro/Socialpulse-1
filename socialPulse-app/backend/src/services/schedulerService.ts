@@ -6,6 +6,7 @@ import { TwitterService } from './twitterService';
 import { InstagramService } from './instagramService';
 import { LinkedInService } from './linkedinService';
 import { FacebookService } from './facebookService';
+import { TikTokService } from './tiktokService';
 
 const redisOpts = {
   redis: {
@@ -45,6 +46,9 @@ schedulerQueue.process('publish', async (job) => {
         break;
       case 'facebook':
         await FacebookService.publishPost(account, post.content, post.media_urls ?? []);
+        break;
+      case 'tiktok':
+        await TikTokService.publishPost(account, post.content, post.media_urls ?? []);
         break;
     }
     await ScheduleModel.updateStatus(scheduleId, 'published');

@@ -1,0 +1,41 @@
+# ==============================================================================
+# PRIVATE PARALLAX MEDIA ENGINE SIDECAR (STAGING / VPS)
+# Runs strictly inside the private socialpulse-staging_net bridge network
+# (no public ports exposed to the internet).
+# SocialPulse backend reaches it internally via: PARALLAX_URL=http://parallax:3000
+# ==============================================================================
+name: socialpulse-parallax
+
+services:
+  parallax:
+    image: ${PARALLAX_IMAGE:-socialpulse-parallax:latest}
+    container_name: socialpulse-staging-parallax-1
+    restart: unless-stopped
+    privileged: false
+    security_opt:
+      - no-new-privileges:true
+    ports: [] # Strictly private — internal bridge network only
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      PARALLAX_DATA_DIR: /app/data
+      PARALLAX_DEMO_BILLING: "off"
+      PARALLAX_GUESTS_PER_HOUR: "0"
+      PARALLAX_SIGNUPS_PER_HOUR: "0"
+      TREG_MODE: ${TREG_MODE:-mock}
+      TREG_TOKEN: ${TREG_TOKEN:-}
+      TREG_DAILY_BUDGET_USD: ${TREG_DAILY_BUDGET_USD:-5}
+    volumes:
+      - parallax_data:/app/data
+    networks:
+      staging_net:
+        aliases:
+          - parallax
+
+volumes:
+  parallax_data:
+
+networks:
+  staging_net:
+    external: true
+    name: socialpulse-staging_net
