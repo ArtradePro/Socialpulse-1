@@ -1,7 +1,7 @@
 // server/src/config/plans.ts
 // Canonical plan configuration — single source of truth for limits & billing
 
-export type PlanId = 'free' | 'starter' | 'pro' | 'enterprise';
+export type PlanId = 'free' | 'pro' | 'enterprise';
 
 export interface PlanLimits {
     socialAccounts:    number | 'unlimited';
@@ -60,40 +60,13 @@ export const PLANS: Record<PlanId, Plan> = {
         },
     },
 
-    starter: {
-        id:           'starter',
-        name:         'Starter',
-        tagline:      'For creators & solopreneurs',
-        monthlyPrice: 1900,
-        yearlyPrice:  18240,
-        stripePriceIds: {
-            monthly: process.env.STRIPE_PRICE_STARTER_MONTHLY ?? '',
-            yearly:  process.env.STRIPE_PRICE_STARTER_YEARLY  ?? '',
-        },
-        limits: {
-            socialAccounts:    5,
-            postsPerMonth:     100,
-            aiCreditsPerMonth: 50,
-            mediaFileSizeMB:   50,
-            mediaStorageMB:    1024,
-            teamMembers:       1,
-            workspaces:        3,
-            analyticsHistory:  30,
-            scheduling:        true,
-            bulkScheduling:    true,
-            customBranding:    false,
-            apiAccess:         false,
-            prioritySupport:   false,
-        },
-    },
-
     pro: {
         id:           'pro',
         name:         'Pro',
-        tagline:      'For growing teams',
+        tagline:      'Best for growing brands',
         badge:        'Most Popular',
-        monthlyPrice: 4900,
-        yearlyPrice:  47040,
+        monthlyPrice: 2900,
+        yearlyPrice:  27840,
         stripePriceIds: {
             monthly: process.env.STRIPE_PRICE_PRO_MONTHLY ?? '',
             yearly:  process.env.STRIPE_PRICE_PRO_YEARLY  ?? '',
@@ -119,8 +92,8 @@ export const PLANS: Record<PlanId, Plan> = {
         id:           'enterprise',
         name:         'Enterprise',
         tagline:      'For agencies & large teams',
-        monthlyPrice: 14900,
-        yearlyPrice:  143040,
+        monthlyPrice: 9900,
+        yearlyPrice:  95040,
         stripePriceIds: {
             monthly: process.env.STRIPE_PRICE_ENT_MONTHLY ?? '',
             yearly:  process.env.STRIPE_PRICE_ENT_YEARLY  ?? '',
@@ -145,8 +118,9 @@ export const PLANS: Record<PlanId, Plan> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Get a plan by its ID (defaults to free for unknown IDs) */
-export const getPlan = (id: PlanId): Plan => PLANS[id] ?? PLANS.free;
+/** Get a plan by its ID (maps legacy 'starter' to 'pro', defaults to free) */
+export const getPlan = (id: PlanId | string): Plan =>
+    PLANS[id as PlanId] ?? (id === 'starter' ? PLANS.pro : PLANS.free);
 
 /** Resolve a Stripe price ID back to a plan (monthly or yearly) */
 export const planByPriceId = (priceId: string): Plan | null => {

@@ -69,7 +69,7 @@ jobs:
         working-directory: socialPulse-app/backend
 
       - name: Run test suite with open handles detection
-        run: npx jest --runInBand --ci --detectOpenHandles
+        run: npx jest --runInBand --ci --detectOpenHandles --forceExit
         working-directory: socialPulse-app/backend
 
       - name: Verify TypeScript build

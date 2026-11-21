@@ -5,7 +5,8 @@ import { addAIJob } from '../services/queue.service';
 
 export const getConnectedAccounts = async (req: Request, res: Response): Promise<void> => {
   try {
-    const accounts = await SocialAccountModel.findByUser(req.user!.userId);
+    const workspaceId = (req as any).workspaceId as string | undefined;
+    const accounts = await SocialAccountModel.findByUser(req.user!.userId, workspaceId);
     res.json(accounts);
   } catch (err) {
     console.error('Get accounts error:', err);
@@ -16,7 +17,8 @@ export const getConnectedAccounts = async (req: Request, res: Response): Promise
 export const disconnectAccount = async (req: Request, res: Response): Promise<void> => {
   const { platform } = req.params;
   try {
-    await SocialAccountModel.disconnect(req.user!.userId, platform);
+    const workspaceId = (req as any).workspaceId as string | undefined;
+    await SocialAccountModel.disconnect(req.user!.userId, platform, workspaceId);
     res.status(204).send();
   } catch (err) {
     console.error('Disconnect error:', err);
@@ -37,9 +39,10 @@ export const getScheduledPosts = async (req: Request, res: Response): Promise<vo
 export const schedulePost = async (req: Request, res: Response): Promise<void> => {
   const { postId, platform, scheduledAt } = req.body;
   const userId = req.user!.userId;
+  const workspaceId = (req as any).workspaceId as string | undefined;
 
   try {
-    const account = await SocialAccountModel.findByUserAndPlatform(userId, platform);
+    const account = await SocialAccountModel.findByUserAndPlatform(userId, platform, workspaceId);
     if (!account) {
       res.status(400).json({ message: `No connected ${platform} account` });
       return;

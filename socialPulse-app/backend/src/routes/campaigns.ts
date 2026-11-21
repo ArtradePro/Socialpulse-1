@@ -5,12 +5,19 @@ import {
     listCampaigns, getCampaign,
     createCampaign, updateCampaign, deleteCampaign, generateMagicPlan
 } from '../controllers/campaignsController';
+import { getMatrixStatus, triggerMatrix, queueMatrix } from '../controllers/campaignMatrix.controller';
 import { resolveWorkspace } from '../middleware/workspace.middleware';
 
 const router = Router();
 
 router.use(authenticate);
 router.use(resolveWorkspace);
+
+// Autonomous Campaign Matrix routes
+router.get('/matrix/status', getMatrixStatus);
+router.post('/matrix/trigger', triggerMatrix);
+router.post('/matrix/queue', queueMatrix);
+
 router.get('/',      listCampaigns);
 router.post('/',     createCampaign);
 router.get('/:id',   getCampaign);

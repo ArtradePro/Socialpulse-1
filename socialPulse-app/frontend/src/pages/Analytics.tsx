@@ -37,13 +37,14 @@ const PLATFORMS: { value: Platform | 'all'; label: string; icon?: string }[] = [
 
 // ─── Tabs ──────────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'platforms' | 'posts' | 'audience';
+type Tab = 'overview' | 'platforms' | 'posts' | 'audience' | 'benchmarking';
 
 const TABS: { id: Tab; label: string }[] = [
-    { id: 'overview',  label: 'Overview'   },
-    { id: 'platforms', label: 'Platforms'  },
-    { id: 'posts',     label: 'Posts'      },
-    { id: 'audience',  label: 'Audience'   },
+    { id: 'overview',     label: 'Overview'   },
+    { id: 'benchmarking', label: 'Competitor Share of Voice' },
+    { id: 'platforms',    label: 'Platforms'  },
+    { id: 'posts',        label: 'Posts'      },
+    { id: 'audience',     label: 'Audience'   },
 ];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ const fmt = (n: number): string => {
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 import { AIInsightsCard } from '../components/analytics/AIInsightsCard';
+import { CompetitiveBenchmarking } from '../components/analytics/CompetitiveBenchmarking';
 
 const Analytics: React.FC = () => {
     const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -482,6 +484,11 @@ const Analytics: React.FC = () => {
                         loading={loading}
                     />
                 </div>
+            )}
+
+            {/* BENCHMARKING (SHARE OF VOICE) */}
+            {activeTab === 'benchmarking' && (
+                <CompetitiveBenchmarking />
             )}
 
             {/* AUDIENCE */}

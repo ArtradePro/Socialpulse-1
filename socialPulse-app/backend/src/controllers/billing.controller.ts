@@ -254,23 +254,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
 
             // ── Payment succeeded ──────────────────────────────────────────
             case 'invoice.payment_succeeded': {
-                const invoice = event.data.object as any;
-                const subId   = invoice.subscription as string;
-                if (!subId) break;
-
-                const sub    = await getStripe().subscriptions.retrieve(subId);
-                const userId = sub.metadata.userId;
-                if (!userId) break;
-
-                // Refresh AI credits for the new billing period
-                const priceId = sub.items.data[0]?.price.id ?? '';
-                const plan    = planByPriceId(priceId);
-                if (plan && plan.limits.aiCreditsPerMonth !== 'unlimited') {
-                    await db.query(
-                        `UPDATE users SET ai_credits = $1 WHERE id = $2`,
-                        [plan.limits.aiCreditsPerMonth, userId]
-                    );
-                }
+                // Monthly AI & post quotas are tracked via usage_events per calendar month.
                 break;
             }
 
@@ -334,24 +318,32 @@ export const getBillingInfo = async (req: Request, res: Response): Promise<void>
       db.query(
         `SELECT
            (SELECT COUNT(*) FROM social_accounts WHERE user_id = $1 AND is_active = true)::int AS social_accounts,
-           (SELECT COUNT(*) FROM posts WHERE user_id = $1 AND created_at >= date_trunc('month', NOW()))::int AS posts_this_month,
-           (SELECT COALESCE(SUM(size_bytes), 0)::bigint FROM media_files WHERE user_id = $1) AS media_bytes,
-           (SELECT ai_credits FROM users WHERE id = $1) AS ai_credits`,
+           (SELECT COALESCE(SUM(quantity), 0) FROM usage_events
+            WHERE user_id = $1 AND event_type = 'post_published'
+              AND DATE_TRUNC('month', recorded_at) = DATE_TRUNC('month', NOW()))::int AS posts_this_month,
+           (SELECT COALESCE(SUM(size_bytes), 0)::bigint FROM media_files
+            WHERE user_id = $1 AND is_deleted = false) AS media_bytes,
+           (SELECT COALESCE(SUM(quantity), 0) FROM usage_events
+            WHERE user_id = $1 AND event_type = 'ai_credit_used'
+              AND DATE_TRUNC('month', recorded_at) = DATE_TRUNC('month', NOW()))::int AS ai_credits_used`,
         [userId],
       ),
     ]);
 
     const planKey  = (userRow.rows[0]?.plan ?? 'free') as PlanId;
-    const plan     = getPlan(planKey as PlanId);
+    const plan     = getPlan(planKey);
     const usage    = usageRows.rows[0];
 
     res.json({
       plan: {
-        key:         planKey,
-        name:        plan.name,
+        id:           plan.id,
+        key:          planKey,
+        name:         plan.name,
         monthlyPrice: plan.monthlyPrice,
-        badge:       plan.badge,
-        color:       plan.color,
+        yearlyPrice:  plan.yearlyPrice,
+        badge:        plan.badge,
+        color:        plan.color,
+        limits:       plan.limits,
       },
       limits: plan.limits,
       usage: {
@@ -360,7 +352,7 @@ export const getBillingInfo = async (req: Request, res: Response): Promise<void>
           limit: plan.limits.postsPerMonth,
         },
         aiCredits: {
-          used:  parseInt(usage.ai_credits ?? '0'),
+          used:  parseInt(usage.ai_credits_used ?? '0'),
           limit: plan.limits.aiCreditsPerMonth,
         },
         socialAccounts: {
@@ -373,42 +365,22 @@ export const getBillingInfo = async (req: Request, res: Response): Promise<void>
         },
       },
       allPlans: Object.entries(PLANS).map(([key, cfg]) => ({
+        id:             cfg.id,
         key,
-        name:     cfg.name,
-        monthlyPrice: cfg.monthlyPrice,
-        color:        cfg.color,
-        badge:        cfg.badge,
-        features:     cfg.features,
-        limits:   cfg.limits,
-        current:  key === planKey,
+        name:           cfg.name,
+        tagline:        cfg.tagline,
+        monthlyPrice:   cfg.monthlyPrice,
+        yearlyPrice:    cfg.yearlyPrice,
+        stripePriceIds: cfg.stripePriceIds,
+        color:          cfg.color,
+        badge:          cfg.badge,
+        features:       cfg.features,
+        limits:         cfg.limits,
+        current:        key === plan.id,
       })),
     });
   } catch (err) {
     console.error('[Billing] getBillingInfo error:', err);
     res.status(500).json({ message: 'Failed to load billing info' });
-  }
-};
-
-// ── Simulate plan upgrade (real Stripe integration wired in later) ─────────────
-
-export const upgradePlan = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const userId  = req.user!.userId;
-    const { plan } = req.body as { plan: string };
-
-    if (!PLANS[plan as PlanId]) {
-      res.status(400).json({ message: 'Invalid plan' });
-      return;
-    }
-
-    await db.query('UPDATE users SET plan = $1 WHERE id = $2', [plan, userId]);
-
-    res.json({
-      message: `Plan updated to ${PLANS[plan as PlanId].name}`,
-      plan,
-    });
-  } catch (err) {
-    console.error('[Billing] upgradePlan error:', err);
-    res.status(500).json({ message: 'Failed to update plan' });
   }
 };

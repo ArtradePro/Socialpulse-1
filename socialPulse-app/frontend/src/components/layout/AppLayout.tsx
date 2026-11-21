@@ -44,6 +44,7 @@ const navSections = [
             { path: '/hashtag-sets',  icon: Hash,        label: 'Hashtag Sets' },
             { path: '/templates',     icon: FileText,    label: 'Templates' },
             { path: '/image-gen',     icon: Sparkles,    label: 'Image Generator' },
+            { path: '/media-studio',  icon: Sparkles,    label: 'AI Media Studio' },
             { path: '/image-editor',  icon: Paintbrush,  label: 'Image Editor' },
             { path: '/ecommerce',     icon: ShoppingBag, label: 'E-commerce' },
             { path: '/storefront',    icon: Store,       label: 'Mobile Storefront' },
@@ -432,11 +433,6 @@ const AppLayout: React.FC = () => {
                             <span className="hidden sm:inline">Multiplayer</span>
                         </button>
 
-                        <div className="h-4 w-[1px] bg-gray-700" />
-                        
-                        <WorkspaceSwitcher />
-                        <NotificationBell />
-                        
                         <button
                             onClick={() => navigate('/studio')}
                             className="flex items-center gap-1 px-3 py-1.5 bg-[#8B5CF6] text-white rounded-lg text-xs font-extrabold hover:bg-opacity-95 shadow-md shadow-[#8B5CF6]/20 transition-all active:scale-[0.98]"

@@ -76,7 +76,7 @@ export const ImageGenerator: React.FC = () => {
         <div className="max-w-5xl mx-auto space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-gray-900">AI Image Generator</h1>
-                <p className="text-sm text-gray-500 mt-1">Generate custom images for your posts using DALL-E 3 · costs 2 AI credits</p>
+                <p className="text-sm text-gray-500 mt-1">Generate custom images for your posts using Google Imagen · costs 2 AI credits</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

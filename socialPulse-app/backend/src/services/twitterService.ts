@@ -6,12 +6,14 @@ export class TwitterService {
         content: string,
         mediaUrls: string[]
     ): Promise<string> {
-        const client = new TwitterApi({
-            appKey: process.env.TWITTER_API_KEY!,
-            appSecret: process.env.TWITTER_API_SECRET!,
-            accessToken: account.access_token,
-            accessSecret: account.access_secret,
-        });
+        const client = (account.access_secret && process.env.TWITTER_API_KEY)
+            ? new TwitterApi({
+                appKey: process.env.TWITTER_API_KEY!,
+                appSecret: process.env.TWITTER_API_SECRET!,
+                accessToken: account.access_token,
+                accessSecret: account.access_secret,
+            })
+            : new TwitterApi(account.access_token);
 
         let mediaIds: string[] = [];
 

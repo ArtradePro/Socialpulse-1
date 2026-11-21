@@ -107,5 +107,40 @@ export const storefrontService = {
     }) => {
         const { data } = await api.post<SalesOrder>('/storefront/public/checkout', checkoutData);
         return data;
+    },
+
+    submitWhatsAppOrder: async (orderData: {
+        sales_page_id: string;
+        customer_name: string;
+        customer_phone: string;
+        customer_email?: string;
+        delivery_address?: string;
+        notes?: string;
+        variant_used?: 'A' | 'B';
+    }) => {
+        const { data } = await api.post<{ order: any; whatsappUrl: string; message: string }>(
+            '/storefront/public/whatsapp-order', 
+            orderData
+        );
+        return data;
+    },
+
+    trackCartPing: async (pingData: {
+        sales_page_id: string;
+        customer_phone?: string;
+        customer_email?: string;
+        customer_name?: string;
+        step?: string;
+    }) => {
+        const { data } = await api.post<{ recorded: boolean; customerId?: string }>(
+            '/storefront/public/cart-ping', 
+            pingData
+        );
+        return data;
+    },
+
+    getAbandonedCarts: async () => {
+        const { data } = await api.get<any[]>('/storefront/abandoned-carts');
+        return data;
     }
 };

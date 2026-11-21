@@ -83,5 +83,136 @@ export const adService = {
     }) => {
         const { data } = await api.post<{ adCopy: string; headline: string }>('/ai/generate-ad-creative', creativeParams);
         return data;
+    },
+
+    urlToCampaign: async (url: string) => {
+        const { data } = await api.post<GeneratedCampaignResult>('/ads/url-to-campaign', { url });
+        return data;
+    },
+
+    generateBannerBatch: async (batchData: {
+        imageUrl?: string;
+        productTitle: string;
+        headline: string;
+        subheadline?: string;
+        priceText?: string;
+        isFNM?: boolean;
+    }) => {
+        const { data } = await api.post<BatchBannerResponse>('/ads/banner-batch', batchData);
+        return data;
+    },
+
+    getAutoPilotStatus: async () => {
+        const { data } = await api.get<AutoPilotStatusResponse>('/ads/autopilot/status');
+        return data;
+    },
+
+    updateAutoPilotConfig: async (config: Partial<AutoPilotConfigData>) => {
+        const { data } = await api.post<{ message: string; config: AutoPilotConfigData }>('/ads/autopilot/config', config);
+        return data;
+    },
+
+    runAutoPilotNow: async () => {
+        const { data } = await api.post<{
+            status: string;
+            evaluatedCount: number;
+            pausedCount: number;
+            scaledCount: number;
+            interventions: any[];
+        }>('/ads/autopilot/run');
+        return data;
     }
 };
+
+export interface AutoPilotConfigData {
+    enabled: boolean;
+    maxTargetCpa: number;
+    minCtrThreshold: number;
+    minImpressionsBeforePause: number;
+    autoScaleWinners: boolean;
+    scaleBudgetPercent: number;
+}
+
+export interface AutoPilotInterventionItem {
+    id: string;
+    action: 'PAUSED' | 'SCALED' | 'MAINTAINED';
+    campaignId: string;
+    campaignName: string;
+    reason: string;
+    metrics: {
+        spend: number;
+        impressions: number;
+        clicks: number;
+        conversions: number;
+        ctr: number;
+        cpa: number;
+    };
+    timestamp: string;
+}
+
+export interface AutoPilotStatusResponse {
+    config: AutoPilotConfigData;
+    interventions: AutoPilotInterventionItem[];
+}
+
+export interface UGCScriptScene {
+    sceneNumber: number;
+    type: 'HOOK' | 'PROBLEM_SOLUTION' | 'CTA';
+    durationSeconds: number;
+    visualDirection: string;
+    spokenAudio: string;
+    captionText: string;
+    emphasisWord?: string;
+}
+
+export interface DirectResponseAdConcept {
+    style: 'takealot_review' | 'us_vs_them' | 'urgency_deal' | 'clinical_proof' | 'luxury_marble' | 'social_proof_tweet';
+    headline: string;
+    subheadline?: string;
+    badgeText?: string;
+    priceText?: string;
+    ctaText: string;
+    quoteText?: string;
+}
+
+export interface GeneratedCampaignResult {
+    product: {
+        url: string;
+        title: string;
+        description: string;
+        price?: string;
+        currency?: string;
+        imageUrl?: string;
+        brand?: string;
+        isFNM?: boolean;
+    };
+    videoScripts: {
+        title: string;
+        hook: string;
+        scenes: UGCScriptScene[];
+        totalDurationSeconds: number;
+    }[];
+    adConcepts: DirectResponseAdConcept[];
+    socialCopy: {
+        platform: string;
+        headline: string;
+        body: string;
+        callToAction: string;
+    }[];
+    targetAudience: string[];
+}
+
+export interface BatchBannerResponse {
+    count: number;
+    banners: {
+        id: string;
+        style: string;
+        styleTitle: string;
+        original_name: string;
+        url: string;
+        thumbnail_url: string;
+        width: number;
+        height: number;
+    }[];
+}
+

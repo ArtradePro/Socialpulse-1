@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { db } from '../config/database';
+import { adAutoPilotService } from '../services/adAutoPilot.service';
 
 export const initAdPerformanceJob = (): void => {
     // Run every 1 minute to simulate real-time ad performance updates for active campaigns
@@ -84,6 +85,9 @@ export const initAdPerformanceJob = (): void => {
                     }
                 }
             }
+
+            // Execute AI Auto-Pilot Stop-Loss and Winner-Scaling evaluation
+            await adAutoPilotService.evaluateActiveCampaigns();
         } catch (err) {
             console.error('[AdPerformance] cron error:', err);
         }

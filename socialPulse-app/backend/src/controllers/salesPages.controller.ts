@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { db, pool } from '../config/database';
 import { encryptSecret, decryptSecretWithDualRead, getSalesPageStripeKeyAAD } from '../utils/crypto';
+import { storefrontWhatsAppService } from '../services/storefrontWhatsApp.service';
 
 function sanitizeSalesPageRow(row: any): any {
     if (!row) return row;
@@ -760,5 +761,71 @@ export const listSalesOrders = async (req: Request, res: Response): Promise<void
     } catch (err) {
         console.error('[SalesPages] listSalesOrders error:', err);
         res.status(500).json({ message: 'Failed to load storefront orders' });
+    }
+};
+
+// Handle public WhatsApp order initiation
+export const handleWhatsAppOrder = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { sales_page_id, customer_name, customer_phone, customer_email, delivery_address, notes, variant_used } = req.body;
+        if (!sales_page_id || !customer_name || !customer_phone) {
+            res.status(400).json({ message: 'Sales page ID, name, and phone are required' });
+            return;
+        }
+
+        const result = await storefrontWhatsAppService.recordWhatsAppOrder({
+            sales_page_id,
+            customer_name,
+            customer_phone,
+            customer_email,
+            delivery_address,
+            notes,
+            variant_used
+        });
+
+        res.status(200).json(result);
+    } catch (err: any) {
+        console.error('[SalesPages] handleWhatsAppOrder error:', err);
+        res.status(500).json({ message: err.message || 'Failed to process WhatsApp order' });
+    }
+};
+
+// Handle public cart ping for abandonment tracking
+export const handleCartPing = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { sales_page_id, customer_phone, customer_email, customer_name, step } = req.body;
+        if (!sales_page_id) {
+            res.status(400).json({ message: 'Sales page ID is required' });
+            return;
+        }
+
+        const result = await storefrontWhatsAppService.recordCartPing({
+            sales_page_id,
+            customer_phone,
+            customer_email,
+            customer_name,
+            step
+        });
+
+        res.status(200).json(result);
+    } catch (err: any) {
+        console.error('[SalesPages] handleCartPing error:', err);
+        res.status(500).json({ message: err.message || 'Failed to record cart ping' });
+    }
+};
+
+// List abandoned carts for workspace
+export const listAbandonedCarts = async (req: Request, res: Response): Promise<void> => {
+    try {
+        if (!req.workspaceId) {
+            res.status(400).json({ message: 'Workspace context is required' });
+            return;
+        }
+
+        const carts = await storefrontWhatsAppService.getAbandonedCarts(req.workspaceId);
+        res.status(200).json(carts);
+    } catch (err: any) {
+        console.error('[SalesPages] listAbandonedCarts error:', err);
+        res.status(500).json({ message: 'Failed to fetch abandoned carts' });
     }
 };

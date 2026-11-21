@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { db } from '../config/database';
 import { StorageService } from '../services/storage.service';
 import { generateStaticBanner } from '../services/banner.service';
+import { adAutoPilotService } from '../services/adAutoPilot.service';
 
 // List ad campaigns
 export const listAdCampaigns = async (req: Request, res: Response): Promise<void> => {
@@ -343,5 +344,143 @@ export const renderUGCVideo = async (req: Request, res: Response): Promise<void>
     } catch (err: any) {
         console.error('[AdCampaigns] renderUGCVideo error:', err);
         res.status(500).json({ message: 'Failed to render UGC video ad' });
+    }
+};
+
+// 1-Click URL to Campaign Generator (Zeely-Style)
+export const urlToCampaign = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const workspaceId = req.workspaceId;
+        const { url } = req.body;
+
+        if (!url || typeof url !== 'string') {
+            res.status(400).json({ message: 'A valid product URL is required' });
+            return;
+        }
+
+        const { UrlToCampaignService } = await import('../services/marketing/urlToCampaign.service');
+        const scrapedProduct = await UrlToCampaignService.crawlProductUrl(url);
+        const campaign = await UrlToCampaignService.generateCampaignFromProduct(workspaceId || '', scrapedProduct);
+
+        res.json(campaign);
+    } catch (err: any) {
+        console.error('[AdCampaigns] urlToCampaign error:', err);
+        res.status(500).json({ message: 'Failed to generate campaign from URL' });
+    }
+};
+
+// 1-Click Batch Direct-Response Creative Banner Generator (6 Styles)
+export const generateAdBannerBatch = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const userId = (req as any).user?.userId;
+        const workspaceId = req.workspaceId;
+        const { imageUrl, productTitle, headline, subheadline, priceText, isFNM } = req.body;
+
+        if (!userId) {
+            res.status(401).json({ message: 'Unauthorized' });
+            return;
+        }
+
+        const { generateZeelyAdBatch } = await import('../services/banner.service');
+        const { StorageService } = await import('../services/storage.service');
+
+        const batchResults = await generateZeelyAdBatch({
+            imageUrl,
+            productTitle: productTitle || 'Special Promotion',
+            headline: headline || 'Limited Time Offer',
+            subheadline,
+            priceText,
+            isFNM: isFNM ?? false,
+            aspectRatio: '1:1'
+        });
+
+        const savedBanners: any[] = [];
+
+        for (const item of batchResults) {
+            const uploadRes = await StorageService.upload({
+                buffer: item.buffer,
+                originalName: `zeely_${item.style}_${Date.now()}.png`,
+                mimeType: item.mimeType,
+                userId,
+                folder: 'ads'
+            });
+
+            const { rows } = await db.query(
+                `INSERT INTO media_files
+                 (user_id, workspace_id, original_name, file_name, mime_type, size_bytes,
+                  width, height, provider, provider_id, url, thumbnail_url, folder)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+                 RETURNING *`,
+                [
+                    userId,
+                    workspaceId || null,
+                    item.title,
+                    uploadRes.fileName,
+                    uploadRes.mimeType,
+                    uploadRes.sizeByte,
+                    uploadRes.width,
+                    uploadRes.height,
+                    uploadRes.provider,
+                    uploadRes.providerId,
+                    uploadRes.url,
+                    uploadRes.thumbnailUrl || uploadRes.url,
+                    'ads'
+                ]
+            );
+
+            savedBanners.push({
+                ...rows[0],
+                style: item.style,
+                styleTitle: item.title
+            });
+        }
+
+        res.status(201).json({
+            count: savedBanners.length,
+            banners: savedBanners
+        });
+    } catch (err: any) {
+        console.error('[AdCampaigns] generateAdBannerBatch error:', err);
+        res.status(500).json({ message: 'Failed to generate ad banner batch' });
+    }
+};
+
+// Get AI Auto-Pilot status and intervention history
+export const getAutoPilotStatus = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const config = adAutoPilotService.getConfig();
+        const interventions = adAutoPilotService.getInterventions(25);
+        res.status(200).json({ config, interventions });
+    } catch (err: any) {
+        console.error('[AdCampaigns] getAutoPilotStatus error:', err);
+        res.status(500).json({ message: 'Failed to load Auto-Pilot status' });
+    }
+};
+
+// Update AI Auto-Pilot configuration
+export const updateAutoPilotConfig = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { enabled, maxTargetCpa, minCtrThreshold, autoScaleWinners } = req.body;
+        const updated = adAutoPilotService.updateConfig({
+            ...(enabled !== undefined ? { enabled: Boolean(enabled) } : {}),
+            ...(maxTargetCpa !== undefined ? { maxTargetCpa: parseFloat(maxTargetCpa) } : {}),
+            ...(minCtrThreshold !== undefined ? { minCtrThreshold: parseFloat(minCtrThreshold) } : {}),
+            ...(autoScaleWinners !== undefined ? { autoScaleWinners: Boolean(autoScaleWinners) } : {})
+        });
+        res.status(200).json({ message: 'Auto-Pilot configuration updated', config: updated });
+    } catch (err: any) {
+        console.error('[AdCampaigns] updateAutoPilotConfig error:', err);
+        res.status(500).json({ message: 'Failed to update Auto-Pilot configuration' });
+    }
+};
+
+// Manually trigger an immediate Auto-Pilot evaluation cycle
+export const triggerAutoPilotEvaluation = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const result = await adAutoPilotService.evaluateActiveCampaigns(req.workspaceId);
+        res.status(200).json(result);
+    } catch (err: any) {
+        console.error('[AdCampaigns] triggerAutoPilotEvaluation error:', err);
+        res.status(500).json({ message: 'Failed to execute Auto-Pilot evaluation' });
     }
 };

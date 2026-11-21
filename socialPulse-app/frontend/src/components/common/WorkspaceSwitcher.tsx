@@ -38,7 +38,6 @@ export const WorkspaceSwitcher: React.FC = () => {
     const handleSwitch = (id: string) => {
         dispatch(switchWorkspace(id));
         setOpen(false);
-        navigate(0); // trigger React Router reload without full page refresh
     };
 
     if (loading && workspaces.length === 0) return null;
@@ -47,7 +46,7 @@ export const WorkspaceSwitcher: React.FC = () => {
         <div ref={ref} className="relative">
             <button
                 onClick={() => setOpen(o => !o)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700 max-w-[180px]"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700 max-w-[200px]"
             >
                 <Building2 className="w-4 h-4 text-indigo-500 shrink-0" />
                 <span className="truncate">{active?.name ?? 'No workspace'}</span>
@@ -55,10 +54,11 @@ export const WorkspaceSwitcher: React.FC = () => {
             </button>
 
             {open && (
-                <div className="absolute right-0 mt-1 w-56 bg-white rounded-2xl border border-gray-200 shadow-lg z-50 py-1.5 overflow-hidden">
+                <div className="absolute right-0 mt-1 w-64 bg-white rounded-2xl border border-gray-200 shadow-xl z-50 py-1.5 overflow-hidden">
                     <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
                         Your workspaces
                     </p>
+                    <div className="max-h-72 overflow-y-auto">
                     {workspaces.map(ws => (
                         <button
                             key={ws.id}
@@ -74,6 +74,7 @@ export const WorkspaceSwitcher: React.FC = () => {
                             )}
                         </button>
                     ))}
+                    </div>
                     <div className="border-t border-gray-100 mt-1 pt-1">
                         <button
                             onClick={() => { setOpen(false); navigate('/workspaces?new=1'); }}
