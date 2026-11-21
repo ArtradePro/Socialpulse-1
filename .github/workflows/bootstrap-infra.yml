@@ -203,8 +203,9 @@ jobs:
           fi
 
           # 3. Verify no conflicting project network
-          if docker network inspect socialpulse-staging_default &>/dev/null; then
-            echo "ERROR: Pre-existing network 'socialpulse-staging_default' detected on host."
+          if docker network inspect socialpulse-staging_default &>/dev/null || \
+             docker network inspect socialpulse-staging_net &>/dev/null; then
+            echo "ERROR: Pre-existing staging project network detected on host."
             exit 1
           fi
 
