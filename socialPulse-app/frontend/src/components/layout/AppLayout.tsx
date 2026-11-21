@@ -44,6 +44,7 @@ const navSections = [
             { path: '/hashtag-sets',  icon: Hash,        label: 'Hashtag Sets' },
             { path: '/templates',     icon: FileText,    label: 'Templates' },
             { path: '/image-gen',     icon: Sparkles,    label: 'Image Generator' },
+            { path: '/media-studio',  icon: Sparkles,    label: 'AI Media Studio' },
             { path: '/image-editor',  icon: Paintbrush,  label: 'Image Editor' },
             { path: '/ecommerce',     icon: ShoppingBag, label: 'E-commerce' },
             { path: '/storefront',    icon: Store,       label: 'Mobile Storefront' },

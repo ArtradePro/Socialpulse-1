@@ -9,7 +9,6 @@ import {
     getUsageSummary,
     handleStripeWebhook,
     getBillingInfo,
-    upgradePlan,
 } from '../controllers/billing.controller';
 
 const router = Router();
@@ -29,6 +28,5 @@ router.post('/portal',       createPortalSession);
 router.get ('/subscription', getSubscription);
 router.get ('/usage',        getUsageSummary);
 router.get ('/',             getBillingInfo);
-router.post('/plan',         upgradePlan);
 
 export default router;

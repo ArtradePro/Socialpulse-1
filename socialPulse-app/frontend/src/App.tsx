@@ -30,6 +30,7 @@ const AcceptInvite     = lazy(() => import('./pages/AcceptInvite'));
 const RssFeeds         = lazy(() => import('./pages/RssFeeds').then(m => ({ default: m.RssFeeds })));
 const ApiKeys          = lazy(() => import('./pages/ApiKeys').then(m => ({ default: m.ApiKeys })));
 const ImageGenerator   = lazy(() => import('./pages/ImageGenerator').then(m => ({ default: m.ImageGenerator })));
+const MediaStudio      = lazy(() => import('./pages/MediaStudio').then(m => ({ default: m.MediaStudio })));
 const SocialListening  = lazy(() => import('./pages/SocialListening').then(m => ({ default: m.SocialListening })));
 const UnifiedInbox     = lazy(() => import('./pages/UnifiedInbox').then(m => ({ default: m.UnifiedInbox })));
 const Referrals        = lazy(() => import('./pages/Referrals').then(m => ({ default: m.Referrals })));
@@ -91,6 +92,7 @@ const App: React.FC = () => {
                             <Route path="rss"        element={<RssFeeds />} />
                             <Route path="api-keys"   element={<ApiKeys />} />
                             <Route path="image-gen"  element={<ImageGenerator />} />
+                            <Route path="media-studio" element={<MediaStudio />} />
                             <Route path="listening"  element={<SocialListening />} />
                             <Route path="inbox"      element={<UnifiedInbox />} />
                             <Route path="referrals"    element={<Referrals />} />

@@ -94,7 +94,7 @@ app.use(cors({
         }
         
         console.warn(`CORS blocked for origin: ${origin}`);
-        callback(null, false);
+        callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
 }));
